@@ -16,15 +16,15 @@ Agentic loop system for building Manim animations iteratively with synchronized 
 ## Quick Start
 
 ```bash
-cd ~/IdeaProjects/flaming-horse/incremental_builder
+cd ~/IdeaProjects/flaming-horse
 
 # 1. Create a new project
-scripts/new_project.sh my_video
+./scripts/new_project.sh my_video
 
 # 2. Configure agent in scripts/build_video.sh (edit invoke_agent function)
 
 # 3. Run the build
-scripts/build_video.sh projects/my_video
+./scripts/build_video.sh projects/my_video
 ```
 
 ## Project Structure
@@ -42,12 +42,12 @@ projects/my_video/
 
 ## Project Organization
 
-**Default Location**: Projects are created in `./projects/<project_name>/` relative to the `incremental_builder/` directory.
+**Default Location**: Projects are created in `./projects/<project_name>/` relative to the repository root.
 
 **Custom Location**: To use a different location:
 ```bash
-scripts/new_project.sh my_video /path/to/custom/location
-scripts/build_video.sh /path/to/custom/location/my_video
+./scripts/new_project.sh my_video /path/to/custom/location
+./scripts/build_video.sh /path/to/custom/location/my_video
 ```
 
 **Recommended structure**:
@@ -60,8 +60,8 @@ scripts/build_video.sh /path/to/custom/location/my_video
 
 Create projects with:
 ```bash
-scripts/new_project.sh gravity_anomalies ~/manim_projects
-scripts/build_video.sh ~/manim_projects/gravity_anomalies
+./scripts/new_project.sh gravity_anomalies ~/manim_projects
+./scripts/build_video.sh ~/manim_projects/gravity_anomalies
 ```
 
 ## State Machine Flow
@@ -80,15 +80,15 @@ export ELEVENLABS_API_KEY="your_key"
 
 ## Helper Scripts
 
-- `scripts/new_project.sh <name> [location]` — Create new project
-- `scripts/reset_phase.sh <project_dir> <phase>` — Reset to specific phase
-- `scripts/validate_scaffold.sh` — Validate installation
+- `./scripts/new_project.sh <name> [location]` — Create new project
+- `./scripts/reset_phase.sh <project_dir> <phase>` — Reset to specific phase
+- `./scripts/validate_scaffold.sh` — Validate installation
 
-**Note**: Projects must be created with `scripts/new_project.sh` before running `scripts/build_video.sh`. The `init` phase is not used in the build loop.
+**Note**: Projects must be created with `./scripts/new_project.sh` before running `./scripts/build_video.sh`. The `init` phase is not used in the build loop.
 
 ## Configuration
 
-Edit `scripts/build_video.sh` → `invoke_agent()` function to integrate your AI agent.
+Edit `./scripts/build_video.sh` → `invoke_agent()` function to integrate your AI agent.
 
 Voice: `rBgRd5IfS6iqrGfuhlKR` (ElevenLabs)
 Model: `eleven_multilingual_v2`
