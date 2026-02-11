@@ -1,0 +1,72 @@
+{
+  "title": "Understanding Gravity Anomalies",
+  "topic_summary": "Introduction to gravity anomalies and the Bouguer correction for undergraduate geophysics students",
+  "target_audience": "Undergraduate geophysics students",
+  "estimated_duration_seconds": 210,
+  "total_estimated_words": 525,
+  "scenes": [
+    {
+      "id": "scene_01_intro",
+      "title": "What Are Gravity Anomalies?",
+      "narration_key": "intro",
+      "narration_summary": "Hook with surprising gravity fact, introduce topic",
+      "estimated_words": 75,
+      "estimated_duration": "30s",
+      "animations": [
+        "Write title",
+        "FadeIn earth graphic",
+        "Highlight gravity variations"
+      ],
+      "complexity": "low",
+      "risk_flags": []
+    },
+    {
+      "id": "scene_02_bouguer",
+      "title": "The Bouguer Correction",
+      "narration_key": "bouguer_correction",
+      "narration_summary": "Explain formula with visual terrain cross-section",
+      "estimated_words": 150,
+      "estimated_duration": "60s",
+      "animations": [
+        "Draw terrain cross-section",
+        "Write formula: Δg_B = Δg_obs - 2πGρh",
+        "Highlight each variable",
+        "Animate density effect"
+      ],
+      "complexity": "medium",
+      "risk_flags": [
+        "Complex terrain graphic may need positioning adjustment"
+      ]
+    },
+    {
+      "id": "scene_03_applications",
+      "title": "Real-World Applications",
+      "narration_key": "applications",
+      "narration_summary": "Show practical uses in mineral exploration and engineering",
+      "estimated_words": 180,
+      "estimated_duration": "72s",
+      "animations": [
+        "Show map with gravity anomaly overlay",
+        "Highlight mineral deposit detection",
+        "Transition to engineering site example"
+      ],
+      "complexity": "medium",
+      "risk_flags": []
+    },
+    {
+      "id": "scene_04_conclusion",
+      "title": "Wrap Up",
+      "narration_key": "conclusion",
+      "narration_summary": "Recap key points, call to action",
+      "estimated_words": 120,
+      "estimated_duration": "48s",
+      "animations": [
+        "Recap formula",
+        "Show key takeaways",
+        "Display call to action"
+      ],
+      "complexity": "low",
+      "risk_flags": []
+    }
+  ]
+}

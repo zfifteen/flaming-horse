@@ -1,0 +1,20 @@
+"""
+Voice configuration for ElevenLabs TTS
+LOCKED - Do not modify after narration phase
+
+This file is imported by all scene files to ensure consistent voice settings.
+"""
+
+from elevenlabs import VoiceSettings
+
+# LOCKED CONFIGURATION - DO NOT MODIFY
+VOICE_ID = "rBgRd5IfS6iqrGfuhlKR"
+MODEL_ID = "eleven_multilingual_v2"
+
+# Voice settings (adjust during narration phase only)
+VOICE_SETTINGS = VoiceSettings(
+    stability=0.5,           # 0-1: Higher = more consistent but less expressive
+    similarity_boost=0.75,   # 0-1: Higher = closer to original voice sample
+    style=0.0,               # 0-1: Style exaggeration (use 0 for technical content)
+    use_speaker_boost=True   # Enhance clarity and consistency
+)

@@ -1,0 +1,163 @@
+"""
+Manim Community Edition Template
+Optimized for proper framing and high-quality output
+
+Usage:
+1. Copy this template as your starting point for new scenes
+2. Replace YourSceneName with your actual scene name
+3. Add your visualization code in the construct() method
+
+Render with: manim <filename>.py YourSceneName
+
+For narrated scenes, see manim_voiceover.md and the Manim Content Pipeline
+(manim_content_pipeline.md) for the VoiceoverScene variant of this template.
+"""
+
+from manim import *
+import numpy as np
+
+# ============================================================================
+# OPTIMIZED CONFIGURATION - DO NOT MODIFY THESE VALUES
+# ============================================================================
+config.frame_height = 10        # Moderate zoom out (25% larger than default 8)
+config.frame_width = 10 * 16/9  # Maintains 16:9 aspect ratio (~17.78)
+config.pixel_height = 1440      # High quality 1440p resolution
+config.pixel_width = 2560       # Crisp text and graphics
+# ============================================================================
+
+
+def safe_position(mobject, max_y=4.0, min_y=-4.0):
+    """
+    Clamp mobject to safe vertical zone to prevent clipping.
+
+    Args:
+        mobject: The Manim mobject to check and adjust
+        max_y: Maximum safe y-coordinate (default 4.0)
+        min_y: Minimum safe y-coordinate (default -4.0)
+
+    Returns:
+        The adjusted mobject (for chaining)
+    """
+    top = mobject.get_top()[1]
+    bottom = mobject.get_bottom()[1]
+
+    if top > max_y:
+        mobject.shift(DOWN * (top - max_y))
+    elif bottom < min_y:
+        mobject.shift(UP * (min_y - bottom))
+
+    return mobject
+
+
+class YourSceneName(Scene):
+    """
+    Replace this class name with your scene name.
+    Add your visualization logic in construct().
+    """
+
+    # POSITIONING GUIDELINES (CRITICAL):
+    # 1. For titles/headers: Use .move_to(UP * y) with y between 3.5 and 4.0
+    # 2. NEVER use .to_edge(UP, buff=...) - it places content too close to frame edge
+    # 3. When using .next_to() chains, ALWAYS validate with safe_position()
+    # 4. Bottom content: .to_edge(DOWN) is safer than top positioning
+    # 5. Safe coordinate bounds: horizontal +/-7, vertical +/-4
+
+    def construct(self):
+        # Example: Title sequence with safe positioning
+        title = Text("Your Scene Title", font_size=48, weight=BOLD)
+        subtitle = Text("Your Subtitle Here", font_size=32, color=BLUE)
+        subtitle.next_to(title, DOWN, buff=0.3)
+
+        title_group = VGroup(title, subtitle).move_to(ORIGIN)
+
+        self.play(Write(title_group))
+        self.wait(1)
+
+        # Move to top with absolute positioning (SAFE METHOD)
+        title_group.generate_target()
+        title_group.target.scale(0.6).move_to(UP * 3.8)
+        self.play(MoveToTarget(title_group))
+
+        # Section title with validation
+        section_title = Text("Section Title", font_size=36, color=YELLOW)
+        section_title.next_to(title_group, DOWN, buff=0.5)
+
+        # CRITICAL: Validate position after .next_to()
+        safe_position(section_title)
+
+        self.play(Write(section_title))
+        self.wait()
+
+        # Shape example with explicit positioning
+        box = Rectangle(width=4, height=3, color=GREEN, fill_opacity=0.2)
+        box.move_to(ORIGIN)
+        self.play(Create(box))
+        self.wait()
+
+        # Math example
+        formula = MathTex(r"E = mc^2", font_size=48, color=GOLD)
+        formula.move_to(ORIGIN)
+        self.play(Transform(box, formula))
+        self.wait()
+
+        # Clean up
+        self.play(FadeOut(section_title), FadeOut(box))
+        self.wait()
+
+
+class SafePositioningExample(Scene):
+    """
+    Demonstrates safe positioning techniques to avoid clipping.
+    """
+
+    def construct(self):
+        # Example 1: Multiple text elements with validation
+        title = Text("Safe Positioning Demo", font_size=48)
+        title.move_to(UP * 3.8)  # Absolute positioning
+
+        elements = VGroup()
+        for i, text in enumerate(["Point A", "Point B", "Point C", "Point D"]):
+            label = Text(text, font_size=24)
+            label.move_to(UP * (2.5 - i * 0.8))  # Explicit spacing
+            elements.add(label)
+
+        # Validate entire group
+        safe_position(elements)
+
+        self.play(Write(title), *[Write(elem) for elem in elements])
+        self.wait(2)
+
+
+# ============================================================================
+# SIZING GUIDELINES FOR THIS TEMPLATE
+# ============================================================================
+# With frame_height=10 and frame_width=17.78, use these as references:
+#
+# Font Sizes:
+#   - Main titles: 40-48
+#   - Section titles: 32-36
+#   - Body text: 18-24
+#   - Labels/annotations: 14-18
+#   - Small text: 12-14
+#
+# Object Sizes:
+#   - Main objects: width 4-8, height 3-6
+#   - Medium objects: width 3-5, height 2-4
+#   - Small objects: width 2-3, height 1-2
+#
+# Positioning (coordinates relative to ORIGIN):
+#   - Full horizontal span: LEFT*8 to RIGHT*8 (~+/-8.89)
+#   - Full vertical span: UP*5 to DOWN*5
+#   - SAFE MARGINS: Keep important content within +/-7 horizontal, +/-4 vertical
+#
+# Spacing:
+#   - Between major sections: buff=0.5 to 0.8
+#   - Between related elements: buff=0.2 to 0.4
+#   - Between text lines: buff=0.15 to 0.25
+#
+# POSITION VALIDATION:
+#   - After any .next_to() call, use safe_position() to validate bounds
+#   - Check positions with .get_top()[1] and .get_bottom()[1]
+#   - Top edge should not exceed 4.0 (frame edge is at 5.0)
+#   - Bottom edge should not go below -4.0 (frame edge is at -5.0)
+# ============================================================================
