@@ -2,7 +2,10 @@
 set -euo pipefail
 
 # ─── Configuration ───────────────────────────────────────────────────
-PROJECT_DIR="${1:-.}"
+PROJECT_DIR_INPUT="${1:-.}" # Original input, could be relative
+INITIAL_PWD="$(pwd)"
+PROJECT_DIR="$(realpath "${INITIAL_PWD}/${PROJECT_DIR_INPUT}")" # Absolute path to project directory
+
 STATE_FILE="${PROJECT_DIR}/project_state.json"
 STATE_BACKUP="${PROJECT_DIR}/.state_backup.json"
 LOCK_FILE="${PROJECT_DIR}/.build.lock"
@@ -12,10 +15,10 @@ MAX_RUNS=50
 # Reference docs (relative to script location)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REFERENCE_DOCS=(
-  "${SCRIPT_DIR}/reference_docs/manim_content_pipeline.md"
-  "${SCRIPT_DIR}/reference_docs/manim_voiceover.md"
-  "${SCRIPT_DIR}/reference_docs/manim_template.py.txt"
-  "${SCRIPT_DIR}/reference_docs/manim_config_guide.md"
+  "${SCRIPT_DIR}/../reference_docs/manim_content_pipeline.md"
+  "${SCRIPT_DIR}/../reference_docs/manim_voiceover.md"
+  "${SCRIPT_DIR}/../reference_docs/manim_template.py.txt"
+  "${SCRIPT_DIR}/../reference_docs/manim_config_guide.md"
 )
 
 # ElevenLabs config (checked in final_render phase, not at startup)
@@ -238,9 +241,9 @@ invoke_agent() {
   cd "$PROJECT_DIR"
   
   # Create a temporary prompt file
-  local prompt_file="${PROJECT_DIR}/.agent_prompt_${phase}.md"
+  local prompt_file=".agent_prompt_${phase}.md"
   cat > "$prompt_file" <<EOF
-$(cat "${SCRIPT_DIR}/system_prompt.md")
+$(cat "${SCRIPT_DIR}/../AGENTS.md")
 
 ───────────────────────────────────────────────────────────────
 
@@ -274,10 +277,10 @@ EOF
   # Invoke OpenCode with Grok - message must come after all options
   opencode run --model "xai/grok-code-fast-1" \
     --file "$prompt_file" \
-    --file "${SCRIPT_DIR}/reference_docs/manim_content_pipeline.md" \
-    --file "${SCRIPT_DIR}/reference_docs/manim_voiceover.md" \
-    --file "${SCRIPT_DIR}/reference_docs/manim_template.py.txt" \
-    --file "${SCRIPT_DIR}/reference_docs/manim_config_guide.md" \
+    --file "${SCRIPT_DIR}/../reference_docs/manim_content_pipeline.md" \
+    --file "${SCRIPT_DIR}/../reference_docs/manim_voiceover.md" \
+    --file "${SCRIPT_DIR}/../reference_docs/manim_template.py.txt" \
+    --file "${SCRIPT_DIR}/../reference_docs/manim_config_guide.md" \
     --file "$STATE_FILE" \
     -- \
     "Read the first attached file (.agent_prompt_${phase}.md) which contains your complete instructions. Execute the ${phase} phase as described. All reference documentation and the current project state are also attached." \
