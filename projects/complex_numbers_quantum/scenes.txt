@@ -1,0 +1,6 @@
+file 'media/videos/scene_01_impossible_equation/1440p60/Scene01ImpossibleEquation.mp4'
+file 'media/videos/scene_02_new_dimension/1440p60/Scene02NewDimension.mp4'
+file 'media/videos/scene_03_fundamental_theorem/1440p60/Scene03FundamentalTheorem.mp4'
+file 'media/videos/scene_04_applications/1440p60/Scene04Applications.mp4'
+file 'media/videos/scene_05_schrodinger/1440p60/Scene05Schrodinger.mp4'
+file 'media/videos/scene_06_wave_function/1440p60/Scene06WaveFunction.mp4'
