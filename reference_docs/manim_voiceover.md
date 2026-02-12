@@ -36,23 +36,9 @@ synchronization via external editors or ffmpeg stitching.
 
 ## Installation
 
-### Which Package to Install
-
-There are three variants. The choice depends on your Python version and which ElevenLabs
-model you need:
-
-| Package | ElevenLabs Support | Python 3.13 | Notes |
-|---|---|---|---|
-| `manim-voiceover` (upstream) | `elevenlabs<1.0` API | Problematic | Official, but EL integration is outdated |
-| `manim-voiceover-plus` | `elevenlabs>=2.1.0` | Supported | Fork with updated EL API |
-| `manim-voiceover-enhanced` | `elevenlabs>=2.1.0` | Supported | Another fork, same fix approach |
-
-**Recommended:** Use `manim-voiceover-plus` if you are using ElevenLabs with Python 3.10+.
-
-### Install Commands
+This project uses `manim-voiceover-plus` exclusively:
 
 ```bash
-# Recommended for ElevenLabs (only extra needed for TTS voiceover)
 pip install --upgrade "manim-voiceover-plus[elevenlabs]"
 ```
 
@@ -187,20 +173,13 @@ class MyScene(VoiceoverScene):
         ...
 ```
 
-**Import paths by package:**
+**Import paths (ONLY valid pattern):**
 
 ```python
-# manim-voiceover-plus (recommended)
+# ONLY VALID IMPORT PATTERN
 from manim_voiceover_plus import VoiceoverScene
 from manim_voiceover_plus.services.elevenlabs import ElevenLabsService
-
-# manim-voiceover-enhanced
-from manim_voiceover_fixed import VoiceoverScene
-from manim_voiceover_fixed.services.elevenlabs import ElevenLabsService
-
-# upstream (outdated ElevenLabs API)
-from manim_voiceover import VoiceoverScene
-from manim_voiceover.services.elevenlabs import ElevenLabsService
+from elevenlabs import VoiceSettings
 ```
 
 ### The `with self.voiceover(...)` Block
@@ -347,13 +326,13 @@ VOICE_SETTINGS = VoiceSettings(
 )
 ```
 
-### Using eleven_v3 Model (Fork Required)
+### Using eleven_v3 Model
 
-The upstream `manim-voiceover` does not support `eleven_v3`. Use one of the forks:
+For using the `eleven_v3` model:
 
 ```python
-from manim_voiceover_fixed import VoiceoverScene
-from manim_voiceover_fixed.services.elevenlabs import ElevenLabsService
+from manim_voiceover_plus import VoiceoverScene
+from manim_voiceover_plus.services.elevenlabs import ElevenLabsService
 from elevenlabs import VoiceSettings
 
 class MyScene(VoiceoverScene):
@@ -361,7 +340,7 @@ class MyScene(VoiceoverScene):
         self.set_speech_service(
             ElevenLabsService(
                 voice_name="Liam",
-                model="eleven_v3",
+                model_id="eleven_v3",
                 voice_settings=VoiceSettings(stability=0.5, similarity_boost=0.75),
                 transcription_model=None,
             )
@@ -787,18 +766,11 @@ class QuickDemo(VoiceoverScene):
         self.wait(1)
 ```
 
-### Import Paths by Package
+### Import Paths (ONLY valid pattern)
 
 ```python
-# manim-voiceover-plus (recommended)
+# ONLY VALID IMPORT PATTERN
 from manim_voiceover_plus import VoiceoverScene
 from manim_voiceover_plus.services.elevenlabs import ElevenLabsService
-
-# manim-voiceover-enhanced
-from manim_voiceover_fixed import VoiceoverScene
-from manim_voiceover_fixed.services.elevenlabs import ElevenLabsService
-
-# upstream (outdated ElevenLabs API)
-from manim_voiceover import VoiceoverScene
-from manim_voiceover.services.elevenlabs import ElevenLabsService
+from elevenlabs import VoiceSettings
 ```

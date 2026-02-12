@@ -289,8 +289,7 @@ For longer videos:
     - `ffmpeg` installed via Homebrew and on PATH (if concatenation is needed).
     - `sox` installed via Homebrew (`brew install sox`).
 - Environment has:
-    - `ELEVENLABS_API_KEY` set (or capable of being set in the script).
-    - Optional `MANIM_VOICE_PROD` toggle for switching between dev TTS and ElevenLabs.
+    - `ELEVENLABS_API_KEY` must be set (no fallback, no dev mode)
 
 ### 6.2. Single-Scene Case
 
@@ -309,7 +308,6 @@ set -euo pipefail
 
 # Environment
 export ELEVENLABS_API_KEY="${ELEVENLABS_API_KEY:?Set ELEVENLABS_API_KEY}"
-export MANIM_VOICE_PROD=1
 
 # Render
 manim topic_explainer.py TopicExplainer

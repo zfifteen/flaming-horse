@@ -1,31 +1,48 @@
 """
-Manim Community Edition Template
-Optimized for proper framing and high-quality output
+Manim Community Edition VoiceoverScene Template
+Optimized for ElevenLabs TTS integration and proper framing
 
 Usage:
 1. Copy this template as your starting point for new scenes
 2. Replace YourSceneName with your actual scene name
 3. Add your visualization code in the construct() method
+4. Configure voice settings in voice_config.py
 
 Render with: manim <filename>.py YourSceneName
-
-For narrated scenes, see manim_voiceover.md and the Manim Content Pipeline
-(manim_content_pipeline.md) for the VoiceoverScene variant of this template.
 """
 
 from manim import *
 import numpy as np
 
+# ── Python 3.13 Compatibility Patch ────────────────────────────────
+import manim_voiceover_plus.services.base as base
+original_set_transcription = base.SpeechService.set_transcription
+
+def patched_set_transcription(self, model=None, kwargs=None):
+    if model is None:
+        self.transcription_model = None
+        self.whisper_model = None
+        return
+    original_set_transcription(self, model=model, kwargs=kwargs)
+
+base.SpeechService.set_transcription = patched_set_transcription
+
+# ── Voiceover Imports ──────────────────────────────────────────────
+from manim_voiceover_plus import VoiceoverScene
+from manim_voiceover_plus.services.elevenlabs import ElevenLabsService
+from elevenlabs import VoiceSettings
+
 # ============================================================================
 # OPTIMIZED CONFIGURATION - DO NOT MODIFY THESE VALUES
 # ============================================================================
-config.frame_height = 10        # Moderate zoom out (25% larger than default 8)
-config.frame_width = 10 * 16/9  # Maintains 16:9 aspect ratio (~17.78)
-config.pixel_height = 1440      # High quality 1440p resolution
-config.pixel_width = 2560       # Crisp text and graphics
+config.frame_height = 10
+config.frame_width = 10 * 16/9  # 17.78
+config.pixel_height = 1440
+config.pixel_width = 2560
 # ============================================================================
 
 
+# ── Safe Positioning Helpers ───────────────────────────────────────
 def safe_position(mobject, max_y=4.0, min_y=-4.0):
     """
     Clamp mobject to safe vertical zone to prevent clipping.
@@ -49,82 +66,166 @@ def safe_position(mobject, max_y=4.0, min_y=-4.0):
     return mobject
 
 
-class YourSceneName(Scene):
+def safe_layout(*mobjects, min_horizontal_spacing=0.5, max_y=4.0, min_y=-4.0):
     """
-    Replace this class name with your scene name.
-    Add your visualization logic in construct().
-    """
+    Ensure multiple mobjects don't overlap and stay within safe bounds.
 
-    # POSITIONING GUIDELINES (CRITICAL):
-    # 1. For titles/headers: Use .move_to(UP * y) with y between 3.5 and 4.0
-    # 2. NEVER use .to_edge(UP, buff=...) - it places content too close to frame edge
-    # 3. When using .next_to() chains, ALWAYS validate with safe_position()
-    # 4. Bottom content: .to_edge(DOWN) is safer than top positioning
-    # 5. Safe coordinate bounds: horizontal +/-7, vertical +/-4
+    Args:
+        *mobjects: Variable number of mobjects to validate
+        min_horizontal_spacing: Minimum x-axis gap between elements (default 0.5)
+        max_y: Maximum safe y-coordinate (default 4.0)
+        min_y: Minimum safe y-coordinate (default -4.0)
+
+    Returns:
+        List of adjusted mobjects
+    """
+    # Apply vertical bounds to all elements
+    for mob in mobjects:
+        top = mob.get_top()[1]
+        bottom = mob.get_bottom()[1]
+        if top > max_y:
+            mob.shift(DOWN * (top - max_y))
+        elif bottom < min_y:
+            mob.shift(UP * (min_y - bottom))
+
+    # Check horizontal overlap between all pairs
+    for i, mob_a in enumerate(mobjects):
+        for mob_b in mobjects[i+1:]:
+            a_left = mob_a.get_left()[0]
+            a_right = mob_a.get_right()[0]
+            b_left = mob_b.get_left()[0]
+            b_right = mob_b.get_right()[0]
+
+            # If bounding boxes overlap on x-axis
+            if not (a_right < b_left or b_right < a_left):
+                overlap = (a_right - b_left) if a_right > b_left else (b_right - a_left)
+                mob_b.shift(RIGHT * (overlap + min_horizontal_spacing))
+
+    return list(mobjects)
+
+
+# ── Voice Configuration ────────────────────────────────────────────
+# Import from shared voice_config.py or define here
+VOICE_ID = "rBgRd5IfS6iqrGfuhlKR"  # Big D's cloned voice
+MODEL_ID = "eleven_multilingual_v2"
+VOICE_SETTINGS = VoiceSettings(
+    stability=0.5,
+    similarity_boost=0.75,
+    style=0.0,
+    use_speaker_boost=True
+)
+
+
+# ── Narration Script ───────────────────────────────────────────────
+# Import from shared narration_script.py or define here
+SCRIPT = {
+    "intro": """Your intro narration here. Write naturally, as if speaking.""",
+    "main": """Main content narration.""",
+    "conclusion": """Closing remarks."""
+}
+
+
+class YourSceneName(VoiceoverScene):  # Replace with your scene name
+    """
+    Add your scene description here.
+    """
 
     def construct(self):
-        # Example: Title sequence with safe positioning
-        title = Text("Your Scene Title", font_size=48, weight=BOLD)
-        subtitle = Text("Your Subtitle Here", font_size=32, color=BLUE)
-        subtitle.next_to(title, DOWN, buff=0.3)
+        # ── Configure ElevenLabs TTS ───────────────────────────────
+        self.set_speech_service(
+            ElevenLabsService(
+                voice_id=VOICE_ID,
+                model_id=MODEL_ID,
+                voice_settings=VOICE_SETTINGS,
+                transcription_model=None,
+            )
+        )
 
-        title_group = VGroup(title, subtitle).move_to(ORIGIN)
+        # ── Title Sequence ─────────────────────────────────────────
+        # Timing budget: Calculate BEFORE writing animations
+        # Example: 0.4 + 0.3 + 0.3 = 1.0 ✓
 
-        self.play(Write(title_group))
-        self.wait(1)
+        with self.voiceover(text=SCRIPT["intro"]) as tracker:
+            # Title (ALWAYS use UP * 3.8, NEVER .to_edge(UP))
+            title = Text("Your Scene Title", font_size=48, weight=BOLD)
+            title.move_to(UP * 3.8)
+            self.play(Write(title), run_time=tracker.duration * 0.4)
 
-        # Move to top with absolute positioning (SAFE METHOD)
-        title_group.generate_target()
-        title_group.target.scale(0.6).move_to(UP * 3.8)
-        self.play(MoveToTarget(title_group))
+            # Subtitle with safe positioning
+            subtitle = Text("Your Subtitle Here", font_size=32, color=BLUE)
+            subtitle.next_to(title, DOWN, buff=0.3)
+            safe_position(subtitle)  # CRITICAL: Validate after .next_to()
+            self.play(FadeIn(subtitle), run_time=tracker.duration * 0.3)
 
-        # Section title with validation
-        section_title = Text("Section Title", font_size=36, color=YELLOW)
-        section_title.next_to(title_group, DOWN, buff=0.5)
+            # Title group animation
+            title_group = VGroup(title, subtitle)
+            title_group.generate_target()
+            title_group.target.scale(0.6).move_to(UP * 3.8)
+            self.play(MoveToTarget(title_group), run_time=tracker.duration * 0.3)
 
-        # CRITICAL: Validate position after .next_to()
-        safe_position(section_title)
+        # ── Main Content ───────────────────────────────────────────
+        with self.voiceover(text=SCRIPT["main"]) as tracker:
+            # Section title with validation
+            section_title = Text("Section Title", font_size=36, color=YELLOW)
+            section_title.next_to(title_group, DOWN, buff=0.5)
+            safe_position(section_title)  # CRITICAL
+            self.play(Write(section_title), run_time=tracker.duration * 0.2)
 
-        self.play(Write(section_title))
-        self.wait()
+            # Shape example with explicit positioning (SAFE METHOD)
+            box = Rectangle(width=4, height=3, color=GREEN, fill_opacity=0.2)
+            box.move_to(ORIGIN)
+            self.play(Create(box), run_time=tracker.duration * 0.4)
 
-        # Shape example with explicit positioning
-        box = Rectangle(width=4, height=3, color=GREEN, fill_opacity=0.2)
-        box.move_to(ORIGIN)
-        self.play(Create(box))
-        self.wait()
+            # Math example (use MathTex for equations)
+            formula = MathTex(r"E = mc^2", font_size=48, color=GOLD)
+            formula.move_to(ORIGIN)
+            self.play(Transform(box, formula), run_time=tracker.duration * 0.4)
 
-        # Math example
-        formula = MathTex(r"E = mc^2", font_size=48, color=GOLD)
-        formula.move_to(ORIGIN)
-        self.play(Transform(box, formula))
-        self.wait()
-
-        # Clean up
-        self.play(FadeOut(section_title), FadeOut(box))
-        self.wait()
+        # ── Cleanup ────────────────────────────────────────────────
+        with self.voiceover(text=SCRIPT["conclusion"]) as tracker:
+            self.play(
+                FadeOut(section_title),
+                FadeOut(box),
+                run_time=tracker.duration
+            )
 
 
-class SafePositioningExample(Scene):
-    """
-    Demonstrates safe positioning techniques to avoid clipping.
-    """
+# ── Example: Multiple Elements Layout ──────────────────────────────
+class SafePositioningExample(VoiceoverScene):
+    """Demonstrates safe positioning techniques to avoid clipping/overlap."""
 
     def construct(self):
-        # Example 1: Multiple text elements with validation
+        self.set_speech_service(
+            ElevenLabsService(
+                voice_id=VOICE_ID,
+                model_id=MODEL_ID,
+                voice_settings=VOICE_SETTINGS,
+                transcription_model=None,
+            )
+        )
+
         title = Text("Safe Positioning Demo", font_size=48)
         title.move_to(UP * 3.8)  # Absolute positioning
 
+        # Multiple text elements with validation
         elements = VGroup()
         for i, text in enumerate(["Point A", "Point B", "Point C", "Point D"]):
             label = Text(text, font_size=24)
             label.move_to(UP * (2.5 - i * 0.8))  # Explicit spacing
             elements.add(label)
 
-        # Validate entire group
-        safe_position(elements)
+        safe_position(elements)  # Validate entire group
 
-        self.play(Write(title), *[Write(elem) for elem in elements])
+        narration = """Here we demonstrate safe positioning with multiple elements
+                that won't overlap or clip at the edges."""
+
+        with self.voiceover(text=narration) as tracker:
+            self.play(Write(title), run_time=tracker.duration * 0.3)
+            self.play(
+                *[Write(elem) for elem in elements],
+                run_time=tracker.duration * 0.7
+            )
+
         self.wait(2)
 
 

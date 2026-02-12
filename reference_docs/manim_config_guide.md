@@ -48,6 +48,33 @@ Higher pixel density (1440p vs default 1080p) ensures text remains sharp and pro
 - Horizontal range: -8.89 to +8.89 (keep content within +/-7 for safety)
 - Vertical range: -5 to +5 (keep content within +/-4 for safety)
 
+## LaTeX Rendering
+
+### Tex vs MathTex
+
+| Use Case | Class | Example |
+|----------|-------|---------|
+| Mathematical equations | `MathTex` | `MathTex(r"E = mc^2")` |
+| Plain text with LaTeX formatting | `Tex` | `Tex(r"\textbf{Bold Text}")` |
+
+**Rule**: If your string contains math operators (`=`, `+`, `\frac`, `\int`, etc.), use `MathTex`.
+
+### Position Arrays Must Be 3D
+
+Manim requires all position coordinates as 3D numpy arrays:
+
+```python
+# ✅ CORRECT
+point = np.array([x, y, 0])
+circle.move_to(np.array([1, 2, 0]))
+
+# ❌ WRONG (will cause dimension errors)
+point = np.array([x, y])
+circle.move_to(np.array([1, 2]))
+```
+
+**Always include the z-coordinate (typically 0 for 2D scenes).**
+
 ## Critical Positioning Rules
 
 ### DO NOT Use `.to_edge(UP)` for Titles/Headers
