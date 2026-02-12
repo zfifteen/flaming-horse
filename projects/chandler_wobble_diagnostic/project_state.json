@@ -1,0 +1,82 @@
+{
+  "project_name": "Chandler Wobble Core-Mantle Coupling Diagnostic",
+  "phase": "final_render",
+  "created_at": "2026-02-11T17:15:00Z",
+  "updated_at": "2026-02-11T17:28:00Z",
+  "run_count": 11,
+  "plan_file": "plan.json",
+  "narration_file": "narration_script.py",
+  "voice_config_file": "voice_config.py",
+  "scenes": [
+    {
+      "id": "scene_01_phase_flip",
+      "title": "The Phase Flip Anomaly",
+      "file": "scene_01_phase_flip.py",
+      "class_name": "Scene01PhaseFlip",
+      "status": "built"
+    },
+    {
+      "id": "scene_02_debunk_standard",
+      "title": "Debunking Standard Explanation",
+      "file": "scene_02_debunk_standard.py",
+      "class_name": "Scene02DebunkStandard",
+      "status": "built"
+    },
+    {
+      "id": "scene_03_modulated_envelope",
+      "title": "Modulated Envelope Signature",
+      "file": "scene_03_modulated_envelope.py",
+      "class_name": "Scene03ModulatedEnvelope",
+      "status": "built"
+    },
+    {
+      "id": "scene_04_lod_connection",
+      "title": "6-Year LOD Connection",
+      "file": "scene_04_lod_connection.py",
+      "class_name": "Scene04LODConnection",
+      "status": "built"
+    },
+    {
+      "id": "scene_05_prediction",
+      "title": "The Prediction",
+      "file": "scene_05_prediction.py",
+      "class_name": "Scene05Prediction",
+      "status": "built"
+    },
+    {
+      "id": "scene_06_paradigm_shift",
+      "title": "Paradigm Shift - CW as Leading Indicator",
+      "file": "scene_06_paradigm_shift.py",
+      "class_name": "Scene06ParadigmShift",
+      "status": "built"
+    },
+    {
+      "id": "scene_07_utility",
+      "title": "Practical Utility",
+      "file": "scene_07_utility.py",
+      "class_name": "Scene07Utility",
+      "status": "built"
+    },
+    {
+      "id": "scene_08_conclusion",
+      "title": "Conclusion",
+      "file": "scene_08_conclusion.py",
+      "class_name": "Scene08Conclusion",
+      "status": "built"
+    }
+  ],
+  "current_scene_index": 8,
+  "errors": [],
+  "history": [
+    "Plan generated and validated",
+    "Narration scripts generated with verbatim user text",
+    "Voice configuration locked to ElevenLabs Big D voice",
+    "All 8 scenes built successfully",
+    "Ready for final render with ElevenLabs voice synthesis"
+  ],
+  "flags": {
+    "needs_human_review": false,
+    "dry_run": false,
+    "force_replan": false
+  }
+}

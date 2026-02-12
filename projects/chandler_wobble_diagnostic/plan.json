@@ -1,0 +1,97 @@
+{
+  "title": "Chandler Wobble as Core-Mantle Coupling Diagnostic",
+  "topic_summary": "The 2021 Chandler wobble 180-degree phase reversal is a diagnostic signature of Earth's core-mantle coupling regime transition, predicting a measurable 6-year LOD oscillation phase offset by 2027",
+  "target_audience": "Geophysicists, climate scientists, and scientifically literate general audience interested in Earth system dynamics",
+  "estimated_duration_seconds": 195,
+  "total_estimated_words": 372,
+  "scenes": [
+    {
+      "id": "scene_01_phase_flip",
+      "title": "The Phase Flip Anomaly",
+      "narration_key": "phase_flip",
+      "narration_summary": "Hook: CW 180-degree phase reversal signals core-mantle coupling regime boundary crossing, predicts 6-year LOD phase shift by 2027",
+      "estimated_words": 52,
+      "estimated_duration": "25s",
+      "animations": ["Title write-in", "Earth with rotation axis", "CW spiral clockwise", "Spiral disappears", "Spiral reappears inverted with 180-degree arrow", "Core-mantle boundary glow"],
+      "complexity": "medium",
+      "risk_flags": ["Phase inversion animation must be visually clear"]
+    },
+    {
+      "id": "scene_02_debunk_standard",
+      "title": "Debunking Standard Explanation",
+      "narration_key": "debunk_standard",
+      "narration_summary": "Standard 'random cancellation' explanation cannot produce precise 180-degree phase flip",
+      "estimated_words": 42,
+      "estimated_duration": "30s",
+      "animations": ["Standard explanation header", "Random atmospheric/oceanic vectors", "Cancellation convergence", "Three ghost spirals with random phases", "Only 180-degree spiral remains", "Red X over explanation"],
+      "complexity": "medium",
+      "risk_flags": ["Multiple simultaneous animations (>5 objects)"]
+    },
+    {
+      "id": "scene_03_modulated_envelope",
+      "title": "Modulated Envelope Signature",
+      "narration_key": "modulated_envelope",
+      "narration_summary": "Precise half-cycle inversion indicates amplitude modulation by longer-period signal coupled to core",
+      "estimated_words": 47,
+      "estimated_duration": "28s",
+      "animations": ["Fast sine wave (433-day)", "Slow envelope wave", "Amplitude modulation", "Node crossing with phase inversion", "Zoom out to Earth core-mantle connection"],
+      "complexity": "high",
+      "risk_flags": ["Mathematical waveform generation", "Modulated envelope visualization"]
+    },
+    {
+      "id": "scene_04_lod_connection",
+      "title": "6-Year LOD Connection",
+      "narration_key": "lod_connection",
+      "narration_summary": "6-year LOD oscillation showed 2010-2014 disruption; coupling-regime shift should produce 5-7 year temporal offset between CW and LOD disruptions",
+      "estimated_words": 59,
+      "estimated_duration": "35s",
+      "animations": ["Split screen: CW vs LOD waves", "Earth cross-section with torsional Alfven waves", "Timeline 2010-2027", "Highlight 2010-2014 LOD disruption", "Highlight 2019-2021 CW flip", "Arrows showing 5-7 year offset", "Dotted projection to 2027"],
+      "complexity": "high",
+      "risk_flags": ["Timeline synchronization", "Multiple simultaneous animations", "Torsional wave animation"]
+    },
+    {
+      "id": "scene_05_prediction",
+      "title": "The Prediction",
+      "narration_key": "prediction",
+      "narration_summary": "6-year LOD should show measurable phase offset (30-180 degrees) relative to pre-2010 behavior when re-established",
+      "estimated_words": 50,
+      "estimated_duration": "32s",
+      "animations": ["Two overlaid sine waves", "Phase shift transformation", "Correlation plot with anti-phase relationship", "Correlation weakens", "Falsifiable prediction annotation with 2027 date"],
+      "complexity": "medium",
+      "risk_flags": ["Phase shift must be visually clear", "Scatter plot generation"]
+    },
+    {
+      "id": "scene_06_paradigm_shift",
+      "title": "Paradigm Shift - CW as Leading Indicator",
+      "narration_key": "paradigm_shift",
+      "narration_summary": "CW phase reversals are leading indicators of core-mantle coupling transitions, arriving years before LOD signal propagation",
+      "estimated_words": 55,
+      "estimated_duration": "30s",
+      "animations": ["Three-panel layout", "CMB pulsing glow", "Wave pulse emanates", "Wave reaches CW panel (2019-2021)", "Wave reaches LOD panel (2026-2027)", "Leading indicator arrow"],
+      "complexity": "medium",
+      "risk_flags": ["Wave propagation timing", "Multi-panel layout"]
+    },
+    {
+      "id": "scene_07_utility",
+      "title": "Practical Utility",
+      "narration_key": "utility",
+      "narration_summary": "CW phase monitoring becomes predictive tool for 6-year climate oscillation disruptions with ~5 year lead time",
+      "estimated_words": 32,
+      "estimated_duration": "20s",
+      "animations": ["Earth globe with monitoring dashboard", "Live CW phase trace", "Phase angle shifts trigger alert", "Timeline projection 2026-2028", "Lead time annotation"],
+      "complexity": "low",
+      "risk_flags": []
+    },
+    {
+      "id": "scene_08_conclusion",
+      "title": "Conclusion",
+      "narration_key": "conclusion",
+      "narration_summary": "Silent conclusion with falsifiability checklist and final message",
+      "estimated_words": 35,
+      "estimated_duration": "15s",
+      "animations": ["Title card reappears", "Three bullet points fade in", "Final message", "Fade to black"],
+      "complexity": "low",
+      "risk_flags": []
+    }
+  ]
+}
