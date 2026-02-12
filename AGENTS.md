@@ -28,7 +28,8 @@
 - Do not create or modify any files outside the designated project folder.
 - Understand `reference_docs/HOW_TO_ANIMATE.md` before creating any animations. 
 - All animations of text must have a duration of 2 seconds.
-- If the subject matter is non-mathematical, use text, tables, charts and graphs and do not draw geometric or mathematical objects. 
+- If the subject is not mathematical, use text, tables, charts and graphs and do not draw geometric or mathematical objects. 
+- API keys are in `.env`
 
 ---
 
@@ -361,6 +362,45 @@ with self.voiceover(text=SCRIPT["demo"]) as tracker:  # 10 seconds
 - ✅ **ALWAYS** include Python 3.13 compatibility patch
 - ✅ **ALWAYS** include `safe_position()` helper
 
+---
+
+## 🎨 VISUAL QUALITY RULES
+
+### Text Animation Speed
+- ❌ NEVER use a fixed 2-second run_time for all text
+- ✅ Scale text animation duration by content length:
+    - Formula: `run_time = max(0.5, min(3.0, len(text) * 0.04))`
+    - Short labels (< 15 chars): 0.5 – 0.8s
+    - Medium text (15-60 chars): 1.0 – 2.0s
+    - Long text (60+ chars): 2.0 – 3.0s (consider FadeIn instead of Write)
+- ✅ For bullet lists, use FadeIn with lag_ratio, NOT Write
+
+### Content Density Per Scene
+- ❌ NEVER place more than 5 primary visual elements in one voiceover block
+- ✅ If you need more elements, split into multiple voiceover segments
+- ✅ Remove (FadeOut) previous elements before introducing new ones
+
+### Element Cleanup
+- ✅ ALWAYS FadeOut previous section content before new section begins
+- ✅ Exception: titles/headers that persist across segments
+- ❌ NEVER let more than 2 "layers" of content coexist on screen
+
+### Animation Smoothness
+- ✅ Use `rate_func=smooth` for most transitions (this is the default)
+- ✅ Minimum run_time for any visible animation: 0.3 seconds
+- ❌ NEVER set run_time < 0.2 (imperceptible, creates visual artifacts)
+- ✅ For sequential reveals, use lag_ratio=0.1 to 0.3
+
+### Overlap Prevention
+- ✅ After positioning ALL elements in a segment, verify no overlaps:
+  ```python
+  def check_overlap(mob_a, mob_b):
+      """Return True if bounding boxes overlap"""
+      a_top, a_bottom = mob_a.get_top(), mob_a.get_bottom()[1]
+      b_top, b_bottom = mob_b.get_top(), mob_b.get_bottom()[1]
+      return not (a_bottom > b_top or b_bottom > a_top)
+  ```
+  
 ---
 
 ## Phase: `final_render`
