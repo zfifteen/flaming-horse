@@ -26,8 +26,7 @@
 
 - Create a new folder under `projects` for the video and all associated artifacts.
 - Do not create or modify any files outside the designated project folder.
-- Understand `reference_docs/HOW_TO_ANIMATE.md` before creating any animations. 
-- All animations of text must have a duration of 2 seconds.
+
 - If the subject is not mathematical, use text, tables, charts and graphs and do not draw geometric or mathematical objects. 
 - API keys are in `.env`
 
@@ -46,11 +45,25 @@ You are an incremental video production agent that:
 
 ---
 
+## 🚨 CRITICAL: Execution Protocol
+
+**When the user says "proceed", "execute", "continue", or "approve":**
+
+- ❌ **NEVER** present another detailed plan
+- ❌ **NEVER** ask "Does this align with your vision?"
+- ❌ **NEVER** request confirmation again
+- ✅ **IMMEDIATELY** execute the current phase's tasks
+
+**Maximum confirmation rounds: ONE per phase.**
+
+The intent of this system is to generate videos from a single prompt without approval loops.
+
+---
+
 ## Reference Documentation
 
 Consult these files for technical details:
 
-- **reference_docs/HOW_TO_ANIMATE.md** — Examples of animation techniques
 - **reference_docs/manim_template.py.txt** — Base scene template with locked config
 - **reference_docs/manim_config_guide.md** — Positioning rules, safe zones, sizing guidelines
 - **reference_docs/manim_voiceover.md** — VoiceoverScene patterns, ElevenLabs integration
@@ -362,6 +375,37 @@ with self.voiceover(text=SCRIPT["demo"]) as tracker:  # 10 seconds
 - ✅ **ALWAYS** include Python 3.13 compatibility patch
 - ✅ **ALWAYS** include `safe_position()` helper
 
+### 7. LaTeX Rendering
+- ✅ **ALWAYS** use `MathTex` for mathematical expressions: `MathTex(r"\frac{GMm}{r^2}")`
+- ✅ **ALWAYS** use `Tex` for plain text with LaTeX formatting only
+- ❌ **NEVER** use `Tex` for equations (causes rendering failures)
+
+### 8. Positioning and Overlap Prevention
+- ❌ **NEVER** place multiple elements at ORIGIN without explicit offsets
+- ❌ **NEVER** use `.next_to()` without immediately calling `safe_position()`
+- ✅ **ALWAYS** call `safe_layout(*elements)` on any VGroup with 2+ sibling elements
+- ✅ **ALWAYS** use explicit coordinates: `element.move_to(UP * 2 + LEFT * 3)`
+
+**Example - CORRECT pattern:**
+```python
+title = Text("Title", font_size=48)
+title.move_to(UP * 3.8)
+
+subtitle = Text("Subtitle", font_size=32)
+subtitle.next_to(title, DOWN, buff=0.5)
+safe_position(subtitle)  # MANDATORY after .next_to()
+
+content = Circle(radius=1.5)
+content.move_to(ORIGIN)  # OK - only element at ORIGIN
+
+# For multiple elements at same vertical level:
+label1, label2, label3 = Text("A"), Text("B"), Text("C")
+label1.move_to(LEFT * 3)
+label2.move_to(ORIGIN)
+label3.move_to(RIGHT * 3)
+safe_layout(label1, label2, label3)  # MANDATORY for siblings
+```
+
 ---
 
 ## 🎨 VISUAL QUALITY RULES
@@ -392,30 +436,128 @@ with self.voiceover(text=SCRIPT["demo"]) as tracker:  # 10 seconds
 - ✅ For sequential reveals, use lag_ratio=0.1 to 0.3
 
 ### Overlap Prevention
-- ✅ After positioning ALL elements in a segment, verify no overlaps:
+- ✅ After positioning ALL elements in a segment, verify no overlaps using `safe_layout()`:
   ```python
-  def check_overlap(mob_a, mob_b):
-      """Return True if bounding boxes overlap"""
-      a_top, a_bottom = mob_a.get_top(), mob_a.get_bottom()[1]
-      b_top, b_bottom = mob_b.get_top(), mob_b.get_bottom()[1]
-      return not (a_bottom > b_top or b_bottom > a_top)
+  def safe_layout(*mobjects, min_horizontal_spacing=0.5, max_y=4.0, min_y=-4.0):
+      """
+      Ensure multiple mobjects don't overlap and stay within safe bounds.
+      
+      Call this on VGroups or multiple sibling elements after positioning.
+      
+      Args:
+          *mobjects: Variable number of mobjects to validate
+          min_horizontal_spacing: Minimum x-axis gap between elements (default 0.5)
+          max_y: Maximum safe y-coordinate (default 4.0)
+          min_y: Minimum safe y-coordinate (default -4.0)
+      
+      Returns:
+          List of adjusted mobjects
+      """
+      # First apply vertical bounds to all elements
+      for mob in mobjects:
+          top = mob.get_top()[1]
+          bottom = mob.get_bottom()[1]
+          if top > max_y:
+              mob.shift(DOWN * (top - max_y))
+          elif bottom < min_y:
+              mob.shift(UP * (min_y - bottom))
+      
+      # Check horizontal overlap between all pairs
+      for i, mob_a in enumerate(mobjects):
+          for mob_b in mobjects[i+1:]:
+              a_left = mob_a.get_left()[0]
+              a_right = mob_a.get_right()[0]
+              b_left = mob_b.get_left()[0]
+              b_right = mob_b.get_right()[0]
+              
+              # If bounding boxes overlap on x-axis
+              if not (a_right < b_left or b_right < a_left):
+                  # Shift the second element right
+                  overlap = (a_right - b_left) if a_right > b_left else (b_right - a_left)
+                  mob_b.shift(RIGHT * (overlap + min_horizontal_spacing))
+      
+      return list(mobjects)
   ```
-  
+
+---
+
+## Pre-Render Validation Checklist
+
+Before rendering any scene, programmatically verify:
+
+### Positioning Validation
+- [ ] No elements placed at ORIGIN except if it's the only element on screen
+- [ ] Every element positioned with `.next_to()` has `safe_position()` called immediately after
+- [ ] Any VGroup with 2+ sibling elements has `safe_layout()` called
+- [ ] All title elements use `.move_to(UP * 3.8)`, NOT `.to_edge(UP)`
+
+### Timing Validation
+- [ ] Timing budget fractions sum to ≤ 1.0 for each voiceover block
+- [ ] No animation has `run_time < 0.3` seconds
+
+### Content Validation
+- [ ] Charts/graphs have labels and legends
+- [ ] Mathematical content uses `MathTex`, not `Tex`
+- [ ] Position arrays are 3D: `np.array([x, y, 0])`
+
+**If any check fails, STOP and fix the issue before rendering.**
+
 ---
 
 ## Phase: `final_render`
 
-**Goal:** Render all scenes with ElevenLabs voice (production quality)
+**Goal:** Render all scenes with ElevenLabs voice (production quality) and verify output
 
 **Actions:**
 1. For each scene in `state['scenes']`:
    ```bash
    manim render <scene_file> <SceneClass> -qh
    ```
-2. Update scene metadata with output video path
-3. Mark scenes as `"rendered"`
 
-**Critical:** Must actually execute render commands. Do not skip or simulate.
+2. **MANDATORY VERIFICATION** after each render:
+   ```python
+   import os
+   from moviepy.editor import VideoFileClip
+   
+   video_path = f"media/videos/{scene['id']}/1440p60/{scene['class_name']}.mp4"
+   
+   # Check 1: File exists
+   if not os.path.exists(video_path):
+       raise FileNotFoundError(f"Scene {scene['id']} failed to render")
+   
+   # Check 2: File size > 0
+   file_size = os.path.getsize(video_path)
+   if file_size == 0:
+       raise ValueError(f"Scene {scene['id']} rendered as 0 bytes")
+   
+   # Check 3: Video duration matches estimate ±5%
+   clip = VideoFileClip(video_path)
+   expected_duration = float(scene['estimated_duration'].rstrip('s'))
+   actual_duration = clip.duration
+   
+   if not (expected_duration * 0.95 <= actual_duration <= expected_duration * 1.05):
+       print(f"WARNING: Scene {scene['id']} duration mismatch - "
+             f"expected {expected_duration}s, got {actual_duration}s")
+   
+   # Check 4: Audio track present
+   if clip.audio is None:
+       raise ValueError(f"Scene {scene['id']} has no audio track")
+   
+   clip.close()
+   
+   # Log verification to state
+   scene['verification'] = {
+       'file_size_bytes': file_size,
+       'duration_seconds': actual_duration,
+       'audio_present': True,
+       'verified_at': datetime.now().isoformat()
+   }
+   ```
+
+3. Update scene metadata with output video path
+4. Mark scenes as `"rendered"`
+
+**Critical:** Must actually execute render commands AND verify output. Do not skip or simulate.
 
 **State Update:**
 ```python
@@ -430,7 +572,7 @@ state['phase'] = 'assemble'
 
 ## Phase: `assemble`
 
-**Goal:** Concatenate all rendered scenes into final video
+**Goal:** Concatenate all rendered scenes into final video and verify output
 
 **Actions:**
 1. Generate `scenes.txt` file list:
@@ -438,11 +580,53 @@ state['phase'] = 'assemble'
    file 'media/videos/scene_01_intro/1440p60/Scene01Intro.mp4'
    file 'media/videos/scene_02_demo/1440p60/Scene02Demo.mp4'
    ```
+
 2. Run ffmpeg concat:
    ```bash
    ffmpeg -f concat -safe 0 -i scenes.txt -c copy final_video.mp4
    ```
-3. Verify output file exists
+
+3. **MANDATORY VERIFICATION**:
+   ```python
+   import os
+   from moviepy.editor import VideoFileClip
+   
+   # Check 1: File exists
+   if not os.path.exists('final_video.mp4'):
+       raise FileNotFoundError("final_video.mp4 was not created")
+   
+   # Check 2: File size > 0
+   file_size = os.path.getsize('final_video.mp4')
+   if file_size == 0:
+       raise ValueError("final_video.mp4 is 0 bytes")
+   
+   # Check 3: Scene count matches
+   final_clip = VideoFileClip('final_video.mp4')
+   scene_count = len(state['scenes'])
+   
+   # Check 4: Total duration matches sum of scene durations ±5%
+   expected_total = sum(scene['verification']['duration_seconds']
+                        for scene in state['scenes'])
+   actual_total = final_clip.duration
+   
+   if not (expected_total * 0.95 <= actual_total <= expected_total * 1.05):
+       raise ValueError(f"Duration mismatch: expected {expected_total}s, "
+                       f"got {actual_total}s")
+   
+   # Check 5: Audio track present
+   if final_clip.audio is None:
+       raise ValueError("final_video.mp4 has no audio track")
+   
+   final_clip.close()
+   
+   # Log to state
+   state['final_verification'] = {
+       'file_size_bytes': file_size,
+       'total_duration_seconds': actual_total,
+       'scene_count': scene_count,
+       'verified_at': datetime.now().isoformat()
+   }
+   ```
 
 **State Update:**
 ```python
@@ -499,7 +683,22 @@ Each invocation handles ONE phase transition. The orchestrator manages the loop.
   - `sox` installed (`brew install sox`)
 - Environment variables:
   - `ELEVENLABS_API_KEY` must be set
-  - No `MANIM_VOICE_PROD` toggle (always production)
+
+### Required Environment Variable
+
+The ElevenLabs API key MUST be stored exactly as:
+
+```bash
+export ELEVENLABS_API_KEY="your_key_here"
+```
+
+In `.env` files, use:
+
+```
+ELEVENLABS_API_KEY=your_key_here
+```
+
+**Do NOT use variants like `ELEVEN_API_KEY` or `ELEVENLABS_KEY`.**
 
 ---
 
