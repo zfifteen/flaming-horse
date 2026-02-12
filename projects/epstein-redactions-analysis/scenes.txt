@@ -1,0 +1,7 @@
+file '/Users/velocityworks/IdeaProjects/flaming-horse/projects/epstein-redactions-analysis/media/videos/scene_01_intro/1440p60/Scene01Intro.mp4'
+file '/Users/velocityworks/IdeaProjects/flaming-horse/projects/epstein-redactions-analysis/media/videos/scene_02_agree/1440p60/Scene02Agree.mp4'
+file '/Users/velocityworks/IdeaProjects/flaming-horse/projects/epstein-redactions-analysis/media/videos/scene_03_disagree/1440p60/Scene03Disagree.mp4'
+file '/Users/velocityworks/IdeaProjects/flaming-horse/projects/epstein-redactions-analysis/media/videos/scene_04_unique/1440p60/Scene04Unique.mp4'
+file '/Users/velocityworks/IdeaProjects/flaming-horse/projects/epstein-redactions-analysis/media/videos/scene_05_analysis/1440p60/Scene05Analysis.mp4'
+file '/Users/velocityworks/IdeaProjects/flaming-horse/projects/epstein-redactions-analysis/media/videos/scene_06_dual/1440p60/Scene06Dual.mp4'
+file '/Users/velocityworks/IdeaProjects/flaming-horse/projects/epstein-redactions-analysis/media/videos/scene_07_conclusion/1440p60/Scene07Conclusion.mp4'

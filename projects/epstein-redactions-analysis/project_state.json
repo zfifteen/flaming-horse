@@ -1,0 +1,23 @@
+{
+  "project_name": "epstein-redactions-analysis",
+  "phase": "complete",
+  "created_at": "2026-02-11T00:00:00Z",
+  "updated_at": "2026-02-11T00:00:00Z",
+  "run_count": 1,
+  "plan_file": "plan.json",
+  "narration_file": "narration_script.py",
+  "voice_config_file": "voice_config.py",
+  "scenes": [
+    {"id": "scene_01_intro", "title": "Introduction", "file": "scene_01_intro.py", "class_name": "Scene01Intro", "status": "rendered"},
+    {"id": "scene_02_agree", "title": "Model Agreements", "file": "scene_02_agree.py", "class_name": "Scene02Agree", "status": "rendered"},
+    {"id": "scene_03_disagree", "title": "Model Disagreements", "file": "scene_03_disagree.py", "class_name": "Scene03Disagree", "status": "rendered"},
+    {"id": "scene_04_unique", "title": "Unique Discoveries", "file": "scene_04_unique.py", "class_name": "Scene04Unique", "status": "rendered"},
+    {"id": "scene_05_analysis", "title": "Comprehensive Analysis", "file": "scene_05_analysis.py", "class_name": "Scene05Analysis", "status": "rendered"},
+    {"id": "scene_06_dual", "title": "Dual-Layer Redaction", "file": "scene_06_dual.py", "class_name": "Scene06Dual", "status": "rendered"},
+    {"id": "scene_07_conclusion", "title": "Conclusion", "file": "scene_07_conclusion.py", "class_name": "Scene07Conclusion", "status": "rendered"}
+  ],
+  "current_scene_index": 7,
+  "errors": [],
+  "history": [],
+  "flags": {"needs_human_review": false, "dry_run": false}
+}

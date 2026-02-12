@@ -1,0 +1,86 @@
+{
+  "title": "AI Analysis of Epstein Files Redactions and Accountability Failures",
+  "topic_summary": "Multi-model AI examination of selective DOJ/FBI redactions in Epstein files, highlighting protections for powerful figures like Wexner while exposing victims, with evidence of systemic suppression.",
+  "target_audience": "General public interested in government transparency, AI analysis, and Epstein case developments.",
+  "estimated_duration_seconds": 600,
+  "total_estimated_words": 1500,
+  "scenes": [
+    {
+      "id": "scene_01_intro",
+      "title": "Introduction",
+      "narration_key": "intro",
+      "narration_summary": "Overview of Epstein files, Transparency Act, and AI analysis methodology",
+      "estimated_words": 200,
+      "estimated_duration": "80s",
+      "animations": ["Fade in title", "timeline graphic of events"],
+      "complexity": "low",
+      "risk_flags": []
+    },
+    {
+      "id": "scene_02_agree",
+      "title": "Model Agreements",
+      "narration_key": "agreements",
+      "narration_summary": "Key converged findings on selective redactions and inverted priorities",
+      "estimated_words": 300,
+      "estimated_duration": "120s",
+      "animations": ["Table build-up with checkmarks", "highlight Wexner redaction stats"],
+      "complexity": "medium",
+      "risk_flags": ["table sync"]
+    },
+    {
+      "id": "scene_03_disagree",
+      "title": "Model Disagreements",
+      "narration_key": "disagreements",
+      "narration_summary": "Divergences on intent vs. failure, FBI pipeline role",
+      "estimated_words": 200,
+      "estimated_duration": "80s",
+      "animations": ["Split-screen comparisons", "flow diagram of redaction chain"],
+      "complexity": "medium",
+      "risk_flags": []
+    },
+    {
+      "id": "scene_04_unique",
+      "title": "Unique Discoveries",
+      "narration_key": "unique",
+      "narration_summary": "Model-specific insights like Wexner timeline and dual-layer suppression",
+      "estimated_words": 250,
+      "estimated_duration": "100s",
+      "animations": ["Bullet reveals with icons", "timeline animation for 2019 events"],
+      "complexity": "low",
+      "risk_flags": []
+    },
+    {
+      "id": "scene_05_analysis",
+      "title": "Comprehensive Analysis",
+      "narration_key": "analysis",
+      "narration_summary": "Synthesis of findings, implications for accountability",
+      "estimated_words": 300,
+      "estimated_duration": "120s",
+      "animations": ["Text highlights", "asymmetry visualization (victims vs. elites)"],
+      "complexity": "medium",
+      "risk_flags": ["dense text"]
+    },
+    {
+      "id": "scene_06_dual",
+      "title": "Dual-Layer Redaction",
+      "narration_key": "dual",
+      "narration_summary": "FBI pre-redaction mechanics and deniability structure",
+      "estimated_words": 150,
+      "estimated_duration": "60s",
+      "animations": ["Pipeline diagram with phases", "blame arrows"],
+      "complexity": "medium",
+      "risk_flags": []
+    },
+    {
+      "id": "scene_07_conclusion",
+      "title": "Conclusion",
+      "narration_key": "conclusion",
+      "narration_summary": "Call for reforms, pattern across administrations",
+      "estimated_words": 100,
+      "estimated_duration": "40s",
+      "animations": ["Fade out with key takeaways", "call-to-action text"],
+      "complexity": "low",
+      "risk_flags": []
+    }
+  ]
+}
