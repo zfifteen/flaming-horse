@@ -12,6 +12,7 @@
 ### ElevenLabs Only - No Exceptions
 
 **ABSOLUTE REQUIREMENTS:**
+- ElevenLabs API calls MUST be performed sequentially, NOT concurrently.
 - ✅ **ONLY** ElevenLabs TTS service (`ElevenLabsService`)
 - ✅ **Voice ID:** `rBgRd5IfS6iqrGfuhlKR` (Big D's cloned voice)
 - ✅ **Model:** `eleven_multilingual_v2`
@@ -27,6 +28,7 @@
 - Do not create or modify any files outside the designated project folder.
 - Understand `reference_docs/HOW_TO_ANIMATE.md` before creating any animations. 
 - All animations of text must have a duration of 2 seconds.
+- If the subject matter is non-mathematical, use text, tables, charts and graphs and do not draw geometric or mathematical objects. 
 
 ---
 
