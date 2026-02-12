@@ -1,96 +1,122 @@
-# Incremental Manim Video Builder
+# Flaming Horse
 
-Agentic loop system for building Manim animations iteratively with synchronized voiceover.
+**Transform ideas into professional math videos with a single prompt.**
 
-## 🚨 CRITICAL: READ FIRST
+Flaming Horse is an AI-powered video production system that generates complete Manim animations with synchronized professional voiceovers. Describe your concept, and watch as it builds publication-ready mathematical visualizations automatically.
 
-**[VOICE SERVICE POLICY - MANDATORY READING →](docs/VOICE_POLICY.md)**
+## Why Flaming Horse?
 
-**TL;DR:** 
-- ✅ ElevenLabs ONLY (voice ID: `rBgRd5IfS6iqrGfuhlKR`)
-- ❌ NO gTTS, NO fallback, NO dev mode
-- ⚠️ Violations = build failure
+### From Concept to Video in Minutes
 
----
+Skip the tedious coding. Provide a description or mathematical concept, and Flaming Horse handles scene composition, animation sequencing, narration scripting, and voice synthesis.
+
+### Professional Quality Output
+
+- **Studio-grade voiceovers** powered by ElevenLabs multilingual AI
+- **Manim-native animations** with full mathematical typesetting
+- **Multi-scene orchestration** with intelligent pacing and transitions
+- **Production-ready exports** suitable for YouTube, courses, and presentations
+
+
+### Built for Math Communicators
+
+Whether you're an educator creating course content, a researcher presenting findings, or a content creator explaining complex topics, Flaming Horse eliminates the production bottleneck between your ideas and your audience.
 
 ## Quick Start
 
 ```bash
-cd ~/IdeaProjects/flaming-horse
-
-# 1. Create a new project
+# Create your first project
 ./scripts/new_project.sh my_video
 
-# 2. Configure agent in scripts/build_video.sh (edit invoke_agent function)
-
-# 3. Run the build
+# Build from a prompt (configure your AI agent in build_video.sh)
 ./scripts/build_video.sh projects/my_video
 ```
 
-## Project Structure
+Your video appears in `projects/my_video/final_video.mp4`.
 
-```
-projects/my_video/
-├── project_state.json       # State machine data
-├── build.log                # Execution log
-├── plan.json                # Generated video plan
-├── narration_script.py      # Narration text
-├── voice_config.py          # ElevenLabs settings
-├── scenes/                  # Scene Python files
-└── final_video.mp4          # Final output
-```
+## How It Works
 
-## Project Organization
+Flaming Horse uses an intelligent agentic workflow to decompose your concept into:
 
-**Default Location**: Projects are created in `./projects/<project_name>/` relative to the repository root.
+1. **Video plan** with scene breakdown and timing
+2. **Narration script** synchronized to visual elements
+3. **Scene generation** with Manim code for each segment
+4. **Voice synthesis** with professional AI narration
+5. **Final assembly** into a polished video
 
-**Custom Location**: To use a different location:
-```bash
-./scripts/new_project.sh my_video /path/to/custom/location
-./scripts/build_video.sh /path/to/custom/location/my_video
-```
+The system iterates until each component meets quality standards, then assembles everything into your final video.
 
-**Recommended structure**:
-```
-~/manim_projects/
-├── gravity_anomalies/
-├── calculus_intro/
-└── physics_basics/
-```
-
-Create projects with:
-```bash
-./scripts/new_project.sh gravity_anomalies ~/manim_projects
-./scripts/build_video.sh ~/manim_projects/gravity_anomalies
-```
-
-## State Machine Flow
-
-```
-init → plan → review → narration → build_scenes → final_render → assemble → complete
-```
-
-## Prerequisites
+## Installation
 
 ```bash
+# Install dependencies
 pip install manim manim-voiceover-plus
 brew install sox ffmpeg
-export ELEVENLABS_API_KEY="your_key"
+
+# Configure voice service
+export ELEVENLABS_API_KEY="your_api_key_here"
 ```
 
-## Helper Scripts
-
-- `./scripts/new_project.sh <name> [location]` — Create new project
-- `./scripts/reset_phase.sh <project_dir> <phase>` — Reset to specific phase
-- `./scripts/validate_scaffold.sh` — Validate installation
-
-**Note**: Projects must be created with `./scripts/new_project.sh` before running `./scripts/build_video.sh`. The `init` phase is not used in the build loop.
+**Voice Requirements:** Flaming Horse requires an ElevenLabs API key for professional voice synthesis. Free tier available at [elevenlabs.io](https://elevenlabs.io).
 
 ## Configuration
 
-Edit `./scripts/build_video.sh` → `invoke_agent()` function to integrate your AI agent.
+Edit `./scripts/build_video.sh` to connect your preferred AI agent (Claude, GPT-4, Gemini, etc.) in the `invoke_agent()` function. The agent receives context about the current build phase and returns the appropriate output.
 
-Voice: `rBgRd5IfS6iqrGfuhlKR` (ElevenLabs)
-Model: `eleven_multilingual_v2`
+## Project Structure
 
-See full documentation at the top of each script file.
+Projects are self-contained and portable:
+
+```
+projects/my_video/
+├── final_video.mp4          # Your finished video
+├── plan.json                # Scene breakdown
+├── narration_script.py      # Voice script
+├── scenes/                  # Generated Manim code
+└── project_state.json       # Build state
+```
+
+
+## Use Cases
+
+- **Educational Content**: Lecture supplements, online courses, tutorial series
+- **Research Communication**: Paper visualizations, conference presentations
+- **Content Creation**: YouTube explainers, social media educational content
+- **Corporate Training**: Technical onboarding, concept explanations
+
+
+## Advanced Features
+
+- **Custom project locations** for organizing video libraries
+- **Phase reset capability** for iterative refinement
+- **State machine persistence** for reliable long-running builds
+- **Extensible agent integration** supporting any LLM provider
+
+
+## Documentation
+
+- [Voice Service Policy](docs/VOICE_POLICY.md) - Audio configuration details
+- Script documentation - See inline comments in `./scripts/` directory
+
+
+## Requirements
+
+- Python 3.8+
+- Manim Community Edition
+- FFmpeg and Sox
+- ElevenLabs API key
+
+
+## License
+
+MIT License - see LICENSE file for details.
+
+## Contributing
+
+Contributions welcome! This is an open-source project under active development. Feel free to submit issues, feature requests, or pull requests.
+
+***
+
+**Ready to create your first math video?** Start with `./scripts/new_project.sh` and bring your concepts to life.
+
+***
