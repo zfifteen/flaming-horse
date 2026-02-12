@@ -1,0 +1,91 @@
+{
+  "project_name": "climate_signal_noise_paradox",
+  "phase": "complete",
+  "created_at": "2026-02-11T19:30:00Z",
+  "updated_at": "2026-02-11T19:42:00Z",
+  "run_count": 1,
+  "plan_file": "plan.json",
+  "narration_file": "narration_script.py",
+  "voice_config_file": "voice_config.py",
+  "final_video": "final_video.mp4",
+  "final_duration_seconds": 206.3,
+  "scenes": [
+    {
+      "id": "scene_01_intro",
+      "title": "Model Failure Overview",
+      "file": "scene_01_intro.py",
+      "class_name": "Scene01Intro",
+      "narration_key": "intro",
+      "status": "rendered",
+      "video_file": "media/videos/scene_01_intro/1440p60/Scene01Intro.mp4"
+    },
+    {
+      "id": "scene_02_paradox",
+      "title": "Signal-to-Noise Paradox",
+      "file": "scene_02_paradox.py",
+      "class_name": "Scene02Paradox",
+      "narration_key": "paradox",
+      "status": "rendered",
+      "video_file": "media/videos/scene_02_paradox/1440p60/Scene02Paradox.mp4"
+    },
+    {
+      "id": "scene_03_sensitivity",
+      "title": "Beyond Sensitivity Tuning",
+      "file": "scene_03_sensitivity.py",
+      "class_name": "Scene03Sensitivity",
+      "narration_key": "sensitivity",
+      "status": "rendered",
+      "video_file": "media/videos/scene_03_sensitivity/1440p60/Scene03Sensitivity.mp4"
+    },
+    {
+      "id": "scene_04_mechanism",
+      "title": "Convective Mechanism",
+      "file": "scene_04_mechanism.py",
+      "class_name": "Scene04Mechanism",
+      "narration_key": "mechanism",
+      "status": "rendered",
+      "video_file": "media/videos/scene_04_mechanism/1440p60/Scene04Mechanism.mp4"
+    },
+    {
+      "id": "scene_05_implications",
+      "title": "Implications and Connections",
+      "file": "scene_05_implications.py",
+      "class_name": "Scene05Implications",
+      "narration_key": "implications",
+      "status": "rendered",
+      "video_file": "media/videos/scene_05_implications/1440p60/Scene05Implications.mp4"
+    },
+    {
+      "id": "scene_06_prediction",
+      "title": "Falsifiable Prediction",
+      "file": "scene_06_prediction.py",
+      "class_name": "Scene06Prediction",
+      "narration_key": "prediction",
+      "status": "rendered",
+      "video_file": "media/videos/scene_06_prediction/1440p60/Scene06Prediction.mp4"
+    },
+    {
+      "id": "scene_07_disproof",
+      "title": "Disproof Conditions",
+      "file": "scene_07_disproof.py",
+      "class_name": "Scene07Disproof",
+      "narration_key": "disproof",
+      "status": "rendered",
+      "video_file": "media/videos/scene_07_disproof/1440p60/Scene07Disproof.mp4"
+    }
+  ],
+  "current_scene_index": 7,
+  "errors": [],
+  "history": [
+    "Phase plan completed: Generated plan.json with 7 scenes.",
+    "Phase narration completed: Created narration_script.py and voice_config.py.",
+    "Phase build_scenes completed: All 7 scene files generated.",
+    "Phase final_render completed: All 7 scenes rendered with ElevenLabs TTS at 1440p60.",
+    "Phase assemble completed: Concatenated 7 scenes into final_video.mp4 (206.3s, 13MB).",
+    "Phase complete: Final video verified and project finalized."
+  ],
+  "flags": {
+    "needs_human_review": false,
+    "dry_run": false
+  }
+}
