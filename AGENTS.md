@@ -64,10 +64,10 @@ The intent of this system is to generate videos from a single prompt without app
 
 Consult these files for technical details:
 
-- **reference_docs/manim_template.py.txt** — Base scene template with locked config
-- **reference_docs/manim_config_guide.md** — Positioning rules, safe zones, sizing guidelines
-- **reference_docs/manim_voiceover.md** — VoiceoverScene patterns, ElevenLabs integration
-- **reference_docs/manim_content_pipeline.md** — Overall workflow concepts
+- **reference_docs/manim_template.py.txt** - Base scene template with locked config
+- **reference_docs/manim_config_guide.md** - Positioning rules, safe zones, sizing guidelines
+- **reference_docs/manim_voiceover.md** - VoiceoverScene patterns, ElevenLabs integration
+- **reference_docs/manim_content_pipeline.md** - Overall workflow concepts
 
 ---
 
@@ -250,7 +250,7 @@ state['phase'] = 'build_scenes'
 from manim import *
 import numpy as np
 
-# ── Python 3.13 Compatibility Patch ────────────────────────────────
+# Python 3.13 Compatibility Patch
 import manim_voiceover_plus.services.base as base
 original_set_transcription = base.SpeechService.set_transcription
 
@@ -263,22 +263,22 @@ def patched_set_transcription(self, model=None, kwargs=None):
 
 base.SpeechService.set_transcription = patched_set_transcription
 
-# ── Voiceover Imports ──────────────────────────────────────────────
+# Voiceover Imports
 from manim_voiceover_plus import VoiceoverScene
 from manim_voiceover_plus.services.elevenlabs import ElevenLabsService
 from elevenlabs import VoiceSettings
 
-# ── Import Shared Configuration ────────────────────────────────────
+# Import Shared Configuration
 from voice_config import VOICE_ID, MODEL_ID, VOICE_SETTINGS
 from narration_script import SCRIPT
 
-# ── LOCKED CONFIGURATION (DO NOT MODIFY) ───────────────────────────
+# LOCKED CONFIGURATION (DO NOT MODIFY)
 config.frame_height = 10
 config.frame_width = 10 * 16/9
 config.pixel_height = 1440
 config.pixel_width = 2560
 
-# ── Safe Positioning Helper ────────────────────────────────────────
+# Safe Positioning Helper
 def safe_position(mobject, max_y=4.0, min_y=-4.0):
     """Ensure mobject stays within safe bounds after positioning"""
     top = mobject.get_top()[1]
@@ -289,7 +289,7 @@ def safe_position(mobject, max_y=4.0, min_y=-4.0):
         mobject.shift(UP * (min_y - bottom))
     return mobject
 
-# ── Scene Class ────────────────────────────────────────────────────
+# Scene Class
 class Scene01Intro(VoiceoverScene):
     def construct(self):
         # ELEVENLABS ONLY - NO FALLBACK - FAIL LOUD
@@ -302,7 +302,7 @@ class Scene01Intro(VoiceoverScene):
             )
         )
         
-        # ── Animation Sequence ─────────────────────────────────────
+        # Animation Sequence
         # Timing budget: Calculate BEFORE writing animations
         # Example: 0.4 + 0.3 + 0.3 = 1.0 ✓
         
@@ -414,9 +414,9 @@ safe_layout(label1, label2, label3)  # MANDATORY for siblings
 - ❌ NEVER use a fixed 2-second run_time for all text
 - ✅ Scale text animation duration by content length:
     - Formula: `run_time = max(0.5, min(3.0, len(text) * 0.04))`
-    - Short labels (< 15 chars): 0.5 – 0.8s
-    - Medium text (15-60 chars): 1.0 – 2.0s
-    - Long text (60+ chars): 2.0 – 3.0s (consider FadeIn instead of Write)
+    - Short labels (< 15 chars): 0.5 - 0.8s
+    - Medium text (15-60 chars): 1.0 - 2.0s
+    - Long text (60+ chars): 2.0 - 3.0s (consider FadeIn instead of Write)
 - ✅ For bullet lists, use FadeIn with lag_ratio, NOT Write
 
 ### Content Density Per Scene
@@ -664,59 +664,11 @@ state['flags']['needs_human_review'] = True
 ```
 plan → review → narration → build_scenes → final_render → assemble → complete
   ↓       ↓          ↓            ↓              ↓             ↓          ↓
-plan.   validate   SCRIPT,    scene files   render with   concat    verify
-json               voice_     (one at       ElevenLabs    videos    output
-                   config     a time)
+plan.   validate   scripts      code          render        concat    done
+json    feasib.    + voice      files         videos        final
+                   config                                    .mp4
 ```
-
-Each invocation handles ONE phase transition. The orchestrator manages the loop.
 
 ---
 
-## macOS Rendering Environment
-
-**Assumptions:**
-- Operating system: macOS only
-- Tools available:
-  - `manim` CLI in Python environment
-  - `ffmpeg` on PATH (Homebrew)
-  - `sox` installed (`brew install sox`)
-- Environment variables:
-  - `ELEVENLABS_API_KEY` must be set
-
-### Required Environment Variable
-
-The ElevenLabs API key MUST be stored exactly as:
-
-```bash
-export ELEVENLABS_API_KEY="your_key_here"
-```
-
-In `.env` files, use:
-
-```
-ELEVENLABS_API_KEY=your_key_here
-```
-
-**Do NOT use variants like `ELEVEN_API_KEY` or `ELEVENLABS_KEY`.**
-
----
-
-## Final Checklist
-
-Before marking any phase complete, verify:
-
-- [ ] All imports use underscores (`manim_voiceover_plus`)
-- [ ] ElevenLabsService is the ONLY TTS service used
-- [ ] Voice ID is `rBgRd5IfS6iqrGfuhlKR`
-- [ ] Narration uses `SCRIPT["key"]`, not hardcoded text
-- [ ] Titles use `.move_to(UP * 3.8)`, not `.to_edge(UP)`
-- [ ] `safe_position()` called after all `.next_to()`
-- [ ] Timing budgets sum to ≤ 1.0
-- [ ] Python 3.13 patch included
-- [ ] Locked config block present
-- [ ] No fallback code patterns exist
-
----
-
-**This is the complete, authoritative system prompt for Manim video production agents. Follow it exactly.**
+**END OF AGENTS.md**
