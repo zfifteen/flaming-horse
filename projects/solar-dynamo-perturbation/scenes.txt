@@ -1,0 +1,6 @@
+file 'media/videos/scene_01_intro/1440p60/Scene01Intro.mp4'
+file 'media/videos/scene_02_standard_theories/1440p60/Scene02StandardTheories.mp4'
+file 'media/videos/scene_03_key_ratio/1440p60/Scene03KeyRatio.mp4'
+file 'media/videos/scene_04_1960_2020/1440p60/Scene0419602020.mp4'
+file 'media/videos/scene_05_predictions/1440p60/Scene05Predictions.mp4'
+file 'media/videos/scene_06_conclusion/1440p60/Scene06Conclusion.mp4'
