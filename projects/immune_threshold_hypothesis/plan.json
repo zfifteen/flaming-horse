@@ -1,0 +1,97 @@
+{
+  "title": "The Immune Threshold Hypothesis: Why Cancer Rates Are Rising Faster in Young Adults",
+  "topic_summary": "Explores a threshold-based immune depletion model to explain why cancer rates are rising faster in younger adults than seniors, contradicting standard epidemiological models. Presents data, mechanisms, predictions, and policy implications.",
+  "target_audience": "General public with interest in health trends, medical professionals, researchers in oncology and immunology.",
+  "estimated_duration_seconds": 540,
+  "total_estimated_words": 1200,
+  "scenes": [
+    {
+      "id": "scene_01_paradox",
+      "title": "The Paradox",
+      "narration_key": "paradox",
+      "narration_summary": "Introduce the counterintuitive rise in cancer rates among young adults, citing key statistics and establishing the core question.",
+      "estimated_words": 100,
+      "estimated_duration": "45s",
+      "animations": ["Population pyramids comparison", "Data overlays"],
+      "complexity": "low",
+      "risk_flags": []
+    },
+    {
+      "id": "scene_02_standard_model_fails",
+      "title": "The Standard Model Fails",
+      "narration_key": "standard_fails",
+      "narration_summary": "Explain why catch-up effects and screening expansions don't explain the sustained acceleration.",
+      "estimated_words": 110,
+      "estimated_duration": "50s",
+      "animations": ["Incidence trend graphs", "Model divergence visualization"],
+      "complexity": "medium",
+      "risk_flags": []
+    },
+    {
+      "id": "scene_03_renewable_resource",
+      "title": "Immune Surveillance as Renewable Resource",
+      "narration_key": "renewable_resource",
+      "narration_summary": "Describe immune surveillance with depletion threshold, contrasting gradual vs rapid depletion.",
+      "estimated_words": 130,
+      "estimated_duration": "60s",
+      "animations": ["Resource pool metaphor", "Split-screen comparison"],
+      "complexity": "medium",
+      "risk_flags": []
+    },
+    {
+      "id": "scene_04_cumulative_burden",
+      "title": "The Cumulative Burden Formula",
+      "narration_key": "cumulative_burden",
+      "narration_summary": "Introduce the mathematical model linking burden to cancer rates, visualizing regime shift.",
+      "estimated_words": 100,
+      "estimated_duration": "50s",
+      "animations": ["Equation display", "Gauge threshold crossing"],
+      "complexity": "high",
+      "risk_flags": ["LaTeX rendering accuracy"]
+    },
+    {
+      "id": "scene_05_age_inversion",
+      "title": "The Age Inversion Prediction",
+      "narration_key": "age_inversion",
+      "narration_summary": "Present the hypothesis's testable prediction of faster rises in young adults, with cancer type distinctions.",
+      "estimated_words": 120,
+      "estimated_duration": "55s",
+      "animations": ["Projection graphs", "Cancer type comparisons"],
+      "complexity": "medium",
+      "risk_flags": []
+    },
+    {
+      "id": "scene_06_biological_mechanism",
+      "title": "The Biological Mechanism",
+      "narration_key": "biological_mechanism",
+      "narration_summary": "Detail cellular-level changes from repeated stimulation, IgG4 elevation, and immune evasion.",
+      "estimated_words": 140,
+      "estimated_duration": "65s",
+      "animations": ["T-cell exhaustion animation", "Antibody shifts"],
+      "complexity": "high",
+      "risk_flags": ["Accurate cellular representations"]
+    },
+    {
+      "id": "scene_07_policy_implication",
+      "title": "The Policy Implication",
+      "narration_key": "policy_implication",
+      "narration_summary": "Discuss burden reduction via booster de-escalation and early screening as the intervention point.",
+      "estimated_words": 120,
+      "estimated_duration": "55s",
+      "animations": ["Intervention sliders", "Trajectory forks"],
+      "complexity": "medium",
+      "risk_flags": []
+    },
+    {
+      "id": "scene_08_conclusion_test",
+      "title": "Conclusion - The Test",
+      "narration_key": "conclusion_test",
+      "narration_summary": "Summarize predictions and emphasize the next 36 months as decisive data window.",
+      "estimated_words": 90,
+      "estimated_duration": "40s",
+      "animations": ["Future timelines", "Monitoring gauges"],
+      "complexity": "low",
+      "risk_flags": []
+    }
+  ]
+}
