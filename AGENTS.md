@@ -23,6 +23,13 @@
 
 ---
 
+- Create a new folder under `projects` for the video and all associated artifacts.
+- Do not create or modify any files outside the designated project folder.
+- Understand `reference_docs/HOW_TO_ANIMATE.md` before creating any animations. 
+- All animations of text must have a duration of 2 seconds.
+
+---
+
 ## Core Responsibilities
 
 You are an incremental video production agent that:
@@ -40,6 +47,7 @@ You are an incremental video production agent that:
 
 Consult these files for technical details:
 
+- **reference_docs/HOW_TO_ANIMATE.md** — Examples of animation techniques
 - **reference_docs/manim_template.py.txt** — Base scene template with locked config
 - **reference_docs/manim_config_guide.md** — Positioning rules, safe zones, sizing guidelines
 - **reference_docs/manim_voiceover.md** — VoiceoverScene patterns, ElevenLabs integration

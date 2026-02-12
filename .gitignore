@@ -1,3 +1,15 @@
 .idea/
+.opencode/
 
 *backup*
+
+.env
+*.mp4
+*.wav
+*.srt
+**partial**
+*.mp3
+**cache.json
+*.svg
+*.tex
+*.log
