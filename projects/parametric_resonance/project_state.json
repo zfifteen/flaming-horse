@@ -1,0 +1,129 @@
+{
+  "project_name": "parametric_resonance",
+   "phase": "complete",
+  "created_at": "2026-02-11T00:00:00Z",
+  "updated_at": "2026-02-11T00:02:00Z",
+  "run_count": 0,
+  "plan_file": "plan.json",
+  "narration_file": "narration_script.py",
+  "voice_config_file": "voice_config.py",
+  "scenes": [
+    {
+      "id": "scene_01_threshold_intro",
+      "title": "Threshold Introduction",
+      "narration_key": "threshold",
+      "narration_summary": "Introduces the threshold condition where acoustic pressure ratio times frequency ratio reaches 0.05-0.1 for effective momentum transfer.",
+      "estimated_words": 72,
+      "estimated_duration": "20s",
+      "animations": "3D parameter space with parametric surface rising to threshold ridge, color gradients, and glowing contour plane (as detailed in user-provided description).",
+      "complexity": "high",
+      "risk_flags": ["3D surface rendering", "parametric surface animation"],
+      "status": "rendered",
+      "video_file": "media/videos/scene_01_threshold_intro/1440p60/Scene01ThresholdIntro.mp4"
+    },
+    {
+      "id": "scene_02_resonance_mechanism",
+      "title": "Resonance Mechanism",
+      "narration_key": "resonance",
+      "narration_summary": "Explains parametric resonance driving coherent ionic oscillations with 10-50x amplification.",
+      "estimated_words": 48,
+      "estimated_duration": "15s",
+      "animations": "Ionic oscillation visualization with vector field on spherical plasma model, frequency-matching arrows, and amplification scale bars.",
+      "complexity": "medium",
+      "risk_flags": ["vector field computation"],
+      "status": "rendered",
+      "video_file": "media/videos/scene_02_resonance_mechanism/1440p60/Scene02ResonanceMechanism.mp4"
+    },
+    {
+      "id": "scene_03_counterintuitive_efficiency",
+      "title": "Counterintuitive Efficiency",
+      "narration_key": "efficiency",
+      "narration_summary": "Demonstrates weak acoustic pressure at right frequency outperforming strong pressure at wrong frequency.",
+      "estimated_words": 44,
+      "estimated_duration": "15s",
+      "animations": "Dual bar charts comparing efficiency vs. pressure/frequency, with animated transitions showing peak at resonance condition.",
+      "complexity": "low",
+      "risk_flags": [],
+      "status": "rendered",
+      "video_file": "media/videos/scene_03_counterintuitive_efficiency/1440p60/Scene03CounterintuitiveEfficiency.mp4"
+    },
+    {
+      "id": "scene_04_design_tradeoff",
+      "title": "Design Tradeoff",
+      "narration_key": "tradeoff",
+      "narration_summary": "Describes binary optimization requiring precise resonance tuning or accepting 10x control penalty.",
+      "estimated_words": 52,
+      "estimated_duration": "20s",
+      "animations": "Optimization landscape with resonance peak, penalty zone visualization, and tuning parameter sliders.",
+      "complexity": "medium",
+      "risk_flags": ["interactive parameter sliders"],
+      "status": "rendered",
+      "video_file": "media/videos/scene_04_design_tradeoff/1440p60/Scene04DesignTradeoff.mp4"
+    },
+    {
+      "id": "scene_05_traditional_vs_parametric",
+      "title": "Traditional vs. Parametric",
+      "narration_key": "traditional",
+      "narration_summary": "Contrasts monotonic 'more power' approach with non-monotonic parametric mechanism.",
+      "estimated_words": 39,
+      "estimated_duration": "12s",
+      "animations": "Side-by-side comparison plots: linear power curve vs. resonant peak curve with frequency axis.",
+      "complexity": "low",
+      "risk_flags": [],
+      "status": "rendered",
+      "video_file": "media/videos/scene_05_traditional_vs_parametric/1440p60/Scene05TraditionalVsParametric.mp4"
+    },
+    {
+      "id": "scene_06_frequency_downconversion",
+      "title": "Frequency Downconversion",
+      "narration_key": "downconversion",
+      "narration_summary": "Shows how parametric excitation enables megahertz physics with kilohertz modulators via frequency ratio.",
+      "estimated_words": 52,
+      "estimated_duration": "18s",
+      "animations": "Frequency spectrum visualization with downconversion arrows, magnetic field icons, and parametric subharmonic labels.",
+      "complexity": "medium",
+      "risk_flags": ["frequency spectrum animation"],
+      "status": "rendered",
+      "video_file": "media/videos/scene_06_frequency_downconversion/1440p60/Scene06FrequencyDownconversion.mp4"
+    },
+    {
+      "id": "scene_07_operational_window",
+      "title": "Operational Window",
+      "narration_key": "window",
+      "narration_summary": "Identifies over-coupled regime with plasma instabilities beyond 0.1 threshold.",
+      "estimated_words": 43,
+      "estimated_duration": "14s",
+      "animations": "Phase diagram with operational window band, instability icons, and threshold boundaries.",
+      "complexity": "medium",
+      "risk_flags": [],
+      "status": "rendered",
+      "video_file": "media/videos/scene_07_operational_window/1440p60/Scene07OperationalWindow.mp4"
+    },
+    {
+      "id": "scene_08_predictive_peaks",
+      "title": "Predictive Peaks",
+      "narration_key": "peaks",
+      "narration_summary": "Predicts observable efficiency peaks at f_mod/f_ci ratios of 1/2, 1/3, 1/4 for experimental validation.",
+      "estimated_words": 48,
+      "estimated_duration": "16s",
+      "animations": "Experimental prediction plot with labeled peaks, comparison to broadband resonance, and impedance matching curve.",
+      "complexity": "low",
+      "risk_flags": [],
+      "status": "rendered",
+      "video_file": "media/videos/scene_08_predictive_peaks/1440p60/Scene08PredictivePeaks.mp4"
+    }
+  ],
+  "current_scene_index": 0,
+  "errors": [],
+  "history": [
+    "Phase plan completed: Generated plan.json with 8 scenes, estimated 240s duration.",
+    "Phase narration completed: Created narration_script.py and voice_config.py with ElevenLabs settings.",
+    "Phase final_render completed: Rendered all 8 scenes with voiceover and subtitles.",
+    "Phase assemble completed: Concatenated all scenes into final_video.mp4"
+  ],
+  "flags": {
+    "needs_human_review": false,
+    "dry_run": false
+  }
+}
+}
