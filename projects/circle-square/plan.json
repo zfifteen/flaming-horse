@@ -1,0 +1,75 @@
+{
+  "title": "Squaring the Circle: The Impossible Construction",
+  "topic_summary": "An exploration of the famous mathematical problem of squaring the circle, including its historical context, the impossibility proof, and why it captivated mathematicians for centuries.",
+  "target_audience": "Mathematics enthusiasts, students of geometry, and anyone interested in the history of mathematical impossibilities",
+  "estimated_duration_seconds": 300,
+  "total_estimated_words": 750,
+  "scenes": [
+    {
+      "id": "scene_01_intro",
+      "title": "Introduction to Squaring the Circle",
+      "narration_key": "intro",
+      "narration_summary": "Hook with the basic problem statement and why it's intriguing",
+      "estimated_words": 75,
+      "estimated_duration": "30s",
+      "animations": ["Write title", "Show circle and square", "Fade in problem statement"],
+      "complexity": "low",
+      "risk_flags": []
+    },
+    {
+      "id": "scene_02_history",
+      "title": "Historical Attempts",
+      "narration_key": "history",
+      "narration_summary": "Brief history of attempts to square the circle from ancient times to the 19th century",
+      "estimated_words": 125,
+      "estimated_duration": "50s",
+      "animations": ["Timeline visualization", "Ancient geometry tools", "Failed construction attempts"],
+      "complexity": "medium",
+      "risk_flags": ["Multiple simultaneous objects if showing timeline"]
+    },
+    {
+      "id": "scene_03_mathematics",
+      "title": "The Mathematical Impossibility",
+      "narration_key": "math_impossible",
+      "narration_summary": "Explanation of why squaring the circle is impossible using properties of π and transcendental numbers",
+      "estimated_words": 150,
+      "estimated_duration": "60s",
+      "animations": ["MathTex equations", "π visualization", "Transcendental number concept"],
+      "complexity": "high",
+      "risk_flags": ["Complex MathTex rendering", "Abstract concepts to visualize"]
+    },
+    {
+      "id": "scene_04_demonstration",
+      "title": "Attempting the Construction",
+      "narration_key": "demonstration",
+      "narration_summary": "Geometric demonstration of why compass and straightedge cannot construct the required side length",
+      "estimated_words": 125,
+      "estimated_duration": "50s",
+      "animations": ["Compass and straightedge animation", "Step-by-step construction failure", "Area comparison"],
+      "complexity": "medium",
+      "risk_flags": ["Geometric animations may require precise positioning"]
+    },
+    {
+      "id": "scene_05_broader_implications",
+      "title": "Broader Mathematical Context",
+      "narration_key": "implications",
+      "narration_summary": "Connection to other famous problems and the development of mathematical rigor",
+      "estimated_words": 100,
+      "estimated_duration": "40s",
+      "animations": ["Related problems visualization", "Mathematical progress timeline", "Concept connections"],
+      "complexity": "medium",
+      "risk_flags": []
+    },
+    {
+      "id": "scene_06_conclusion",
+      "title": "Recap and Legacy",
+      "narration_key": "conclusion",
+      "narration_summary": "Summary of why squaring the circle matters and its lasting impact on mathematics",
+      "estimated_words": 75,
+      "estimated_duration": "30s",
+      "animations": ["Key takeaways list", "Final geometric comparison", "Legacy statement"],
+      "complexity": "low",
+      "risk_flags": []
+    }
+  ]
+}
