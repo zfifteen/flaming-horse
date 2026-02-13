@@ -1,12 +1,12 @@
 """
 Manim Community Edition VoiceoverScene Template
-Optimized for ElevenLabs TTS integration and proper framing
+Optimized for cached Qwen integration and proper framing
 
 Usage:
 1. Copy this template as your starting point for new scenes
 2. Replace YourSceneName with your actual scene name
 3. Add your visualization code in the construct() method
-4. Configure voice settings in voice_config.py
+4. Ensure voice_clone_config.json and cached audio exist
 
 Render with: manim <filename>.py YourSceneName
 """
@@ -28,9 +28,9 @@ def patched_set_transcription(self, model=None, kwargs=None):
 base.SpeechService.set_transcription = patched_set_transcription
 
 # ── Voiceover Imports ──────────────────────────────────────────────
+from pathlib import Path
 from manim_voiceover_plus import VoiceoverScene
-from manim_voiceover_plus.services.elevenlabs import ElevenLabsService
-from elevenlabs import VoiceSettings
+from flaming_horse_voice import get_speech_service
 
 # ============================================================================
 # OPTIMIZED CONFIGURATION - DO NOT MODIFY THESE VALUES
@@ -136,15 +136,7 @@ def play_text_in_slot(scene, animation, slot, *, max_text_seconds=2.0, min_run_t
 
 
 # ── Voice Configuration ────────────────────────────────────────────
-# Import from shared voice_config.py or define here
-VOICE_ID = "rBgRd5IfS6iqrGfuhlKR"  # Big D's cloned voice
-MODEL_ID = "eleven_multilingual_v2"
-VOICE_SETTINGS = VoiceSettings(
-    stability=0.5,
-    similarity_boost=0.75,
-    style=0.0,
-    use_speaker_boost=True
-)
+# Cached Qwen configuration lives in voice_clone_config.json
 
 
 # ── Narration Script ───────────────────────────────────────────────
@@ -162,15 +154,8 @@ class YourSceneName(VoiceoverScene):  # Replace with your scene name
     """
 
     def construct(self):
-        # ── Configure ElevenLabs TTS ───────────────────────────────
-        self.set_speech_service(
-            ElevenLabsService(
-                voice_id=VOICE_ID,
-                model_id=MODEL_ID,
-                voice_settings=VOICE_SETTINGS,
-                transcription_model=None,
-            )
-        )
+        # ── Configure cached Qwen TTS ───────────────────────────────
+        self.set_speech_service(get_speech_service(Path(__file__).resolve().parent))
 
         # ── Title Sequence ─────────────────────────────────────────
         # Timing budget: Calculate BEFORE writing animations
@@ -226,14 +211,7 @@ class SafePositioningExample(VoiceoverScene):
     """Demonstrates safe positioning techniques to avoid clipping/overlap."""
 
     def construct(self):
-        self.set_speech_service(
-            ElevenLabsService(
-                voice_id=VOICE_ID,
-                model_id=MODEL_ID,
-                voice_settings=VOICE_SETTINGS,
-                transcription_model=None,
-            )
-        )
+        self.set_speech_service(get_speech_service(Path(__file__).resolve().parent))
 
         title = Text("Safe Positioning Demo", font_size=48)
         title.move_to(UP * 3.8)  # Absolute positioning

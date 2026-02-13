@@ -1,7 +1,7 @@
 # Manim Content Pipeline
 _A high-level reference for assistants_
 
-This document describes the **Manim Content Pipeline**, a reusable pattern for going from raw subject matter to a narrated Manim video with ElevenLabs-powered audio and a macOS-based render script.
+This document describes the **Manim Content Pipeline**, a reusable pattern for going from raw subject matter to a narrated Manim video with cached Qwen audio and a macOS-based render script.
 
 The goal is not to enforce a strict sequence but to give assistants a **shared mental model** of the whole pipeline so they can enter at any stage and still act coherently.
 
@@ -14,7 +14,7 @@ The pipeline transforms input material into a final video in up to five conceptu
 1. Subject material understanding
 2. Z-mapping insight analysis
 3. Narration script generation
-4. Manim scene generation with ElevenLabs integration
+4. Manim scene generation with cached Qwen integration
 5. Bash-based rendering on macOS
 
 These stages are **logically ordered** but **operationally flexible**:
@@ -146,12 +146,12 @@ Assistants should be prepared to **revise and iterate** on the script based on u
 
 ---
 
-## 5. Manim Scene Generation with ElevenLabs Integration
+## 5. Manim Scene Generation with Cached Qwen Integration
 
 **Purpose:** Convert the narration script and conceptual plan into a Manim Python file that:
 
 - Uses the Space's **locked configuration**.
-- Integrates **manim-voiceover** with **ElevenLabs**.
+- Integrates **manim-voiceover** with cached **Qwen** audio.
 - Synchronizes animation timing with generated audio.
 
 ### 5.1. Template and Configuration
@@ -161,7 +161,7 @@ Assistants must treat the Space's template as authoritative:
 - Base imports and config:
     - Manim CE (`from manim import *`)
     - `numpy` if needed (`import numpy as np`)
-    - `VoiceoverScene` and `ElevenLabsService` from the chosen `manim-voiceover` variant
+    - `VoiceoverScene` and cached Qwen service from this repo (`flaming_horse_voice`)
     - Locked config values:
         - `config.frame_height = 10`
         - `config.frame_width = 10 * 16/9`
@@ -174,31 +174,19 @@ Assistants must treat the Space's template as authoritative:
     - Keep important content within +/-7 horizontally and +/-4 vertically.
     - Use the `safe_position()` helper after `.next_to()` chains.
 
-### 5.2. VoiceoverScene and ElevenLabs
+### 5.2. VoiceoverScene and Cached Qwen
 
 The generated scene class should:
 
 - Inherit from `VoiceoverScene`.
-- Configure ElevenLabs at the start of `construct()` or in a helper.
-- Use the hardcoded voice constants:
+- Configure the cached Qwen service at the start of `construct()` or in a helper.
+- Use the project directory to resolve cached audio:
 
 ```python
-VOICE_ID = "rBgRd5IfS6iqrGfuhlKR"
-MODEL_ID = "eleven_multilingual_v2"
-VOICE_SETTINGS = {
-    "stability": 0.5,
-    "similarity_boost": 0.75,
-}
-```
+from pathlib import Path
+from flaming_horse_voice import get_speech_service
 
-```python
-self.set_speech_service(
-    ElevenLabsService(
-        voice_id=VOICE_ID,
-        model_id=MODEL_ID,
-        voice_settings=VOICE_SETTINGS,
-    )
-)
+self.set_speech_service(get_speech_service(Path(__file__).resolve().parent))
 ```
 
 ### 5.3. Using the Narration Script in Code
@@ -268,10 +256,8 @@ Assistants should design animations to **match the rhythm of the voiceover**, no
 
 For longer videos:
 
-- Use a shared config file (for example, `voice_config.py`) that holds:
-    - `VOICE_ID`
-    - `MODEL_ID`
-    - `VOICE_SETTINGS`
+- Use a shared config file only for narration text; cached Qwen audio is configured
+  via `voice_clone_config.json` at the project root.
 - Create multiple scene files that import the shared config and define different `VoiceoverScene` subclasses.
 - The bash render stage can then render each scene and optionally concatenate the outputs.
 
@@ -279,7 +265,7 @@ For longer videos:
 
 ## 6. Bash Rendering on macOS
 
-**Purpose:** Automate the full render of the Manim project on the user's MacBook, including ElevenLabs voiceover.
+**Purpose:** Automate the full render of the Manim project on the user's MacBook, including cached Qwen voiceover.
 
 ### 6.1. Assumptions
 
@@ -289,7 +275,7 @@ For longer videos:
     - `ffmpeg` installed via Homebrew and on PATH (if concatenation is needed).
     - `sox` installed via Homebrew (`brew install sox`).
 - Environment has:
-    - `ELEVENLABS_API_KEY` must be set (no fallback, no dev mode)
+    - Local Qwen venv configured via `voice_clone_config.json`
 
 ### 6.2. Single-Scene Case
 
@@ -305,9 +291,6 @@ Example pattern:
 ```bash
 #!/usr/bin/env bash
 set -euo pipefail
-
-# Environment
-export ELEVENLABS_API_KEY="${ELEVENLABS_API_KEY:?Set ELEVENLABS_API_KEY}"
 
 # Render
 manim topic_explainer.py TopicExplainer
@@ -364,10 +347,10 @@ When the user asks for help related to Manim video creation, assistants should:
 3. **Maintain compatibility**
     - Generated Manim code must align with:
         - The Space's template configuration (`manim_template.py.txt`).
-        - The `VoiceoverScene` and ElevenLabs integration patterns (`manim_voiceover.md`).
+    - The `VoiceoverScene` and cached Qwen integration patterns (`manim_voiceover.md`).
         - The sizing and positioning rules (`manim_config_guide.md`).
     - Bash scripts must assume a **macOS environment**.
-    - The ElevenLabs voice ID is always `rBgRd5IfS6iqrGfuhlKR` unless the user overrides it.
+    - The cached Qwen model is `Qwen/Qwen3-TTS-12Hz-1.7B-Base` unless the user overrides it in `voice_clone_config.json`.
 
 4. **Be explicit and modular**
     - Clearly separate:
