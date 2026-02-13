@@ -1,3 +1,4 @@
+import ast
 import hashlib
 import json
 from pathlib import Path
@@ -7,6 +8,26 @@ from manim_voiceover_plus.services.base import SpeechService
 
 
 class QwenCachedService(SpeechService):
+    @staticmethod
+    def _load_script(script_path: Path) -> dict:
+        try:
+            tree = ast.parse(
+                script_path.read_text(encoding="utf-8"), filename=str(script_path)
+            )
+        except (OSError, SyntaxError, ValueError):
+            return {}
+        for node in tree.body:
+            if not isinstance(node, ast.Assign):
+                continue
+            for target in node.targets:
+                if isinstance(target, ast.Name) and target.id == "SCRIPT":
+                    try:
+                        value = ast.literal_eval(node.value)
+                    except (ValueError, TypeError):
+                        return {}
+                    return value if isinstance(value, dict) else {}
+        return {}
+
     def __init__(
         self,
         project_dir,
@@ -35,9 +56,10 @@ class QwenCachedService(SpeechService):
                 config = json.loads(config_path.read_text(encoding="utf-8"))
                 output_dir = config.get("output_dir")
                 if output_dir:
+                    output_path = Path(output_dir).expanduser()
                     cache_dir = (
-                        Path(output_dir).expanduser()
-                        if Path(output_dir).is_absolute()
+                        output_path
+                        if output_path.is_absolute()
                         else project_dir / output_dir
                     )
             except (json.JSONDecodeError, OSError):
@@ -58,9 +80,7 @@ class QwenCachedService(SpeechService):
         else:
             script_path = project_dir / "narration_script.py"
             if script_path.exists():
-                data = {}
-                exec(script_path.read_text(encoding="utf-8"), data)
-                for key, text in (data.get("SCRIPT") or {}).items():
+                for key, text in cls._load_script(script_path).items():
                     audio_file = f"{key}.mp3"
                     if (cache_dir / audio_file).exists():
                         cache_index[key] = audio_file
@@ -69,7 +89,7 @@ class QwenCachedService(SpeechService):
 
         if not cache_index:
             raise FileNotFoundError(
-                f"Missing Qwen cache index: {cache_file}. Run precache step first."
+                f"Missing Qwen cache index: {cache_file}. Fallback lookup in narration_script.py also found no cached audio. Run precache step first."
             )
 
         return cls(
