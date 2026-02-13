@@ -1,5 +1,0 @@
-file 'media/videos/scene_01_intro/1440p60/Scene01Intro.mp4'
-file 'media/videos/scene_02_definition/1440p60/Scene02Definition.mp4'
-file 'media/videos/scene_03_properties/1440p60/Scene03Properties.mp4'
-file 'media/videos/scene_04_examples/1440p60/Scene04Examples.mp4'
-file 'media/videos/scene_05_conclusion/1440p60/Scene05Conclusion.mp4'

@@ -1,8 +1,0 @@
-file 'media/videos/scene_01_threshold_intro/1440p60/Scene01ThresholdIntro.mp4'
-file 'media/videos/scene_02_resonance_mechanism/1440p60/Scene02ResonanceMechanism.mp4'
-file 'media/videos/scene_03_counterintuitive_efficiency/1440p60/Scene03CounterintuitiveEfficiency.mp4'
-file 'media/videos/scene_04_design_tradeoff/1440p60/Scene04DesignTradeoff.mp4'
-file 'media/videos/scene_05_traditional_vs_parametric/1440p60/Scene05TraditionalVsParametric.mp4'
-file 'media/videos/scene_06_frequency_downconversion/1440p60/Scene06FrequencyDownconversion.mp4'
-file 'media/videos/scene_07_operational_window/1440p60/Scene07OperationalWindow.mp4'
-file 'media/videos/scene_08_predictive_peaks/1440p60/Scene08PredictivePeaks.mp4'

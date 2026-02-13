@@ -1,7 +1,0 @@
-file 'media/videos/scene_01_intro/1440p60/Scene01Intro.mp4'
-file 'media/videos/scene_02_core_issue/1440p60/Scene02CoreIssue.mp4'
-file 'media/videos/scene_03_why_stats_fail/1440p60/Scene03WhyStatsFail.mp4'
-file 'media/videos/scene_04_ambiguous_data/1440p60/Scene04AmbiguousData.mp4'
-file 'media/videos/scene_05_solution/1440p60/Scene05Solution.mp4'
-file 'media/videos/scene_06_predictions/1440p60/Scene06Predictions.mp4'
-file 'media/videos/scene_07_conclusion/1440p60/Scene07Conclusion.mp4'
