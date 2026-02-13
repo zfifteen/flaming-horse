@@ -1,129 +1,150 @@
 # Flaming Horse
 
-**Transform ideas into professional math videos with a single prompt.**
+A bash-driven compiler pipeline that transforms a single text prompt into a fully rendered, narrated Manim video — no manual coding, no approval loops, no intervention required.
 
-Flaming Horse is an AI-powered video production system that generates complete Manim animations with synchronized professional voiceovers. Describe your concept, and watch as it builds publication-ready mathematical visualizations automatically.
+## What This Actually Does
 
-## Why Flaming Horse?
+Flaming Horse is not a prompt wrapper. It is a state-machine orchestrator (`build_video.sh`) that drives an AI agent through a seven-phase production pipeline:
 
-### From Concept to Video in Minutes
+```
+plan → review → narration → build_scenes → final_render → assemble → complete
+```
 
-Skip the tedious coding. Provide a description or mathematical concept, and Flaming Horse handles scene composition, animation sequencing, narration scripting, and voice synthesis.
+Each phase generates concrete artifacts. The orchestrator validates them, catches errors, and advances — or retries — automatically. The output is `final_video.mp4` with synchronized ElevenLabs voiceover.
 
-### Professional Quality Output
-
-- **Studio-grade voiceovers** powered by ElevenLabs multilingual AI
-- **Manim-native animations** with full mathematical typesetting
-- **Multi-scene orchestration** with intelligent pacing and transitions
-- **Production-ready exports** suitable for YouTube, courses, and presentations
-
-
-### Built for Math Communicators
-
-Whether you're an educator creating course content, a researcher presenting findings, or a content creator explaining complex topics, Flaming Horse eliminates the production bottleneck between your ideas and your audience.
-
-## Quick Start
+## Two Commands. One Video.
 
 ```bash
-# Create your first project
+# Create a new project
 ./scripts/new_project.sh my_video
 
-# Build from a prompt (configure your AI agent in build_video.sh)
+# Build from prompt (agent runs autonomously to completion)
 ./scripts/build_video.sh projects/my_video
-
-# (Optional) Scaffold a new scene file before adding animations
-./scripts/scaffold_scene.py \
-  --project projects/my_video \
-  --scene-id scene_01_intro \
-  --class-name Scene01Intro \
-  --narration-key intro
 ```
 
-Your video appears in `projects/my_video/final_video.mp4`.
+That's it. The agent reads `AGENTS.md` (a 700-line system prompt), receives all reference documentation, and executes each phase until `final_video.mp4` is produced or an error triggers the `needs_human_review` flag.
 
-## How It Works
+## How the Pipeline Works
 
-Flaming Horse uses an intelligent agentic workflow to decompose your concept into:
+### Phase 1: `plan`
+Analyzes the topic, breaks it into 3–8 scenes, estimates narration word counts at 150 wpm, and flags animation complexity. Outputs `plan.json`.
 
-1. **Video plan** with scene breakdown and timing
-2. **Narration script** synchronized to visual elements
-3. **Scene generation** with Manim code for each segment
-4. **Voice synthesis** with professional AI narration
-5. **Final assembly** into a polished video
+### Phase 2: `review`
+Validates the plan for technical feasibility — checks narrative flow, flags unsupported Manim features, verifies timing allows for both narration and animation.
 
-The system iterates until each component meets quality standards, then assembles everything into your final video.
+### Phase 3: `narration`
+Generates `narration_script.py` (a segment-indexed `SCRIPT` dictionary) and `voice_config.py` with locked ElevenLabs settings. Voice ID is hardcoded to a specific cloned voice.
 
-## Installation
+### Phase 4: `build_scenes`
+Generates Manim scene files one at a time using `scaffold_scene.py`. Each scene passes through two validation gates before advancing:
+- **Import validation** — catches common module naming errors (`manim_voiceover_plus` vs hyphens/no separators)
+- **Voiceover sync validation** — rejects hardcoded narration text, enforces `SCRIPT` dictionary usage
+
+### Phase 5: `final_render`
+Renders each scene with `manim render` at 1440p60. Mandatory verification checks: file exists, non-zero size, duration within 5% of estimate, audio track present.
+
+### Phase 6: `assemble`
+Concatenates scenes via `ffmpeg` using auto-generated `scenes.txt`. Runs `qc_final_video.sh` for quality control. Verifies total duration matches sum of scene durations.
+
+### Phase 7: `complete`
+Confirms `final_video.mp4` exists and logs completion.
+
+## What Makes This Different from Prompting an LLM Directly
+
+A single LLM prompt cannot:
+
+- Orchestrate a multi-phase state machine with persistent `project_state.json`
+- Validate imports against known-broken patterns before rendering
+- Enforce voiceover sync rules (no hardcoded narration, timing budget ≤ 1.0)
+- Execute `manim render` and verify output files actually exist with audio
+- Call ElevenLabs with a locked voice configuration
+- Concatenate scenes with `ffmpeg` and run QC on the assembled output
+- Retry on failure with error logging and state backup/restore
+- Halt with `needs_human_review` when errors exceed retry capacity
+
+`build_video.sh` does all of this in a loop with up to 50 iterations, lock file management, and trap-based cleanup.
+
+## Architecture
+
+```
+flaming-horse/
+├── AGENTS.md                    # 700-line agent system prompt (v2.1)
+├── scripts/
+│   ├── build_video.sh           # Main orchestrator (527 lines)
+│   ├── new_project.sh           # Project scaffolding
+│   ├── scaffold_scene.py        # Scene file generator
+│   ├── generate_scenes_txt.py   # Automated ffmpeg concat file builder
+│   ├── qc_final_video.sh        # Post-assembly quality control
+│   ├── reset_phase.sh           # Phase reset utility
+│   ├── validate_scaffold.sh     # Scaffold validation
+│   ├── test_scaffold_scene.py   # Tests
+│   └── test_generate_scenes_txt.py
+├── reference_docs/
+│   ├── manim_config_guide.md    # Positioning rules, safe zones, 1440p config
+│   ├── manim_content_pipeline.md # 5-stage content pipeline reference
+│   ├── manim_voiceover.md       # ElevenLabs integration patterns
+│   └── manim_template.py.txt    # Locked scene template
+├── projects/                    # Self-contained video projects (12 and counting)
+├── concepts/                    # Research concept documents
+├── example_project/             # Template with example artifacts
+└── docs/
+```
+
+## Agent Configuration
+
+The agent is pre-configured in `invoke_agent()` inside `build_video.sh`. It shells out to:
 
 ```bash
-# Install dependencies
-pip install manim manim-voiceover-plus
-brew install sox ffmpeg
-
-# Configure voice service
-export ELEVENLABS_API_KEY="your_api_key_here"
+opencode run --model "xai/grok-code-fast-1" \
+  --file "$prompt_file" \
+  --file "reference_docs/manim_content_pipeline.md" \
+  --file "reference_docs/manim_voiceover.md" \
+  --file "reference_docs/manim_template.py.txt" \
+  --file "reference_docs/manim_config_guide.md" \
+  --file "$STATE_FILE" \
+  -- "Read the first attached file... Execute the ${phase} phase as described."
 ```
 
-**Voice Requirements:** Flaming Horse requires an ElevenLabs API key for professional voice synthesis. Free tier available at [elevenlabs.io](https://elevenlabs.io).
+The agent receives the full system prompt (`AGENTS.md`), all four reference documents, the current project directory listing, and `project_state.json` — every invocation. There is nothing for the user to configure.
 
-## Configuration
+To swap the underlying model, change one line in `invoke_agent()`. The rest of the pipeline is model-agnostic.
 
-Edit `./scripts/build_video.sh` to connect your preferred AI agent (Claude, GPT-4, Gemini, etc.) in the `invoke_agent()` function. The agent receives context about the current build phase and returns the appropriate output.
+## Technical Details
 
-## Project Structure
+### Locked Configuration
+All scenes render at 2560×1440 (1440p) with a 10×17.78 Manim frame (25% larger than default). These values are locked in every scene template and cannot be modified by the agent.
 
-Projects are self-contained and portable:
+### Voice Configuration
+- **Service**: ElevenLabs only — no fallback, no dev mode
+- **Voice ID**: `rBgRd5IfS6iqrGfuhlKR` (cloned voice)
+- **Model**: `eleven_multilingual_v2`
+- If ElevenLabs fails, the build fails. This is intentional.
 
-```
-projects/my_video/
-├── final_video.mp4          # Your finished video
-├── plan.json                # Scene breakdown
-├── narration_script.py      # Voice script
-├── scenes/                  # Generated Manim code
-└── project_state.json       # Build state
-```
+### Validation Gates
+- `validate_scene_imports()` — static analysis for module naming errors + Python syntax check
+- `validate_voiceover_sync()` — rejects hardcoded narration, checks for `tracker.duration` usage, verifies ElevenLabs production path
+- Post-render verification — file existence, size, duration match, audio track presence
+- `qc_final_video.sh` — final quality control on assembled output
 
-
-## Use Cases
-
-- **Educational Content**: Lecture supplements, online courses, tutorial series
-- **Research Communication**: Paper visualizations, conference presentations
-- **Content Creation**: YouTube explainers, social media educational content
-- **Corporate Training**: Technical onboarding, concept explanations
-
-
-## Advanced Features
-
-- **Custom project locations** for organizing video libraries
-- **Phase reset capability** for iterative refinement
-- **State machine persistence** for reliable long-running builds
-- **Extensible agent integration** supporting any LLM provider
-
-
-## Documentation
-
-- [Voice Service Policy](docs/VOICE_POLICY.md) - Audio configuration details
-- Script documentation - See inline comments in `./scripts/` directory
-
+### Error Handling
+- State backup before every iteration
+- Errors logged to `project_state.json` errors array
+- `needs_human_review` flag pauses the build loop
+- Lock file management prevents concurrent builds
+- Max 50 iterations before forced stop
 
 ## Requirements
 
-- Python 3.8+
-- Manim Community Edition
-- FFmpeg and Sox
-- ElevenLabs API key
+- **macOS** (bash scripts assume macOS paths and tools)
+- **Python 3.13+** with Manim CE installed
+- **ffmpeg** and **sox** via Homebrew
+- **opencode** CLI with a configured AI model
+- **ElevenLabs API key** set as `ELEVENLABS_API_KEY`
 
+## Projects
+
+The `projects/` directory contains 12 self-contained video projects spanning math, physics, and climate science — each with its own plan, narration scripts, scene files, and state tracking.
 
 ## License
 
-MIT License - see LICENSE file for details.
-
-## Contributing
-
-Contributions welcome! This is an open-source project under active development. Feel free to submit issues, feature requests, or pull requests.
-
-***
-
-**Ready to create your first math video?** Start with `./scripts/new_project.sh` and bring your concepts to life.
-
-***
+MIT
