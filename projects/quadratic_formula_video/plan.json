@@ -1,0 +1,64 @@
+{
+  "title": "The Quadratic Formula: Finding x-Intercepts",
+  "topic_summary": "Explain the quadratic formula, its parts, and how to solve a quadratic equation with a concrete example, then connect the solutions to parabola x-intercepts.",
+  "target_audience": "High school algebra students encountering this for the first time",
+  "estimated_duration_seconds": 165,
+  "total_estimated_words": 410,
+  "scenes": [
+    {
+      "id": "scene_01_hook",
+      "title": "Hook: Where Does the Parabola Cross?",
+      "narration_key": "hook",
+      "narration_summary": "Show a parabola and the question of x-intercepts; introduce need for a formula.",
+      "estimated_words": 70,
+      "estimated_duration": "28s",
+      "animations": ["Draw axes", "Plot parabola", "Highlight x-intercepts question"],
+      "complexity": "low",
+      "risk_flags": []
+    },
+    {
+      "id": "scene_02_formula_overview",
+      "title": "The Quadratic Formula",
+      "narration_key": "formula",
+      "narration_summary": "Present the quadratic formula visually and link it to ax^2 + bx + c = 0.",
+      "estimated_words": 65,
+      "estimated_duration": "26s",
+      "animations": ["Write formula", "Show ax^2 + bx + c = 0"],
+      "complexity": "low",
+      "risk_flags": []
+    },
+    {
+      "id": "scene_03_components",
+      "title": "What Each Part Means",
+      "narration_key": "components",
+      "narration_summary": "Define a, b, c; explain discriminant and ± symbol as two solutions.",
+      "estimated_words": 95,
+      "estimated_duration": "38s",
+      "animations": ["Label a, b, c", "Highlight discriminant", "Split into two solution branches"],
+      "complexity": "medium",
+      "risk_flags": []
+    },
+    {
+      "id": "scene_04_example",
+      "title": "Worked Example",
+      "narration_key": "example",
+      "narration_summary": "Solve x^2 - 5x + 6 = 0 step-by-step, compute discriminant, find both roots, verify.",
+      "estimated_words": 140,
+      "estimated_duration": "56s",
+      "animations": ["Substitute a, b, c", "Compute discriminant", "Solve for x", "Check solutions"],
+      "complexity": "medium",
+      "risk_flags": []
+    },
+    {
+      "id": "scene_05_graphical_close",
+      "title": "Graph and Intercepts",
+      "narration_key": "closing",
+      "narration_summary": "Show parabola with x-intercepts at the two roots and close the lesson.",
+      "estimated_words": 40,
+      "estimated_duration": "17s",
+      "animations": ["Plot parabola", "Mark intercepts", "Label roots"],
+      "complexity": "low",
+      "risk_flags": []
+    }
+  ]
+}
