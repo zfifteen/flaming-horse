@@ -1,0 +1,97 @@
+{
+  "title": "The Polytope Compression Hypothesis: Measuring Perceptual Efficiency",
+  "topic_summary": "A novel dimensionless metric that quantifies how many behaviorally discriminable color experiences organisms extract per unit of available experiential complexity, using Hoffman's Markov polytope formalism. Shows inverse scaling across species, revealing two regimes of color vision processing.",
+  "target_audience": "Researchers in vision science, sensory ecology, consciousness studies, and comparative psychophysics. Assumes familiarity with basic color vision concepts but introduces the Markov polytope framework.",
+  "estimated_duration_seconds": 210,
+  "total_estimated_words": 525,
+  "scenes": [
+    {
+      "id": "scene_01_intro",
+      "title": "Introduction",
+      "narration_key": "intro",
+      "narration_summary": "Hook with color dimension paradox, introduce perceptual efficiency metric and Markov polytope",
+      "estimated_words": 75,
+      "estimated_duration": "30s",
+      "animations": ["Write title", "FadeIn subtitle", "Reveal key equation"],
+      "complexity": "low",
+      "risk_flags": []
+    },
+    {
+      "id": "scene_02_problem",
+      "title": "The Color Dimension Problem",
+      "narration_key": "problem",
+      "narration_summary": "Contrast human trichromacy vs mantis shrimp dodecachromacy, introduce opponent processing vs interval decoding dichotomy",
+      "estimated_words": 75,
+      "estimated_duration": "30s",
+      "animations": ["Show species comparison table", "Highlight discrimination differences"],
+      "complexity": "low",
+      "risk_flags": []
+    },
+    {
+      "id": "scene_03_polytope",
+      "title": "The Markov Polytope Framework",
+      "narration_key": "polytope",
+      "narration_summary": "Explain Hoffman's conscious-agent formalism, qualia kernels, and how polytope dimension measures experiential complexity",
+      "estimated_words": 85,
+      "estimated_duration": "35s",
+      "animations": ["Show polytope definition", "Illustrate dimension formula"],
+      "complexity": "medium",
+      "risk_flags": []
+    },
+    {
+      "id": "scene_04_metric",
+      "title": "Defining Perceptual Efficiency",
+      "narration_key": "metric",
+      "narration_summary": "Define η = B/D(k), explain interpretation of high vs low efficiency, connect to polytope geometry",
+      "estimated_words": 80,
+      "estimated_duration": "32s",
+      "animations": ["Show metric equation", "Explain variables"],
+      "complexity": "low",
+      "risk_flags": []
+    },
+    {
+      "id": "scene_05_data",
+      "title": "Empirical Data Across Species",
+      "narration_key": "data",
+      "narration_summary": "Present data table of 6 species, show inverse scaling relationship, discuss statistical fit",
+      "estimated_words": 90,
+      "estimated_duration": "36s",
+      "animations": ["Display data table", "Show scaling plot"],
+      "complexity": "medium",
+      "risk_flags": []
+    },
+    {
+      "id": "scene_06_regimes",
+      "title": "Two Regimes of Color Processing",
+      "narration_key": "regimes",
+      "narration_summary": "Explain cortical amplification vs interval decoding regimes, link to resource constraints and neural scaling",
+      "estimated_words": 80,
+      "estimated_duration": "32s",
+      "animations": ["Contrast regime diagrams", "Show scaling mismatch"],
+      "complexity": "low",
+      "risk_flags": []
+    },
+    {
+      "id": "scene_07_predictions",
+      "title": "Falsifiable Predictions",
+      "narration_key": "predictions",
+      "narration_summary": "Outline key predictions for tetrachromacy, synthetic sensors, and cross-species scaling",
+      "estimated_words": 80,
+      "estimated_duration": "32s",
+      "animations": ["List predictions", "Show implication diagrams"],
+      "complexity": "low",
+      "risk_flags": []
+    },
+    {
+      "id": "scene_08_conclusion",
+      "title": "Conclusion and Implications",
+      "narration_key": "conclusion",
+      "narration_summary": "Recap the polytope compression hypothesis, emphasize bridge between consciousness theory and sensory ecology",
+      "estimated_words": 60,
+      "estimated_duration": "24s",
+      "animations": ["Summarize key points", "Fade out"],
+      "complexity": "low",
+      "risk_flags": []
+    }
+  ]
+}

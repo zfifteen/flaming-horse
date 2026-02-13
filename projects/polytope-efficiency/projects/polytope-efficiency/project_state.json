@@ -1,0 +1,109 @@
+{
+  "project_name": "polytope-efficiency",
+  "topic": "/Users/velocityworks/IdeaProjects/flaming-horse/concepts/polytope-efficiency/polytope-efficiency.md",
+  "phase": "review",
+  "created_at": "2026-02-13T11:05:44Z",
+  "updated_at": "2026-02-13T11:05:44Z",
+  "run_count": 0,
+  "plan_file": "plan.json",
+  "narration_file": null,
+  "voice_config_file": null,
+  "scenes": [
+    {
+      "id": "scene_01_intro",
+      "title": "Introduction: The Color Dimension Problem",
+      "narration_key": "intro",
+      "narration_summary": "Hook with the paradox of human vs mantis shrimp color discrimination despite vastly different receptor counts, and introduction to the need for a quantitative framework.",
+      "estimated_words": 120,
+      "estimated_duration": "48s",
+      "animations": ["FadeIn title", "Show species comparison text", "Highlight paradox"],
+      "complexity": "low",
+      "risk_flags": []
+    },
+    {
+      "id": "scene_02_polytope",
+      "title": "The Markov Polytope as Experiential Arena",
+      "narration_key": "polytope",
+      "narration_summary": "Explain Hoffman's formalism: conscious agents, qualia kernels, Markov polytope dimension D=k(k-1), and the fusion simplex.",
+      "estimated_words": 140,
+      "estimated_duration": "56s",
+      "animations": ["Write polytope definition", "Show mathematical formulas", "Illustrate agent tuple"],
+      "complexity": "medium",
+      "risk_flags": ["LaTeX rendering for equations"]
+    },
+    {
+      "id": "scene_03_metric",
+      "title": "Defining Perceptual Efficiency η",
+      "narration_key": "metric",
+      "narration_summary": "Define η = B/D where B is spectral JND hue steps and D is polytope dimension; explain interpretation of high vs low η.",
+      "estimated_words": 110,
+      "estimated_duration": "44s",
+      "animations": ["Show metric formula", "Explain components", "Animate η calculation"],
+      "complexity": "medium",
+      "risk_flags": ["MathTex for η formula"]
+    },
+    {
+      "id": "scene_04_data",
+      "title": "Empirical Data Across Species",
+      "narration_key": "data",
+      "narration_summary": "Present the data table for 6 species (dog to mantis shrimp), show η calculation, and reveal the inverse scaling trend.",
+      "estimated_words": 150,
+      "estimated_duration": "60s",
+      "animations": ["Display data table", "Highlight each species", "Show η values and trend line"],
+      "complexity": "medium",
+      "risk_flags": ["Table rendering", "Simple chart for scaling"]
+    },
+    {
+      "id": "scene_05_theory",
+      "title": "Two Regimes: Amplification vs Decoding",
+      "narration_key": "theory",
+      "narration_summary": "Explain the two processing regimes: cortical amplification for low k (high η) vs interval decoding for high k (low η), driven by resource constraints.",
+      "estimated_words": 130,
+      "estimated_duration": "52s",
+      "animations": ["Show regime diagram", "Contrast primate vs arthropod processing", "Animate resource mismatch"],
+      "complexity": "medium",
+      "risk_flags": ["Conceptual diagram"]
+    },
+    {
+      "id": "scene_06_predictions",
+      "title": "Falsifiable Predictions",
+      "narration_key": "predictions",
+      "narration_summary": "Outline key predictions: scaling law, tetrachromacy efficiency, and engineering implications for synthetic sensors.",
+      "estimated_words": 120,
+      "estimated_duration": "48s",
+      "animations": ["List predictions", "Show tetrachromacy example", "Engineering application"],
+      "complexity": "low",
+      "risk_flags": []
+    },
+    {
+      "id": "scene_07_conclusion",
+      "title": "Conclusion: Polytope Compression Hypothesis",
+      "narration_key": "conclusion",
+      "narration_summary": "Summarize the hypothesis: adding sensory channels without deepening processing collapses experience into coarser regimes.",
+      "estimated_words": 100,
+      "estimated_duration": "40s",
+      "animations": ["Restate key findings", "Show final η scaling", "Fade to title"],
+      "complexity": "low",
+      "risk_flags": []
+    },
+    {
+      "id": "scene_08_recap",
+      "title": "Recap: Key Takeaways",
+      "narration_key": "recap",
+      "narration_summary": "Final summary restating the metric, empirical results, theoretical framework, and implications for consciousness and sensory design.",
+      "estimated_words": 180,
+      "estimated_duration": "72s",
+      "animations": ["Bullet list of takeaways", "Reiterate η formula", "End with hypothesis statement"],
+      "complexity": "low",
+      "risk_flags": []
+    }
+  ],
+  "current_scene_index": 0,
+  "errors": [],
+  "history": [],
+  "flags": {
+    "needs_human_review": false,
+    "dry_run": false,
+    "force_replan": false
+  }
+}

@@ -1,0 +1,225 @@
+{
+  "project_name": "polytope-efficiency",
+  "topic": "/Users/velocityworks/IdeaProjects/flaming-horse/concepts/polytope-efficiency/polytope-efficiency.md",
+  "phase": "final_render",
+  "created_at": "2026-02-13T11:05:44Z",
+  "updated_at": "2026-02-13T11:11:11Z",
+  "run_count": 10,
+  "plan_file": "plan.json",
+  "narration_file": "narration_script.py",
+  "voice_config_file": null,
+  "scenes": [
+    {
+      "id": "scene_01_intro",
+      "title": "Introduction",
+      "file": "scene_01_intro.py",
+      "class_name": "Scene01Intro",
+      "status": "built",
+      "narration_key": "intro",
+      "narration_summary": "Hook with color dimension paradox, introduce perceptual efficiency metric and Markov polytope",
+      "estimated_words": 75,
+      "estimated_duration": "30s",
+      "animations": [
+        "Write title",
+        "FadeIn subtitle",
+        "Reveal key equation"
+      ],
+      "complexity": "low",
+      "risk_flags": []
+    },
+    {
+      "id": "scene_02_problem",
+      "title": "The Color Dimension Problem",
+      "file": "scene_02_problem.py",
+      "class_name": "Scene02Problem",
+      "status": "built",
+      "narration_key": "problem",
+      "narration_summary": "Contrast human trichromacy vs mantis shrimp dodecachromacy, introduce opponent processing vs interval decoding dichotomy",
+      "estimated_words": 75,
+      "estimated_duration": "30s",
+      "animations": [
+        "Show species comparison table",
+        "Highlight discrimination differences"
+      ],
+      "complexity": "low",
+      "risk_flags": []
+    },
+    {
+      "id": "scene_03_polytope",
+      "title": "The Markov Polytope Framework",
+      "file": "scene_03_polytope.py",
+      "class_name": "Scene03Polytope",
+      "status": "built",
+      "narration_key": "polytope",
+      "narration_summary": "Explain Hoffman's conscious-agent formalism, qualia kernels, and how polytope dimension measures experiential complexity",
+      "estimated_words": 85,
+      "estimated_duration": "35s",
+      "animations": [
+        "Show polytope definition",
+        "Illustrate dimension formula"
+      ],
+      "complexity": "medium",
+      "risk_flags": []
+    },
+    {
+      "id": "scene_04_metric",
+      "title": "Defining Perceptual Efficiency",
+      "file": "scene_04_metric.py",
+      "class_name": "Scene04Metric",
+      "status": "built",
+      "narration_key": "metric",
+      "narration_summary": "Define \u03b7 = B/D(k), explain interpretation of high vs low efficiency, connect to polytope geometry",
+      "estimated_words": 80,
+      "estimated_duration": "32s",
+      "animations": [
+        "Show metric equation",
+        "Explain variables"
+      ],
+      "complexity": "low",
+      "risk_flags": []
+    },
+    {
+      "id": "scene_05_data",
+      "title": "Empirical Data Across Species",
+      "file": "scene_05_data.py",
+      "class_name": "Scene05Data",
+      "status": "built",
+      "narration_key": "data",
+      "narration_summary": "Present data table of 6 species, show inverse scaling relationship, discuss statistical fit",
+      "estimated_words": 90,
+      "estimated_duration": "36s",
+      "animations": [
+        "Display data table",
+        "Show scaling plot"
+      ],
+      "complexity": "medium",
+      "risk_flags": []
+    },
+    {
+      "id": "scene_06_regimes",
+      "title": "Two Regimes of Color Processing",
+      "file": "scene_06_regimes.py",
+      "class_name": "Scene06Regimes",
+      "status": "built",
+      "narration_key": "regimes",
+      "narration_summary": "Explain cortical amplification vs interval decoding regimes, link to resource constraints and neural scaling",
+      "estimated_words": 80,
+      "estimated_duration": "32s",
+      "animations": [
+        "Contrast regime diagrams",
+        "Show scaling mismatch"
+      ],
+      "complexity": "low",
+      "risk_flags": []
+    },
+    {
+      "id": "scene_07_predictions",
+      "title": "Falsifiable Predictions",
+      "file": "scene_07_predictions.py",
+      "class_name": "Scene07Predictions",
+      "status": "built",
+      "narration_key": "predictions",
+      "narration_summary": "Outline key predictions for tetrachromacy, synthetic sensors, and cross-species scaling",
+      "estimated_words": 80,
+      "estimated_duration": "32s",
+      "animations": [
+        "List predictions",
+        "Show implication diagrams"
+      ],
+      "complexity": "low",
+      "risk_flags": []
+    },
+    {
+      "id": "scene_08_conclusion",
+      "title": "Conclusion and Implications",
+      "file": "scene_08_conclusion.py",
+      "class_name": "Scene08Conclusion",
+      "status": "built",
+      "narration_key": "conclusion",
+      "narration_summary": "Recap the polytope compression hypothesis, emphasize bridge between consciousness theory and sensory ecology",
+      "estimated_words": 60,
+      "estimated_duration": "24s",
+      "animations": [
+        "Summarize key points",
+        "Fade out"
+      ],
+      "complexity": "low",
+      "risk_flags": []
+    }
+  ],
+  "current_scene_index": 7,
+  "errors": [
+    {
+      "phase": "final_render",
+      "timestamp": "2026-02-13T11:15:00Z",
+      "message": "ModuleNotFoundError: No module named 'flaming_horse_voice'. The cached Qwen voice service is not available. Run the precache step to set up voice_clone_config.json and cached audio before rendering."
+    }
+  ],
+  "history": [
+    {
+      "phase": "plan",
+      "timestamp": "2026-02-13T11:06:20Z",
+      "action": "Generated comprehensive video plan with 8 scenes covering the polytope compression hypothesis"
+    },
+    {
+      "phase": "review",
+      "timestamp": "2026-02-13T11:07:00Z",
+      "action": "Validated plan for technical feasibility; narrative flow coherent, animations feasible with Manim (text, equations, tables, simple diagrams), timing allows for narration and animation sync, no high-risk scenes flagged"
+    },
+    {
+      "phase": "narration",
+      "timestamp": "2026-02-13T11:08:12Z",
+      "action": "Generated narration scripts for 8 scenes with conversational voiceover text, approximately 600 words total covering the polytope compression hypothesis from introduction to falsifiable predictions"
+    },
+    {
+      "phase": "build_scenes",
+      "timestamp": "2026-02-13T11:09:00Z",
+      "action": "Built Manim scene file for scene_01_intro with VoiceoverScene integration, cached Qwen audio, and synchronized animations showing color dimension paradox with title, comparison bars, and question mark"
+    },
+    {
+      "phase": "build_scenes",
+      "timestamp": "2026-02-13T11:09:30Z",
+      "action": "Built Manim scene file for scene_02_problem with VoiceoverScene integration, cached Qwen audio, and synchronized animations showing species comparison table and processing dichotomy"
+    },
+    {
+      "phase": "build_scenes",
+      "timestamp": "2026-02-13T11:10:00Z",
+      "action": "Built Manim scene file for scene_03_polytope with VoiceoverScene integration, cached Qwen audio, and synchronized animations showing the Markov polytope framework with title, definition text, dimension formula, and geometric illustration"
+    },
+    {
+      "phase": "build_scenes",
+      "timestamp": "2026-02-13T11:10:30Z",
+      "action": "Built Manim scene file for scene_04_metric with VoiceoverScene integration, cached Qwen audio, and synchronized animations showing the perceptual efficiency metric with title, equations, variable explanations, and interpretation bullets"
+    },
+    {
+      "phase": "build_scenes",
+      "timestamp": "2026-02-13T11:11:00Z",
+      "action": "Built Manim scene file for scene_05_data with VoiceoverScene integration, cached Qwen audio, and synchronized animations displaying empirical data table of 6 species and scaling plot showing inverse relationship between receptor count and perceptual efficiency"
+    },
+    {
+      "phase": "build_scenes",
+      "timestamp": "2026-02-13T11:12:00Z",
+      "action": "Built Manim scene file for scene_06_regimes with VoiceoverScene integration, cached Qwen audio, and synchronized animations contrasting cortical amplification and interval decoding regimes with diagrams and scaling plot illustrating resource mismatch"
+    },
+    {
+      "phase": "build_scenes",
+      "timestamp": "2026-02-13T11:13:00Z",
+      "action": "Built Manim scene file for scene_07_predictions with VoiceoverScene integration, cached Qwen audio, and synchronized animations listing four falsifiable predictions for perceptual efficiency across taxa and synthetic sensors"
+    },
+    {
+      "phase": "build_scenes",
+      "timestamp": "2026-02-13T11:14:00Z",
+      "action": "Built Manim scene file for scene_08_conclusion with VoiceoverScene integration, cached Qwen audio, and synchronized animations summarizing key points of the polytope compression hypothesis followed by fade out"
+    },
+    {
+      "phase": "final_render",
+      "timestamp": "2026-02-13T11:14:00Z",
+      "action": "Completed building all 8 Manim scene files; advancing to final_render phase for video production"
+    }
+  ],
+  "flags": {
+    "needs_human_review": true,
+    "dry_run": false,
+    "force_replan": false
+  }
+}
