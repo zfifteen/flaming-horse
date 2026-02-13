@@ -43,9 +43,6 @@ LOCK_FILE="${PROJECT_DIR}/.build.lock"
 LOG_FILE="${PROJECT_DIR}/build.log"
 MAX_RUNS=50
 
-# Global lock to prevent multiple projects rendering with ElevenLabs concurrently
-# (ElevenLabs concurrency limit is account-wide, not per-project)
-GLOBAL_ELEVENLABS_LOCK_FILE="${GLOBAL_ELEVENLABS_LOCK_FILE:-/tmp/flaming-horse-elevenlabs.lock}"
 
 # Reference docs (relative to script location)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -56,15 +53,6 @@ REFERENCE_DOCS=(
   "${SCRIPT_DIR}/../reference_docs/manim_config_guide.md"
 )
 
-# ElevenLabs config (checked in final_render phase, not at startup)
-export ELEVENLABS_API_KEY="${ELEVENLABS_API_KEY:-}"
-VOICE_ID="rBgRd5IfS6iqrGfuhlKR"
-MODEL_ID="eleven_multilingual_v2"
-
-# manim-voiceover-plus expects ELEVEN_API_KEY (not ELEVENLABS_API_KEY)
-if [[ -n "${ELEVENLABS_API_KEY}" && -z "${ELEVEN_API_KEY:-}" ]]; then
-  export ELEVEN_API_KEY="${ELEVENLABS_API_KEY}"
-fi
 
 # ─── Lock File Management ────────────────────────────────────────────
 
@@ -90,32 +78,6 @@ release_lock() {
 }
 
 trap release_lock EXIT INT TERM
-
-# ─── Global ElevenLabs Lock (cross-project) ─────────────────────────
-
-acquire_global_elevenlabs_lock() {
-  if [[ -f "$GLOBAL_ELEVENLABS_LOCK_FILE" ]]; then
-    local lock_pid
-    lock_pid=$(cat "$GLOBAL_ELEVENLABS_LOCK_FILE" 2>/dev/null || true)
-    if [[ -n "$lock_pid" ]] && kill -0 "$lock_pid" 2>/dev/null; then
-      echo "❌ ElevenLabs render already running (PID: $lock_pid)" | tee -a "$LOG_FILE" >&2
-      echo "   This lock is global to avoid ElevenLabs 429 concurrency limits." | tee -a "$LOG_FILE" >&2
-      exit 1
-    else
-      echo "⚠️  Stale ElevenLabs lock file found, removing..." | tee -a "$LOG_FILE" >&2
-      rm -f "$GLOBAL_ELEVENLABS_LOCK_FILE"
-    fi
-  fi
-  echo $$ > "$GLOBAL_ELEVENLABS_LOCK_FILE"
-  echo "🔒 ElevenLabs global lock acquired (PID: $$)" | tee -a "$LOG_FILE"
-}
-
-release_global_elevenlabs_lock() {
-  rm -f "$GLOBAL_ELEVENLABS_LOCK_FILE" 2>/dev/null || true
-  echo "🔓 ElevenLabs global lock released" | tee -a "$LOG_FILE"
-}
-
-# Only used for final_render; set trap dynamically in handle_final_render
 
 
 # ─── State Management ────────────────────────────────────────────────
@@ -307,7 +269,7 @@ validate_voiceover_sync() {
   
   # Check: Qwen cached voice service is used
   if grep -q "VoiceoverScene" "$scene_file"; then
-    if ! grep -q "get_project_voice_service" "$scene_file"; then
+    if ! grep -q "get_speech_service" "$scene_file"; then
       echo "    ✗ ERROR: Scene missing cached Qwen voice service" | tee -a "$LOG_FILE"
       return 1
     fi
@@ -562,7 +524,7 @@ PYEOF
 import json
 with open('${STATE_FILE}', 'r') as f:
     state = json.load(f)
-state['errors'].append("Scene ${new_scene} uses hardcoded narration text. Must use SCRIPT dictionary.")
+state['errors'].append("Scene ${new_scene} failed voiceover sync validation. Must use SCRIPT dictionary and cached Qwen voice service.")
 # Don't set needs_human_review - let agent retry
 with open('${STATE_FILE}', 'w') as f:
     json.dump(state, f, indent=2)
@@ -577,8 +539,9 @@ PYEOF
 }
 
 handle_final_render() {
-echo "🎬 Final render with cached Qwen voiceover..." | tee -a "$LOG_FILE"
-export MANIM_VOICE_PROD=1
+  echo "🎬 Final render with cached Qwen voiceover..." | tee -a "$LOG_FILE"
+  export MANIM_VOICE_PROD=1
+  export PYTHONPATH="${SCRIPT_DIR}:${PYTHONPATH:-}"
 
   # Clear prior final_render-related errors so the loop can proceed.
   # Keep unrelated errors intact.
@@ -849,7 +812,7 @@ PY
     echo "" | tee -a "$LOG_FILE"
     echo "$ manim render $scene_file $scene_class -qh" | tee -a "$LOG_FILE"
 
-    # Retry a small number of times on transient ElevenLabs concurrency 429s
+    # Retry a small number of times on transient voiceover errors
     local attempt=0
     local max_attempts=5
     local backoff=10
@@ -862,9 +825,9 @@ PY
         break
       fi
 
-      # If it looks like ElevenLabs concurrency, wait and retry
+      # If it looks like a transient voiceover error, wait and retry
       if tail -n 200 "$LOG_FILE" | grep -q "too_many_concurrent_requests"; then
-        echo "⚠ ElevenLabs concurrency limit hit; retrying in ${backoff}s (attempt ${attempt}/${max_attempts})" | tee -a "$LOG_FILE"
+        echo "⚠ Voiceover concurrency limit hit; retrying in ${backoff}s (attempt ${attempt}/${max_attempts})" | tee -a "$LOG_FILE"
         sleep "$backoff"
         backoff=$((backoff * 2))
         continue
@@ -932,7 +895,6 @@ with open("${STATE_FILE}", "w") as f:
     json.dump(state, f, indent=2)
 PY
 
-  release_global_elevenlabs_lock
 }
 
 handle_assemble() {

@@ -23,6 +23,7 @@ def patched_set_transcription(self, model=None, kwargs=None):
 base.SpeechService.set_transcription = patched_set_transcription
 
 # Voiceover Imports
+from pathlib import Path
 from manim_voiceover_plus import VoiceoverScene
 from flaming_horse_voice import get_speech_service
 from narration_script import SCRIPT
@@ -109,7 +110,7 @@ def play_text_in_slot(scene, animation, slot, *, max_text_seconds=2.0, min_run_t
 class {class_name}(VoiceoverScene):
     def construct(self):
         # Qwen cached voiceover (precache required)
-        self.set_speech_service(get_speech_service())
+        self.set_speech_service(get_speech_service(Path(__file__).resolve().parent))
 
         # Animation Sequence
         # Timing budget: Calculate BEFORE writing animations
