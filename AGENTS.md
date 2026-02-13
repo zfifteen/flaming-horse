@@ -9,18 +9,17 @@
 
 ## 🚨 CRITICAL: VOICE POLICY - READ THIS FIRST
 
-### ElevenLabs Only - No Exceptions
+### Local Qwen Voice Clone - No Fallback
 
 **ABSOLUTE REQUIREMENTS:**
-- ElevenLabs API calls MUST be performed sequentially, NOT concurrently.
-- ✅ **ONLY** ElevenLabs TTS service (`ElevenLabsService`)
-- ✅ **Voice ID:** `rBgRd5IfS6iqrGfuhlKR` (Big D's cloned voice)
-- ✅ **Model:** `eleven_multilingual_v2`
-- ❌ **NEVER** use any other TTS service
-- ❌ **NEVER** create fallback code patterns
-- ❌ **NEVER** import other TTS services
+- ✅ **ONLY** local Qwen voice clone audio cached on disk (no network TTS).
+- ✅ **Model:** `Qwen/Qwen3-TTS-12Hz-1.7B-Base` (voice clone).
+- ✅ **Device/Dtype:** CPU `float32` for stability.
+- ✅ **Reference assets:** `assets/voice_ref/ref.wav` + `assets/voice_ref/ref.txt` per project.
+- ❌ **NEVER** call ElevenLabs in this repo.
+- ❌ **NEVER** create fallback code patterns.
 
-**If ElevenLabs fails, the entire build MUST fail. There is no development mode. There is no fallback. There is only production.**
+**If cached audio is missing, the build MUST fail and instruct to run the precache step.**
 
 ---
 
