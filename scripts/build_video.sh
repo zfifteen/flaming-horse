@@ -3,7 +3,7 @@ set -euo pipefail
 
 # ─── Configuration ───────────────────────────────────────────────────
 if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
-  echo "Usage: $0 <project_dir> [--topic \"<video topic>\"]" >&2
+  echo "Usage: $0 <project_dir> [--topic \"<video topic>\"] [--max-runs N]" >&2
   exit 0
 fi
 
@@ -12,6 +12,8 @@ shift || true
 
 # Optional topic injection (primarily for plan phase)
 TOPIC_OVERRIDE=""
+MAX_RUNS=50
+MAX_RUNS_EXPLICIT=0
 while [[ ${#} -gt 0 ]]; do
   case "${1}" in
     --topic)
@@ -22,13 +24,26 @@ while [[ ${#} -gt 0 ]]; do
       fi
       shift 2
       ;;
+    --max-runs)
+      MAX_RUNS="${2:-}"
+      if [[ -z "${MAX_RUNS}" ]]; then
+        echo "❌ Missing value for --max-runs" >&2
+        exit 1
+      fi
+      if ! [[ "${MAX_RUNS}" =~ ^[0-9]+$ ]]; then
+        echo "❌ --max-runs must be an integer" >&2
+        exit 1
+      fi
+      MAX_RUNS_EXPLICIT=1
+      shift 2
+      ;;
     -h|--help)
-      echo "Usage: $0 <project_dir> [--topic \"<video topic>\"]" >&2
+      echo "Usage: $0 <project_dir> [--topic \"<video topic>\"] [--max-runs N]" >&2
       exit 0
       ;;
     *)
       echo "❌ Unknown argument: ${1}" >&2
-      echo "Usage: $0 <project_dir> [--topic \"<video topic>\"]" >&2
+      echo "Usage: $0 <project_dir> [--topic \"<video topic>\"] [--max-runs N]" >&2
       exit 1
       ;;
   esac
@@ -41,7 +56,6 @@ STATE_FILE="${PROJECT_DIR}/project_state.json"
 STATE_BACKUP="${PROJECT_DIR}/.state_backup.json"
 LOCK_FILE="${PROJECT_DIR}/.build.lock"
 LOG_FILE="${PROJECT_DIR}/build.log"
-MAX_RUNS=50
 
 
 # Reference docs (relative to script location)
@@ -83,14 +97,17 @@ trap release_lock EXIT INT TERM
 # ─── State Management ────────────────────────────────────────────────
 
 get_phase() {
+  normalize_state_json >/dev/null 2>&1 || true
   python3 -c "import json; print(json.load(open('${STATE_FILE}'))['phase'])"
 }
 
 get_run_count() {
+  normalize_state_json >/dev/null 2>&1 || true
   python3 -c "import json; print(json.load(open('${STATE_FILE}'))['run_count'])"
 }
 
 increment_run_count() {
+  normalize_state_json >/dev/null 2>&1 || true
   python3 <<EOF
 import json
 from datetime import datetime
@@ -111,6 +128,7 @@ backup_state() {
 }
 
 validate_state() {
+  normalize_state_json >/dev/null 2>&1 || true
   python3 <<EOF
 import json
 import sys
@@ -159,62 +177,32 @@ except Exception as e:
 EOF
 }
 
-sanitize_state_json() {
-  # Best-effort: if project_state.json contains extra trailing data or duplicated
-  # JSON blocks (some models occasionally emit this), rewrite it as a single
-  # valid JSON document.
-  #
-  # Returns:
-  #   0 if file is valid (or repaired successfully)
-  #   1 if file is invalid and could not be repaired
-  python3 - <<PY
-import json
-import sys
+normalize_state_json() {
+  # Deterministically repair + schema-normalize state after any agent run.
+  # This is the single safety net against malformed JSON / missing fields.
+  python3 "${SCRIPT_DIR}/update_project_state.py" \
+    --project-dir "${PROJECT_DIR}" \
+    --mode normalize \
+    >/dev/null
+}
 
-state_file = "${STATE_FILE}"
-if not state_file:
-    sys.exit(0)
-
-try:
-    raw = open(state_file, "r", encoding="utf-8").read()
-except OSError:
-    sys.exit(0)
-
-try:
-    json.loads(raw)
-    sys.exit(0)
-except json.JSONDecodeError:
-    pass
-
-# Attempt: decode the first JSON object and discard trailing garbage.
-decoder = json.JSONDecoder()
-idx = raw.find("{")
-if idx < 0:
-    sys.exit(1)
-
-try:
-    obj, end = decoder.raw_decode(raw[idx:])
-except json.JSONDecodeError:
-    sys.exit(1)
-
-if not isinstance(obj, dict):
-    sys.exit(1)
-
-try:
-    with open(state_file, "w", encoding="utf-8") as f:
-        json.dump(obj, f, indent=2)
-        f.write("\n")
-    print("⚠ Repaired corrupted JSON in project_state.json (truncated trailing data)")
-except OSError:
-    sys.exit(1)
-
-sys.exit(0)
-PY
+apply_state_phase() {
+  # Deterministically apply phase transitions based on artifacts on disk.
+  # The agent is allowed to write plan.json / narration_script.py / scenes,
+  # but this script owns project_state.json.
+  local phase="$1"
+  python3 "${SCRIPT_DIR}/update_project_state.py" \
+    --project-dir "${PROJECT_DIR}" \
+    --mode apply \
+    --phase "${phase}" \
+    >/dev/null
 }
 
 ensure_topic_present_for_plan() {
   local phase="$1"
   [[ "$phase" == "plan" ]] || return 0
+
+  normalize_state_json >/dev/null 2>&1 || true
 
   local topic
   topic=$(python3 - <<PY
@@ -395,6 +383,7 @@ PY
 
   # Load topic from state (if present), overridden by CLI flag.
   local topic_from_state
+  normalize_state_json >/dev/null 2>&1 || true
   topic_from_state=$(python3 - <<PY
 import json
 try:
@@ -449,8 +438,9 @@ INSTRUCTIONS:
 1. Read project_state.json to understand the current state
 2. Execute ONLY the ${phase} phase tasks as defined in the system prompt above
 3. Generate any required files in the current directory
-4. Update project_state.json with results and advance to the next phase
-5. If errors occur, set flags.needs_human_review = true and log to errors array
+4. Do NOT edit project_state.json. The build pipeline owns state updates.
+   Only generate the required artifacts for the phase (plan.json, narration_script.py, scene_*.py).
+5. If errors occur, do NOT edit state; instead, explain what failed in plain text.
 
 IMPORTANT PATH NOTE:
 - Your working directory is the project directory, which does NOT contain a ./scripts folder.
@@ -498,16 +488,68 @@ handle_init() {
 handle_plan() {
   echo "📝 Planning video..." | tee -a "$LOG_FILE"
   invoke_agent "plan" "$(get_run_count)"
+
+  # Agent may have corrupted state JSON; normalize before applying plan.
+  normalize_state_json || true
+  
+  # Deterministically apply plan.json into project_state.json.
+  apply_state_phase "plan" || true
 }
 
 handle_review() {
-  echo "🔍 Reviewing plan..." | tee -a "$LOG_FILE"
-  invoke_agent "review" "$(get_run_count)"
+  echo "🔍 Reviewing plan (deterministic checks)..." | tee -a "$LOG_FILE"
+
+  normalize_state_json || true
+
+  cd "$PROJECT_DIR"
+  if [[ ! -f "plan.json" ]]; then
+    echo "❌ plan.json missing; cannot review." | tee -a "$LOG_FILE" >&2
+    python3 - <<PY
+import json
+from datetime import datetime
+
+with open("${STATE_FILE}", "r") as f:
+    state = json.load(f)
+
+state.setdefault("errors", []).append("review failed: plan.json missing")
+state.setdefault("flags", {})["needs_human_review"] = True
+state["updated_at"] = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+
+with open("${STATE_FILE}", "w") as f:
+    json.dump(state, f, indent=2)
+PY
+    return 1
+  fi
+
+  # Minimal structural validation of plan.json.
+  python3 - <<'PY' 2>&1 | tee -a "$LOG_FILE"
+import json
+from pathlib import Path
+
+plan = json.loads(Path('plan.json').read_text(encoding='utf-8'))
+if not isinstance(plan, dict):
+    raise SystemExit('plan.json must be an object')
+scenes = plan.get('scenes')
+if not isinstance(scenes, list) or not scenes:
+    raise SystemExit('plan.json.scenes missing/empty')
+for i, s in enumerate(scenes):
+    if not isinstance(s, dict):
+        raise SystemExit(f'scene[{i}] must be an object')
+    for k in ('id','title','narration_key'):
+        if not s.get(k):
+            raise SystemExit(f'scene[{i}] missing {k}')
+print('✓ plan.json structure looks valid')
+PY
+
+  # Deterministically advance state.
+  apply_state_phase "review" || true
 }
 
 handle_narration() {
   echo "🎙️  Generating narration scripts..." | tee -a "$LOG_FILE"
   invoke_agent "narration" "$(get_run_count)"
+
+  normalize_state_json || true
 
   # Post-step: ensure narration_script.py is valid Python.
   # Some agent outputs have been observed to include stray XML-like artifacts.
@@ -548,6 +590,9 @@ if cleaned_src != src and is_valid(cleaned_src):
 else:
     print("⚠ WARNING: narration_script.py has syntax errors (manual fix may be required)")
 PY
+
+  # Deterministically advance state once narration_script.py exists.
+  apply_state_phase "narration" || true
 }
 
 handle_precache_voiceovers() {
@@ -563,6 +608,10 @@ handle_precache_voiceovers() {
   fi
   echo "→ Running precache script" | tee -a "$LOG_FILE"
   python3 "${SCRIPT_DIR}/precache_voiceovers_qwen.py" "$PROJECT_DIR" 2>&1 | tee -a "$LOG_FILE"
+
+  # Deterministically advance if cache index exists.
+  normalize_state_json || true
+  apply_state_phase "precache_voiceovers" || true
 }
 
 handle_build_scenes() {
@@ -574,6 +623,9 @@ handle_build_scenes() {
   
   # Invoke agent to generate/update scene
   invoke_agent "build_scenes" "$(get_run_count)"
+
+  # Agent may have produced malformed JSON edits; normalize before reading/writing state.
+  normalize_state_json || true
   
   # Get list of scene files AFTER agent runs
   local after_files=$(ls scene_*.py 2>/dev/null | sort)
@@ -587,19 +639,16 @@ handle_build_scenes() {
     fi
   done
   
-  # If no new file detected, check if agent updated state to indicate completion
+  # If no new file detected, try most recently modified scene file.
   if [[ -z "$new_scene" ]]; then
-    local current_phase=$(get_phase)
-    if [[ "$current_phase" != "build_scenes" ]]; then
-      echo "Agent advanced phase. Proceeding..." | tee -a "$LOG_FILE"
-      return 0
-    fi
-    # Try to get most recently modified scene file
     new_scene=$(ls -t scene_*.py 2>/dev/null | head -1)
   fi
   
   if [[ -z "$new_scene" ]]; then
     echo "⚠ WARNING: No scene file detected after agent run" | tee -a "$LOG_FILE"
+
+    # Still attempt a deterministic state update (no-op if scene not ready yet).
+    apply_state_phase "build_scenes" || true
     return 0
   fi
   
@@ -608,6 +657,7 @@ handle_build_scenes() {
   # VALIDATION GATE 1: Check imports
   if ! validate_scene_imports "$new_scene"; then
     echo "✗ Import validation failed. Logging error..." | tee -a "$LOG_FILE"
+    normalize_state_json || true
     python3 <<PYEOF
 import json
 with open('${STATE_FILE}', 'r') as f:
@@ -623,6 +673,7 @@ PYEOF
   # VALIDATION GATE 2: Check voiceover sync patterns
   if ! validate_voiceover_sync "$new_scene"; then
     echo "✗ Sync validation failed. Logging error..." | tee -a "$LOG_FILE"
+    normalize_state_json || true
     python3 <<PYEOF
 import json
 with open('${STATE_FILE}', 'r') as f:
@@ -637,7 +688,9 @@ PYEOF
   
   echo "✓ Validation passed for $new_scene" | tee -a "$LOG_FILE"
   
-  # Agent has already updated the state, validation complete
+  # Deterministically mark this scene built and advance index/phase.
+  apply_state_phase "build_scenes" || true
+
   return 0
 }
 
@@ -1179,13 +1232,12 @@ main() {
   echo "════════════════════════════════════════════════════════════════" | tee -a "$LOG_FILE"
   
   local iteration=0
-  while [[ $iteration -lt $MAX_RUNS ]]; do
+while [[ $iteration -lt $MAX_RUNS ]]; do
     iteration=$((iteration + 1))
 
-    # If the state file was corrupted (extra JSON / trailing output), attempt
-    # to repair it before validating.
-    if ! sanitize_state_json; then
-      echo "❌ State file is invalid JSON and could not be repaired." | tee -a "$LOG_FILE" >&2
+    # Repair + normalize state (never trust agent edits).
+    if ! normalize_state_json; then
+      echo "❌ State file could not be normalized." | tee -a "$LOG_FILE" >&2
       echo "   See: $STATE_FILE" | tee -a "$LOG_FILE" >&2
       [[ -f "$STATE_BACKUP" ]] && echo "   Backup: $STATE_BACKUP" | tee -a "$LOG_FILE" >&2
       exit 1
@@ -1221,26 +1273,19 @@ main() {
       *) echo "❌ Unknown phase: $current_phase" >&2; exit 1 ;;
     esac
 
-    # Post-phase: ensure state is still valid JSON.
-    if ! sanitize_state_json; then
-      echo "❌ Phase produced an invalid state file; restoring last backup." | tee -a "$LOG_FILE" >&2
+    # Post-phase: normalize state and deterministically apply phase transition.
+    if ! normalize_state_json; then
+      echo "❌ Phase produced an invalid/un-normalizable state file; restoring last backup." | tee -a "$LOG_FILE" >&2
       [[ -f "$STATE_BACKUP" ]] && cp "$STATE_BACKUP" "$STATE_FILE"
-      python3 - <<PY
-import json
-from datetime import datetime
-
-with open("${STATE_FILE}", "r") as f:
-    state = json.load(f)
-
-state.setdefault("errors", []).append("Build stopped: project_state.json became invalid JSON during phase '${current_phase}'")
-state.setdefault("flags", {})["needs_human_review"] = True
-state["updated_at"] = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
-
-with open("${STATE_FILE}", "w") as f:
-    json.dump(state, f, indent=2)
-PY
       exit 1
     fi
+
+    # The agent may have advanced phase in its output; ignore that and apply
+    # deterministic state transition for the phase that was just executed.
+    apply_state_phase "$current_phase" || true
+
+    # Normalize again in case apply_phase repaired missing keys, etc.
+    normalize_state_json || true
     
     increment_run_count
     

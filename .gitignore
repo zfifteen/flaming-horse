@@ -3,6 +3,7 @@
 .wiggum/
 
 *backup*
+**__pycache__**
 
 .env
 *.mp4
@@ -14,3 +15,4 @@
 *.svg
 *.tex
 *.log
+*.pyc

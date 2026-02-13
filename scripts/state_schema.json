@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Manim Video Project State",
+  "type": "object",
+  "required": [
+    "project_name",
+    "phase",
+    "created_at",
+    "updated_at",
+    "run_count",
+    "scenes",
+    "current_scene_index",
+    "errors",
+    "history",
+    "flags"
+  ],
+  "properties": {
+    "project_name": {"type": "string"},
+    "topic": {"type": ["string", "null"]},
+    "phase": {
+      "type": "string",
+      "enum": [
+        "init",
+        "plan",
+        "review",
+        "narration",
+        "build_scenes",
+        "precache_voiceovers",
+        "final_render",
+        "assemble",
+        "complete",
+        "error"
+      ]
+    },
+    "created_at": {"type": "string"},
+    "updated_at": {"type": "string"},
+    "run_count": {"type": "integer", "minimum": 0},
+    "plan_file": {"type": ["string", "null"]},
+    "narration_file": {"type": ["string", "null"]},
+    "voice_config_file": {"type": ["string", "null"]},
+    "scenes": {
+      "type": "array",
+      "items": {"type": "object"}
+    },
+    "current_scene_index": {"type": "integer", "minimum": 0},
+    "errors": {"type": "array"},
+    "history": {"type": "array"},
+    "flags": {
+      "type": "object",
+      "required": ["needs_human_review", "dry_run", "force_replan"],
+      "properties": {
+        "needs_human_review": {"type": "boolean"},
+        "dry_run": {"type": "boolean"},
+        "force_replan": {"type": "boolean"}
+      }
+    }
+  }
+}
