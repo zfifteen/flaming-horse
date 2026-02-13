@@ -1,0 +1,64 @@
+{
+  "title": "What is a Hash Function?",
+  "topic_summary": "An explanation of hash functions, their purpose, properties, and real-world applications in computer science and cryptography.",
+  "target_audience": "General audience interested in computer science basics",
+  "estimated_duration_seconds": 120,
+  "total_estimated_words": 300,
+  "scenes": [
+    {
+      "id": "scene_01_intro",
+      "title": "Introduction",
+      "narration_key": "intro",
+      "narration_summary": "Hook and brief introduction to hash functions",
+      "estimated_words": 50,
+      "estimated_duration": "20s",
+      "animations": ["Write title", "Fade in icon"],
+      "complexity": "low",
+      "risk_flags": []
+    },
+    {
+      "id": "scene_02_definition",
+      "title": "What is a Hash Function?",
+      "narration_key": "definition",
+      "narration_summary": "Core definition and basic explanation",
+      "estimated_words": 75,
+      "estimated_duration": "30s",
+      "animations": ["Show input-output diagram", "Highlight key terms"],
+      "complexity": "low",
+      "risk_flags": []
+    },
+    {
+      "id": "scene_03_properties",
+      "title": "Key Properties",
+      "narration_key": "properties",
+      "narration_summary": "Important characteristics of hash functions",
+      "estimated_words": 75,
+      "estimated_duration": "30s",
+      "animations": ["List properties", "Visualize determinism"],
+      "complexity": "low",
+      "risk_flags": []
+    },
+    {
+      "id": "scene_04_examples",
+      "title": "Real-World Examples",
+      "narration_key": "examples",
+      "narration_summary": "Applications in password storage and data integrity",
+      "estimated_words": 75,
+      "estimated_duration": "30s",
+      "animations": ["Show password hashing", "Demonstrate file integrity"],
+      "complexity": "low",
+      "risk_flags": []
+    },
+    {
+      "id": "scene_05_conclusion",
+      "title": "Conclusion and Recap",
+      "narration_key": "conclusion",
+      "narration_summary": "Summarize key points and importance",
+      "estimated_words": 25,
+      "estimated_duration": "10s",
+      "animations": ["Fade out elements", "Show final summary"],
+      "complexity": "low",
+      "risk_flags": []
+    }
+  ]
+}
