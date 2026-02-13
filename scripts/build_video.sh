@@ -2,7 +2,38 @@
 set -euo pipefail
 
 # ─── Configuration ───────────────────────────────────────────────────
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+  echo "Usage: $0 <project_dir> [--topic \"<video topic>\"]" >&2
+  exit 0
+fi
+
 PROJECT_DIR_INPUT="${1:-.}" # Original input, could be relative
+shift || true
+
+# Optional topic injection (primarily for plan phase)
+TOPIC_OVERRIDE=""
+while [[ ${#} -gt 0 ]]; do
+  case "${1}" in
+    --topic)
+      TOPIC_OVERRIDE="${2:-}"
+      if [[ -z "${TOPIC_OVERRIDE}" ]]; then
+        echo "❌ Missing value for --topic" >&2
+        exit 1
+      fi
+      shift 2
+      ;;
+    -h|--help)
+      echo "Usage: $0 <project_dir> [--topic \"<video topic>\"]" >&2
+      exit 0
+      ;;
+    *)
+      echo "❌ Unknown argument: ${1}" >&2
+      echo "Usage: $0 <project_dir> [--topic \"<video topic>\"]" >&2
+      exit 1
+      ;;
+  esac
+done
+
 INITIAL_PWD="$(pwd)"
 PROJECT_DIR="$(realpath "${INITIAL_PWD}/${PROJECT_DIR_INPUT}")" # Absolute path to project directory
 
@@ -134,6 +165,11 @@ try:
         if field not in state:
             print(f"❌ Missing required field: {field}", file=sys.stderr)
             sys.exit(1)
+
+    # Optional, but if present must be a string or null.
+    if 'topic' in state and state['topic'] is not None and not isinstance(state['topic'], str):
+        print("❌ Invalid type for 'topic' (must be string or null)", file=sys.stderr)
+        sys.exit(1)
     
     valid_phases = ['plan', 'review', 'narration', 'build_scenes', 
                     'final_render', 'assemble', 'complete', 'error']
@@ -149,6 +185,34 @@ except Exception as e:
     print(f"❌ Validation error: {e}", file=sys.stderr)
     sys.exit(1)
 EOF
+}
+
+ensure_topic_present_for_plan() {
+  local phase="$1"
+  [[ "$phase" == "plan" ]] || return 0
+
+  local topic
+  topic=$(python3 - <<PY
+import json
+try:
+    state = json.load(open("${STATE_FILE}", "r"))
+except Exception:
+    state = {}
+topic = state.get("topic")
+print("" if topic is None else str(topic))
+PY
+)
+
+  if [[ -z "${TOPIC_OVERRIDE}" && -z "${topic}" ]]; then
+    echo "❌ No video topic set for plan phase." | tee -a "$LOG_FILE" >&2
+    echo "   Set it when creating the project:" | tee -a "$LOG_FILE" >&2
+    echo "     ./scripts/new_project.sh <name> --topic \"...\"" | tee -a "$LOG_FILE" >&2
+    echo "   Or override at build time:" | tee -a "$LOG_FILE" >&2
+    echo "     ./scripts/build_video.sh ${PROJECT_DIR} --topic \"...\"" | tee -a "$LOG_FILE" >&2
+    return 1
+  fi
+
+  return 0
 }
 
 # ═══════════════════════════════════════════════════════════════
@@ -270,6 +334,69 @@ validate_voiceover_sync() {
 invoke_agent() {
   local phase="$1"
   local run_num="$2"
+
+  if ! ensure_topic_present_for_plan "$phase"; then
+    python3 - <<PY
+import json
+from datetime import datetime
+
+with open("${STATE_FILE}", "r") as f:
+    state = json.load(f)
+
+state.setdefault("errors", []).append("Phase plan failed: No video topic set. Provide project_state.json.topic or pass --topic.")
+state.setdefault("flags", {})["needs_human_review"] = True
+state["updated_at"] = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+state.setdefault("history", []).append({
+    "phase": "plan",
+    "action": "failed",
+    "reason": "No video topic set",
+    "timestamp": datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ'),
+})
+
+with open("${STATE_FILE}", "w") as f:
+    json.dump(state, f, indent=2)
+PY
+    return 1
+  fi
+
+  # If a topic override was provided, persist it into state so the agent can rely on project_state.json.
+  if [[ "$phase" == "plan" && -n "${TOPIC_OVERRIDE}" ]]; then
+    STATE_FILE="${STATE_FILE}" TOPIC_OVERRIDE_FOR_PY="${TOPIC_OVERRIDE}" python3 - <<'PY'
+import json
+import os
+from datetime import datetime
+
+state_file = os.environ["STATE_FILE"]
+topic = os.environ["TOPIC_OVERRIDE_FOR_PY"]
+
+with open(state_file, "r") as f:
+    state = json.load(f)
+
+state["topic"] = topic
+state["updated_at"] = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+
+with open(state_file, "w") as f:
+    json.dump(state, f, indent=2)
+PY
+  fi
+
+  # Load topic from state (if present), overridden by CLI flag.
+  local topic_from_state
+  topic_from_state=$(python3 - <<PY
+import json
+try:
+    state = json.load(open("${STATE_FILE}", "r"))
+except Exception:
+    state = {}
+topic = state.get("topic")
+if topic is None:
+    print("")
+else:
+    print(str(topic))
+PY
+)
+  local topic
+  topic="${TOPIC_OVERRIDE:-${topic_from_state}}"
   
   echo "[Run $run_num] Phase: $phase — invoking agent..." | tee -a "$LOG_FILE"
   
@@ -289,8 +416,13 @@ You are executing phase: ${phase}
 
 Working directory: ${PROJECT_DIR}
 
+Repo root (scripts live here): ${SCRIPT_DIR}/..
+Scene scaffold script (absolute path): ${SCRIPT_DIR}/scaffold_scene.py
+
 Files available in this directory:
 $(ls -1 "$PROJECT_DIR" 2>/dev/null || echo "  (empty)")
+
+Video topic (if set): ${topic}
 
 Reference documentation has been attached to this message:
 - manim_content_pipeline.md
@@ -306,6 +438,14 @@ INSTRUCTIONS:
 3. Generate any required files in the current directory
 4. Update project_state.json with results and advance to the next phase
 5. If errors occur, set flags.needs_human_review = true and log to errors array
+
+IMPORTANT PATH NOTE:
+- Your working directory is the project directory, which does NOT contain a ./scripts folder.
+- If you need to scaffold a scene, run the scaffold tool via the absolute path above, e.g.:
+  python3 "${SCRIPT_DIR}/scaffold_scene.py" --project . --scene-id <scene_id> --class-name <ClassName> --narration-key <key>
+
+TOPIC REQUIREMENT:
+- For the plan phase, you MUST use the provided video topic (above). If it is empty, fail the phase with an error explaining how to set it.
 
 Begin execution now.
 EOF
@@ -469,6 +609,78 @@ PY
 
   cd "$PROJECT_DIR"
 
+  # Best-effort repair: ensure scene metadata needed for rendering exists.
+  # (Some agents forget to persist scene file/class_name into project_state.json.)
+  python3 - <<'PY'
+import json
+import os
+import re
+from datetime import datetime
+
+state_file = os.environ.get("STATE_FILE")
+project_dir = os.environ.get("PROJECT_DIR")
+if not state_file or not project_dir:
+    raise SystemExit(0)
+
+with open(state_file, "r") as f:
+    state = json.load(f)
+
+scenes = state.get("scenes") or []
+changed = False
+notes = []
+
+def infer_class_name(scene_path: str) -> str | None:
+    try:
+        with open(scene_path, "r") as sf:
+            txt = sf.read()
+    except OSError:
+        return None
+    # Prefer VoiceoverScene pattern.
+    m = re.search(r"^class\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(\s*VoiceoverScene\s*\)\s*:\s*$", txt, re.M)
+    if m:
+        return m.group(1)
+    # Fallback: first class definition.
+    m = re.search(r"^class\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(.*\)\s*:\s*$", txt, re.M)
+    if m:
+        return m.group(1)
+    return None
+
+for s in scenes:
+    scene_id = s.get("id")
+    if not scene_id:
+        continue
+
+    # Infer file as <id>.py if missing.
+    if not s.get("file"):
+        candidate = f"{scene_id}.py"
+        candidate_path = os.path.join(project_dir, candidate)
+        if os.path.exists(candidate_path):
+            s["file"] = candidate
+            changed = True
+            notes.append(f"set file for {scene_id} -> {candidate}")
+
+    # Infer class name by parsing the scene file if missing.
+    if not s.get("class_name") and s.get("file"):
+        scene_path = os.path.join(project_dir, s["file"])
+        class_name = infer_class_name(scene_path)
+        if class_name:
+            s["class_name"] = class_name
+            changed = True
+            notes.append(f"set class_name for {scene_id} -> {class_name}")
+
+if changed:
+    state["updated_at"] = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+    state.setdefault("history", []).append(
+        {
+            "timestamp": datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ'),
+            "phase": "final_render",
+            "action": "Repaired missing scene metadata in state: " + "; ".join(notes),
+        }
+    )
+    with open(state_file, "w") as f:
+        json.dump(state, f, indent=2)
+PY
+
   local manim_bin
   manim_bin=$(command -v manim)
   if [[ -z "$manim_bin" ]]; then
@@ -488,16 +700,49 @@ scenes = state.get("scenes", [])
 if not scenes:
     raise SystemExit(1)
 
+missing = []
+
 for s in scenes:
     scene_id = s.get("id")
     file_ = s.get("file")
     class_name = s.get("class_name")
     est = s.get("estimated_duration") or "0s"
     if not scene_id or not file_ or not class_name:
-        raise SystemExit(1)
+        missing.append({
+            "id": scene_id,
+            "file": file_,
+            "class_name": class_name,
+        })
+        continue
     print(f"{scene_id}|{file_}|{class_name}|{est}")
+
+if missing:
+    import sys
+    print("Missing required scene metadata in project_state.json (need id, file, class_name):", file=sys.stderr)
+    for m in missing:
+        print(f"  - id={m.get('id')!r} file={m.get('file')!r} class_name={m.get('class_name')!r}", file=sys.stderr)
+    raise SystemExit(2)
 PY
 )
+  local scene_extract_rc=$?
+
+  if [[ $scene_extract_rc -eq 2 ]]; then
+    echo "❌ final_render cannot start: project_state.json is missing scene 'file' and/or 'class_name'." | tee -a "$LOG_FILE" >&2
+    echo "   Fix: rebuild scenes so state includes metadata, or ensure scene files exist as <scene_id>.py and declare class <...>(VoiceoverScene)." | tee -a "$LOG_FILE" >&2
+    python3 - <<PY
+import json
+from datetime import datetime
+
+with open("${STATE_FILE}", "r") as f:
+    state = json.load(f)
+state.setdefault("errors", []).append("final_render failed: missing scene file/class_name metadata in state")
+state.setdefault("flags", {})["needs_human_review"] = True
+state["updated_at"] = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+with open("${STATE_FILE}", "w") as f:
+    json.dump(state, f, indent=2)
+PY
+    exit 1
+  fi
 
   if [[ -z "$scene_lines" ]]; then
     echo "❌ No scenes found in state for final_render" | tee -a "$LOG_FILE" >&2

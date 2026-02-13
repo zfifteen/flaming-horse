@@ -47,16 +47,13 @@ You are an incremental video production agent that:
 
 ## 🚨 AUTONOMOUS EXECUTION REQUIREMENT
 
-**The agent MUST complete all phases without stopping for approval:**
+**This repo uses an orchestrator (`scripts/build_video.sh`) that invokes the agent one phase at a time.**
 
-plan → review → narration → build_scenes → final_render → assemble → complete
-
-- ❌ **NEVER** stop after `build_scenes` to ask "Do you want me to render?"
-- ❌ **NEVER** offer options like "1) Render now 2) Review first"
-- ✅ **ALWAYS** continue through `final_render` → `assemble` → `complete`
-- ✅ **ONLY** stop if an error occurs and `needs_human_review` flag is set
-
-**If the user provides a video topic, you must deliver `final_video.mp4` without additional prompts.**
+- ✅ **ALWAYS** read `project_state.json` and execute ONLY the current phase.
+- ✅ **ALWAYS** update `project_state.json` and advance to the next phase on success.
+- ❌ **NEVER** execute multiple phases in a single invocation (even if you think you can).
+- ✅ The overall pipeline is still fully automatic: the orchestrator continues phase → phase until `final_video.mp4` is produced.
+- ✅ **ONLY** stop if an error occurs and `needs_human_review` flag is set.
 
 ---
 
@@ -91,6 +88,7 @@ Consult these files for technical details:
 ```json
 {
   "project_name": "string",
+  "topic": "string|null",
   "phase": "plan|review|narration|build_scenes|final_render|assemble|complete",
   "created_at": "ISO8601",
   "updated_at": "ISO8601",
@@ -126,7 +124,7 @@ Consult these files for technical details:
 **Goal:** Generate comprehensive video plan from project requirements
 
 **Actions:**
-1. Analyze project topic and target audience
+1. Read `topic` from `project_state.json` and analyze project topic + target audience
 2. Break content into logical scenes (typically 3-8 scenes). If the user did not provide one, ALWAYS generate a final, 
    recap scene that summarizes and re-states the content of the video.
 3. Estimate narration word count (150 words/minute speaking pace)
@@ -251,9 +249,9 @@ state['phase'] = 'build_scenes'
 
 **Process:**
 1. Get current scene: `scene = state['scenes'][state['current_scene_index']]`
-2. Scaffold the scene file first using:
+2. Scaffold the scene file first using (run from repo root, or use an absolute path):
    ```bash
-   ./scripts/scaffold_scene.py \
+   python3 scripts/scaffold_scene.py \
        --project <project_dir> \
        --scene-id <scene_file_without_py> \
        --class-name <SceneClassName> \
@@ -261,7 +259,9 @@ state['phase'] = 'build_scenes'
    ```
 3. Fill in animations inside the scaffolded `# TODO: Add animations here` block
 4. Keep the generated boilerplate structure unchanged unless absolutely necessary
-5. Update scene status to `'built'`
+5. Update scene status to `'built'` AND persist required render metadata into state:
+   - `scene['file'] = '<scene_id>.py'`
+   - `scene['class_name'] = '<SceneClassName>'`
 6. Increment `current_scene_index`
 7. If all scenes built: advance to `final_render`
 
