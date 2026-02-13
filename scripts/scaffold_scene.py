@@ -1,0 +1,129 @@
+#!/usr/bin/env python3
+"""Generate a new Manim scene file scaffold."""
+
+import argparse
+from pathlib import Path
+import sys
+
+
+TEMPLATE = """from manim import *
+import numpy as np
+
+# Python 3.13 Compatibility Patch
+import manim_voiceover_plus.services.base as base
+original_set_transcription = base.SpeechService.set_transcription
+
+def patched_set_transcription(self, model=None, kwargs=None):
+    if model is None:
+        self.transcription_model = None
+        self.whisper_model = None
+        return
+    original_set_transcription(self, model=model, kwargs=kwargs)
+
+base.SpeechService.set_transcription = patched_set_transcription
+
+# Voiceover Imports
+from manim_voiceover_plus import VoiceoverScene
+from manim_voiceover_plus.services.elevenlabs import ElevenLabsService
+from elevenlabs import VoiceSettings
+
+# Import Shared Configuration
+from voice_config import VOICE_ID, MODEL_ID, VOICE_SETTINGS
+from narration_script import SCRIPT
+
+# LOCKED CONFIGURATION (DO NOT MODIFY)
+config.frame_height = 10
+config.frame_width = 10 * 16/9
+config.pixel_height = 1440
+config.pixel_width = 2560
+
+# Safe Positioning Helper
+def safe_position(mobject, max_y=4.0, min_y=-4.0):
+    \"\"\"Ensure mobject stays within safe bounds after positioning\"\"\"
+    top = mobject.get_top()[1]
+    bottom = mobject.get_bottom()[1]
+    if top > max_y:
+        mobject.shift(DOWN * (top - max_y))
+    elif bottom < min_y:
+        mobject.shift(UP * (min_y - bottom))
+    return mobject
+
+def safe_layout(*mobjects, min_horizontal_spacing=0.5, max_y=4.0, min_y=-4.0):
+    \"\"\"Ensure multiple mobjects don't overlap and stay within safe bounds.\"\"\"
+    for mob in mobjects:
+        top = mob.get_top()[1]
+        bottom = mob.get_bottom()[1]
+        if top > max_y:
+            mob.shift(DOWN * (top - max_y))
+        elif bottom < min_y:
+            mob.shift(UP * (min_y - bottom))
+
+    for i, mob_a in enumerate(mobjects):
+        for mob_b in mobjects[i + 1:]:
+            a_left = mob_a.get_left()[0]
+            a_right = mob_a.get_right()[0]
+            b_left = mob_b.get_left()[0]
+            b_right = mob_b.get_right()[0]
+            if not (a_right < b_left or b_right < a_left):
+                overlap = (a_right - b_left) if a_right > b_left else (b_right - a_left)
+                mob_b.shift(RIGHT * (overlap + min_horizontal_spacing))
+
+    return list(mobjects)
+
+# Scene Class
+class {class_name}(VoiceoverScene):
+    def construct(self):
+        # ELEVENLABS ONLY - NO FALLBACK - FAIL LOUD
+        self.set_speech_service(
+            ElevenLabsService(
+                voice_id=VOICE_ID,
+                model_id=MODEL_ID,
+                voice_settings=VOICE_SETTINGS,
+                transcription_model=None,
+            )
+        )
+
+        # Animation Sequence
+        # Timing budget: Calculate BEFORE writing animations
+        # Example: 0.4 + 0.3 + 0.3 = 1.0 ✓
+        with self.voiceover(text=SCRIPT["{narration_key}"]) as tracker:
+            # TODO: Add animations here
+            self.wait(tracker.duration)
+"""
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Scaffold a Manim scene file.")
+    parser.add_argument("--project", required=True, help="Project directory path")
+    parser.add_argument("--scene-id", required=True, help="Scene id (file name without .py)")
+    parser.add_argument("--class-name", required=True, help="Scene class name")
+    parser.add_argument("--narration-key", required=True, help="SCRIPT key for narration")
+    parser.add_argument("--force", action="store_true", help="Overwrite existing scene file")
+    return parser.parse_args()
+
+
+def main() -> int:
+    args = parse_args()
+    project_dir = Path(args.project)
+    scene_filename = args.scene_id if args.scene_id.endswith(".py") else f"{args.scene_id}.py"
+    output_file = project_dir / scene_filename
+
+    if not project_dir.exists():
+        print(f"Error: project directory not found: {project_dir}", file=sys.stderr)
+        return 1
+    if output_file.exists() and not args.force:
+        print(f"Error: scene file already exists: {output_file}", file=sys.stderr)
+        print("Use --force to overwrite.", file=sys.stderr)
+        return 1
+
+    content = TEMPLATE.format(
+        class_name=args.class_name,
+        narration_key=args.narration_key,
+    )
+    output_file.write_text(content, encoding="utf-8")
+    print(f"✅ Created scene scaffold: {output_file}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
