@@ -1,0 +1,51 @@
+{
+  "title": "Pipeline Verification Test",
+  "topic_summary": "A very short test video with 3 scenes to verify the Manim voiceover pipeline using cached Qwen audio, featuring only on-screen text and a recap scene.",
+  "target_audience": "Developers and users testing the automated video production pipeline",
+  "estimated_duration_seconds": 45,
+  "total_estimated_words": 60,
+  "scenes": [
+    {
+      "id": "scene_01_intro",
+      "title": "Introduction",
+      "narration_key": "intro",
+      "narration_summary": "Brief introduction to the pipeline test video",
+      "estimated_words": 15,
+      "estimated_duration": "10s",
+      "animations": [
+        "Write title",
+        "FadeIn subtitle"
+      ],
+      "complexity": "low",
+      "risk_flags": []
+    },
+    {
+      "id": "scene_02_demo",
+      "title": "Demo Scene",
+      "narration_key": "demo",
+      "narration_summary": "Simple demonstration of text animation",
+      "estimated_words": 15,
+      "estimated_duration": "10s",
+      "animations": [
+        "Write main text",
+        "FadeIn bullet points"
+      ],
+      "complexity": "low",
+      "risk_flags": []
+    },
+    {
+      "id": "scene_03_recap",
+      "title": "Recap",
+      "narration_key": "recap",
+      "narration_summary": "Summary and conclusion of the test video",
+      "estimated_words": 15,
+      "estimated_duration": "10s",
+      "animations": [
+        "Write recap title",
+        "FadeIn summary text"
+      ],
+      "complexity": "low",
+      "risk_flags": []
+    }
+  ]
+}

@@ -36,6 +36,20 @@ Run once per project (or after changing narration):
 python3 scripts/precache_voiceovers_qwen.py projects/<project>
 ```
 
+## Warm up (recommended for reliability)
+
+For "one prompt -> complete video" reliability, you can warm up Qwen early. This
+loads the model and builds the voice clone prompt (and optionally runs a tiny
+dry-run generation):
+
+```bash
+python3 scripts/prepare_qwen_voice.py --project-dir projects/<project>
+```
+
+This writes a stamp file:
+
+- `projects/<project>/media/voiceovers/qwen/ready.json`
+
 This writes:
 
 - `projects/<project>/media/voiceovers/qwen/*.wav`

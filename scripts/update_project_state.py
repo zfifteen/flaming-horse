@@ -307,6 +307,7 @@ def apply_phase(project_dir: Path, state: dict, phase: str) -> dict:
         state["scenes"] = scenes_from_plan(plan)
         state["current_scene_index"] = 0
         state["phase"] = "review"
+        state["flags"]["needs_human_review"] = False
         state.setdefault("history", []).append(
             {
                 "timestamp": utc_now(),
@@ -319,6 +320,7 @@ def apply_phase(project_dir: Path, state: dict, phase: str) -> dict:
     if phase == "review":
         # For now, review deterministically advances to narration.
         state["phase"] = "narration"
+        state["flags"]["needs_human_review"] = False
         state.setdefault("history", []).append(
             {
                 "timestamp": utc_now(),
@@ -336,6 +338,7 @@ def apply_phase(project_dir: Path, state: dict, phase: str) -> dict:
             return state
         state["narration_file"] = "narration_script.py"
         state["phase"] = "build_scenes"
+        state["flags"]["needs_human_review"] = False
         _clear_errors_matching(state, lambda e: e.startswith("narration failed:"))
         state.setdefault("history", []).append(
             {
@@ -351,6 +354,7 @@ def apply_phase(project_dir: Path, state: dict, phase: str) -> dict:
         cache_index = project_dir / "media" / "voiceovers" / "qwen" / "cache.json"
         if cache_index.exists():
             state["phase"] = "final_render"
+            state["flags"]["needs_human_review"] = False
             _clear_errors_matching(
                 state,
                 lambda e: e.startswith("precache_voiceovers incomplete:")

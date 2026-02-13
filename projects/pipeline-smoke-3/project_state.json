@@ -1,0 +1,204 @@
+{
+  "project_name": "pipeline-smoke-3",
+  "topic": "How to write a great git commit message (clear, concise, and reviewable)",
+  "phase": "complete",
+  "created_at": "2026-02-13T21:31:16Z",
+  "updated_at": "2026-02-13T21:51:55Z",
+  "run_count": 9,
+  "plan_file": "plan.json",
+  "narration_file": "narration_script.py",
+  "voice_config_file": null,
+  "scenes": [
+    {
+      "id": "scene_01_intro",
+      "title": "Introduction",
+      "narration_key": "intro",
+      "narration_summary": "Explain what commit messages are and why they matter for code quality and team collaboration",
+      "estimated_words": 75,
+      "estimated_duration": "30s",
+      "animations": [
+        "Write title",
+        "FadeIn graphic of git branch"
+      ],
+      "complexity": "low",
+      "risk_flags": [],
+      "status": "rendered",
+      "file": "scene_01_intro.py",
+      "class_name": "Scene01Intro",
+      "video_file": "media/videos/scene_01_intro/1440p60/Scene01Intro.mp4",
+      "verification": {
+        "file_size_bytes": 872690,
+        "duration_seconds": 20.133333,
+        "audio_present": true,
+        "verified_at": "2026-02-13T21:50:15Z"
+      }
+    },
+    {
+      "id": "scene_02_bad_examples",
+      "title": "Bad Commit Messages",
+      "narration_key": "bad_examples",
+      "narration_summary": "Show common examples of poor commit messages and their problems",
+      "estimated_words": 90,
+      "estimated_duration": "36s",
+      "animations": [
+        "Display bad message examples",
+        "Cross-out animations"
+      ],
+      "complexity": "low",
+      "risk_flags": [],
+      "status": "rendered",
+      "file": "scene_02_bad_examples.py",
+      "class_name": "Scene02BadExamples",
+      "video_file": "media/videos/scene_02_bad_examples/1440p60/Scene02BadExamples.mp4",
+      "verification": {
+        "file_size_bytes": 1164712,
+        "duration_seconds": 26.05,
+        "audio_present": true,
+        "verified_at": "2026-02-13T21:50:15Z"
+      }
+    },
+    {
+      "id": "scene_03_good_practices",
+      "title": "Good Commit Message Practices",
+      "narration_key": "good_practices",
+      "narration_summary": "Demonstrate structure, clarity, and conciseness principles for effective commit messages",
+      "estimated_words": 105,
+      "estimated_duration": "42s",
+      "animations": [
+        "Show formatted examples",
+        "Highlight key elements"
+      ],
+      "complexity": "low",
+      "risk_flags": [],
+      "status": "rendered",
+      "file": "scene_03_good_practices.py",
+      "class_name": "Scene03GoodPractices",
+      "video_file": "media/videos/scene_03_good_practices/1440p60/Scene03GoodPractices.mp4",
+      "verification": {
+        "file_size_bytes": 1491628,
+        "duration_seconds": 27.5,
+        "audio_present": true,
+        "verified_at": "2026-02-13T21:50:37Z"
+      }
+    },
+    {
+      "id": "scene_04_tools_techniques",
+      "title": "Tools and Techniques",
+      "narration_key": "tools_techniques",
+      "narration_summary": "Share practical tips and tools for writing better commit messages consistently",
+      "estimated_words": 90,
+      "estimated_duration": "36s",
+      "animations": [
+        "List tools",
+        "Show command examples"
+      ],
+      "complexity": "low",
+      "risk_flags": [],
+      "status": "rendered",
+      "file": "scene_04_tools_techniques.py",
+      "class_name": "Scene04ToolsTechniques",
+      "video_file": "media/videos/scene_04_tools_techniques/1440p60/Scene04ToolsTechniques.mp4",
+      "verification": {
+        "file_size_bytes": 1429695,
+        "duration_seconds": 29.966667,
+        "audio_present": true,
+        "verified_at": "2026-02-13T21:51:13Z"
+      }
+    },
+    {
+      "id": "scene_05_recap",
+      "title": "Summary and Recap",
+      "narration_key": "recap",
+      "narration_summary": "Re-state the key principles for writing great git commit messages",
+      "estimated_words": 90,
+      "estimated_duration": "36s",
+      "animations": [
+        "Bullet list of key points",
+        "Final call-to-action"
+      ],
+      "complexity": "low",
+      "risk_flags": [],
+      "status": "rendered",
+      "file": "scene_05_recap.py",
+      "class_name": "Scene05Recap",
+      "video_file": "media/videos/scene_05_recap/1440p60/Scene05Recap.mp4",
+      "verification": {
+        "file_size_bytes": 1177748,
+        "duration_seconds": 25.583333,
+        "audio_present": true,
+        "verified_at": "2026-02-13T21:51:32Z"
+      }
+    }
+  ],
+  "current_scene_index": 5,
+  "errors": [],
+  "history": [
+    {
+      "timestamp": "2026-02-13T21:31:55Z",
+      "phase": "plan",
+      "action": "Applied plan.json to project_state.json (deterministic)"
+    },
+    {
+      "timestamp": "2026-02-13T21:31:55Z",
+      "phase": "plan",
+      "action": "Applied plan.json to project_state.json (deterministic)"
+    },
+    {
+      "timestamp": "2026-02-13T21:31:56Z",
+      "phase": "review",
+      "action": "Advanced to narration (deterministic)"
+    },
+    {
+      "timestamp": "2026-02-13T21:31:56Z",
+      "phase": "review",
+      "action": "Advanced to narration (deterministic)"
+    },
+    {
+      "timestamp": "2026-02-13T21:32:07Z",
+      "phase": "narration",
+      "action": "Detected narration_script.py; advanced to build_scenes (deterministic)"
+    },
+    {
+      "timestamp": "2026-02-13T21:32:07Z",
+      "phase": "narration",
+      "action": "Detected narration_script.py; advanced to build_scenes (deterministic)"
+    },
+    {
+      "timestamp": "2026-02-13T21:32:30Z",
+      "phase": "build_scenes",
+      "action": "Marked built: scene_01_intro.py (Scene01Intro); advanced index to 1"
+    },
+    {
+      "timestamp": "2026-02-13T21:33:00Z",
+      "phase": "build_scenes",
+      "action": "Marked built: scene_02_bad_examples.py (Scene02BadExamples); advanced index to 2"
+    },
+    {
+      "timestamp": "2026-02-13T21:33:38Z",
+      "phase": "build_scenes",
+      "action": "Marked built: scene_03_good_practices.py (Scene03GoodPractices); advanced index to 3"
+    },
+    {
+      "timestamp": "2026-02-13T21:33:59Z",
+      "phase": "build_scenes",
+      "action": "Marked built: scene_04_tools_techniques.py (Scene04ToolsTechniques); advanced index to 4"
+    },
+    {
+      "timestamp": "2026-02-13T21:34:17Z",
+      "phase": "build_scenes",
+      "action": "Marked built: scene_05_recap.py (Scene05Recap); advanced index to 5"
+    },
+    {
+      "timestamp": "2026-02-13T21:47:34Z",
+      "phase": "precache_voiceovers",
+      "action": "Detected media/voiceovers/qwen/cache.json; advanced to final_render (deterministic)"
+    },
+    "Phase final_render: Rendered and verified all scenes (scripted), advancing to assemble",
+    "Phase assemble: Assembled final_video.mp4 (scripted)"
+  ],
+  "flags": {
+    "needs_human_review": false,
+    "dry_run": false,
+    "force_replan": false
+  }
+}

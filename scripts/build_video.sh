@@ -491,6 +491,49 @@ handle_plan() {
 
   # Agent may have corrupted state JSON; normalize before applying plan.
   normalize_state_json || true
+
+  # Reliability: some model outputs print JSON but don't write plan.json.
+  # If plan.json is missing, recover the latest plan object from build.log.
+  cd "$PROJECT_DIR"
+  if [[ ! -f "plan.json" ]]; then
+    python3 - <<'PY' 2>&1 | tee -a "$LOG_FILE"
+import json
+from pathlib import Path
+
+log_path = Path('build.log')
+if not log_path.exists():
+    raise SystemExit('plan.json missing and build.log not found')
+
+raw = log_path.read_text(encoding='utf-8', errors='replace')
+decoder = json.JSONDecoder()
+
+best = None
+best_pos = -1
+
+for i, ch in enumerate(raw):
+    if ch != '{':
+        continue
+    try:
+        obj, end = decoder.raw_decode(raw[i:])
+    except json.JSONDecodeError:
+        continue
+    if not isinstance(obj, dict):
+        continue
+    if not isinstance(obj.get('scenes'), list) or not obj.get('scenes'):
+        continue
+    # Minimal required keys
+    if not obj.get('title') or not obj.get('topic_summary'):
+        continue
+    best = obj
+    best_pos = i
+
+if not best:
+    raise SystemExit('plan.json missing and no valid plan JSON object found in build.log')
+
+Path('plan.json').write_text(json.dumps(best, indent=2) + '\n', encoding='utf-8')
+print('✓ Recovered plan.json from build.log')
+PY
+  fi
   
   # Deterministically apply plan.json into project_state.json.
   apply_state_phase "plan" || true
@@ -550,6 +593,59 @@ handle_narration() {
   invoke_agent "narration" "$(get_run_count)"
 
   normalize_state_json || true
+
+  # Reliability: some model outputs print SCRIPT but don't write narration_script.py.
+  # If narration_script.py is missing, recover it from build.log.
+  cd "$PROJECT_DIR"
+  if [[ ! -f "narration_script.py" ]]; then
+    python3 - <<'PY' 2>&1 | tee -a "$LOG_FILE"
+import re
+from pathlib import Path
+
+log_path = Path('build.log')
+if not log_path.exists():
+    raise SystemExit('narration_script.py missing and build.log not found')
+
+raw = log_path.read_text(encoding='utf-8', errors='replace')
+idx = raw.rfind('SCRIPT = {')
+if idx < 0:
+    raise SystemExit('narration_script.py missing and SCRIPT block not found in build.log')
+
+tail = raw[idx:]
+lines = tail.splitlines()
+out_lines = []
+brace_open = False
+for ln in lines:
+    if not brace_open:
+        if ln.strip().startswith('SCRIPT = {'):
+            brace_open = True
+            out_lines.append('SCRIPT = {')
+        continue
+    # In-script lines
+    out_lines.append(ln)
+    if ln.strip() == '}':
+        break
+
+script_text = "\n".join(out_lines).strip() + "\n"
+if not script_text.endswith('}\n'):
+    raise SystemExit('Failed to recover full SCRIPT dict from build.log')
+
+content = (
+    '"""\n'
+    'Narration script (recovered)\n'
+    '"""\n\n'
+    + script_text
+)
+
+try:
+    compile(content, 'narration_script.py', 'exec')
+except SyntaxError as e:
+    raise SystemExit(f'Recovered narration_script.py is invalid Python: {e}')
+
+Path('narration_script.py').write_text(content, encoding='utf-8')
+print('✓ Recovered narration_script.py from build.log')
+PY
+  fi
 
   # Post-step: ensure narration_script.py is valid Python.
   # Some agent outputs have been observed to include stray XML-like artifacts.

@@ -1,6 +1,7 @@
 import argparse
 import json
 import os
+import threading
 import subprocess
 import sys
 from pathlib import Path
@@ -115,34 +116,65 @@ def main() -> int:
     if not helper.exists():
         raise FileNotFoundError(f"Missing worker script: {helper}")
 
-    proc = subprocess.run(
+    # Stream worker progress (stderr) live so the pipeline doesn't look hung.
+    proc = subprocess.Popen(
         [os.path.expanduser(python_path), str(helper)],
-        input=json.dumps(payload),
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
         text=True,
-        capture_output=True,
     )
-    if proc.returncode != 0:
-        if proc.stdout.strip():
-            print(proc.stdout)
-        if proc.stderr.strip():
-            print(proc.stderr, file=sys.stderr)
-        raise SystemExit(proc.returncode)
+    assert proc.stdin is not None
+    assert proc.stdout is not None
+    assert proc.stderr is not None
 
-    if not proc.stdout.strip():
-        if proc.stderr.strip():
-            print(proc.stderr, file=sys.stderr)
+    worker_stdout_stream = proc.stdout
+    proc.stdin.write(json.dumps(payload))
+    proc.stdin.close()
+
+    stdout_chunks: list[str] = []
+    stderr_chunks: list[str] = []
+
+    def _read_stdout() -> None:
+        stdout_chunks.append(worker_stdout_stream.read())
+
+    def _read_stderr() -> None:
+        stderr_chunks.append(proc.stderr.read())
+
+    t_stdout = threading.Thread(target=_read_stdout, daemon=True)
+    t_stderr = threading.Thread(target=_read_stderr, daemon=True)
+
+    t_stdout.start()
+    t_stderr.start()
+
+    returncode = proc.wait()
+
+    t_stdout.join(timeout=5)
+    t_stderr.join(timeout=5)
+
+    worker_stdout = "".join(stdout_chunks)
+    worker_stderr = "".join(stderr_chunks)
+
+    if returncode != 0:
+        if worker_stdout.strip():
+            print(worker_stdout)
+        if worker_stderr.strip():
+            print(worker_stderr, file=sys.stderr)
+        raise SystemExit(returncode)
+
+    if not worker_stdout.strip():
+        if worker_stderr.strip():
+            print(worker_stderr, file=sys.stderr)
         raise SystemExit("Qwen precache worker returned empty output")
 
     # If worker logged to stdout, JSON may be on the last line.
-    stdout_lines = [line for line in proc.stdout.splitlines() if line.strip()]
+    stdout_lines = [line for line in worker_stdout.splitlines() if line.strip()]
     json_text = stdout_lines[-1]
     try:
         updated_entries = json.loads(json_text)
     except json.JSONDecodeError:
         # Fall back to full stdout for debugging
-        print(proc.stdout)
-        if proc.stderr.strip():
-            print(proc.stderr, file=sys.stderr)
+        print(worker_stdout)
         raise
 
     cache_index_path.write_text(

@@ -14,6 +14,7 @@ Notes:
   - This script is a thin wrapper around:
       1) scripts/new_project.sh
       2) scripts/build_video.sh
+  - For reliability, it also warms up the local Qwen voice clone once before building.
   - --build-args is parsed like a shell command line (quotes supported).
   - You can also provide the topic via VIDEO_TOPIC.
 EOF
@@ -87,6 +88,14 @@ fi
 PROJECT_DIR="${PROJECTS_DIR%/}/${PROJECT_NAME}"
 
 "${SCRIPT_DIR}/new_project.sh" "${PROJECT_NAME}" --topic "${TOPIC}" --projects-dir "${PROJECTS_DIR}"
+
+echo ""
+echo "═══════════════════════════════════════════"
+echo "Warming up Qwen voice model (reliability)"
+echo "═══════════════════════════════════════════"
+
+python3 "${SCRIPT_DIR}/prepare_qwen_voice.py" --project-dir "${PROJECT_DIR}"
+echo "✓ Qwen voice warm-up complete"
 
 BUILD_ARGS=()
 if [[ -n "${BUILD_ARGS_STR}" ]]; then

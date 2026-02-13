@@ -1,0 +1,146 @@
+{
+  "project_name": "pipeline-smoke-2",
+  "topic": "Create a very short test video (3 scenes) to verify the pipeline. One sentence narration per scene. Only on-screen text. Include a recap scene.",
+  "phase": "complete",
+  "created_at": "2026-02-13T21:26:22Z",
+  "updated_at": "2026-02-13T21:30:19Z",
+  "run_count": 6,
+  "plan_file": "plan.json",
+  "narration_file": "narration_script.py",
+  "voice_config_file": null,
+  "scenes": [
+    {
+      "id": "scene_01_intro",
+      "title": "Introduction",
+      "narration_key": "intro",
+      "narration_summary": "Brief introduction to the pipeline test video",
+      "estimated_words": 15,
+      "estimated_duration": "10s",
+      "animations": [
+        "Write title",
+        "FadeIn subtitle"
+      ],
+      "complexity": "low",
+      "risk_flags": [],
+      "status": "rendered",
+      "file": "scene_01_intro.py",
+      "class_name": "Scene01Intro",
+      "video_file": "media/videos/scene_01_intro/1440p60/Scene01Intro.mp4",
+      "verification": {
+        "file_size_bytes": 196413,
+        "duration_seconds": 3.883333,
+        "audio_present": true,
+        "verified_at": "2026-02-13T21:30:05Z"
+      }
+    },
+    {
+      "id": "scene_02_demo",
+      "title": "Demo Scene",
+      "narration_key": "demo",
+      "narration_summary": "Simple demonstration of text animation",
+      "estimated_words": 15,
+      "estimated_duration": "10s",
+      "animations": [
+        "Write main text",
+        "FadeIn bullet points"
+      ],
+      "complexity": "low",
+      "risk_flags": [],
+      "status": "rendered",
+      "file": "scene_02_demo.py",
+      "class_name": "Scene02Demo",
+      "video_file": "media/videos/scene_02_demo/1440p60/Scene02Demo.mp4",
+      "verification": {
+        "file_size_bytes": 226152,
+        "duration_seconds": 4.1,
+        "audio_present": true,
+        "verified_at": "2026-02-13T21:30:10Z"
+      }
+    },
+    {
+      "id": "scene_03_recap",
+      "title": "Recap",
+      "narration_key": "recap",
+      "narration_summary": "Summary and conclusion of the test video",
+      "estimated_words": 15,
+      "estimated_duration": "10s",
+      "animations": [
+        "Write recap title",
+        "FadeIn summary text"
+      ],
+      "complexity": "low",
+      "risk_flags": [],
+      "status": "rendered",
+      "file": "scene_03_recap.py",
+      "class_name": "Scene03Recap",
+      "video_file": "media/videos/scene_03_recap/1440p60/Scene03Recap.mp4",
+      "verification": {
+        "file_size_bytes": 257221,
+        "duration_seconds": 5.25,
+        "audio_present": true,
+        "verified_at": "2026-02-13T21:30:16Z"
+      }
+    }
+  ],
+  "current_scene_index": 3,
+  "errors": [],
+  "history": [
+    {
+      "timestamp": "2026-02-13T21:26:54Z",
+      "phase": "plan",
+      "action": "Applied plan.json to project_state.json (deterministic)"
+    },
+    {
+      "timestamp": "2026-02-13T21:26:54Z",
+      "phase": "plan",
+      "action": "Applied plan.json to project_state.json (deterministic)"
+    },
+    {
+      "timestamp": "2026-02-13T21:26:55Z",
+      "phase": "review",
+      "action": "Advanced to narration (deterministic)"
+    },
+    {
+      "timestamp": "2026-02-13T21:26:55Z",
+      "phase": "review",
+      "action": "Advanced to narration (deterministic)"
+    },
+    {
+      "timestamp": "2026-02-13T21:27:06Z",
+      "phase": "narration",
+      "action": "Detected narration_script.py; advanced to build_scenes (deterministic)"
+    },
+    {
+      "timestamp": "2026-02-13T21:27:06Z",
+      "phase": "narration",
+      "action": "Detected narration_script.py; advanced to build_scenes (deterministic)"
+    },
+    {
+      "timestamp": "2026-02-13T21:27:41Z",
+      "phase": "build_scenes",
+      "action": "Marked built: scene_01_intro.py (Scene01Intro); advanced index to 1"
+    },
+    {
+      "timestamp": "2026-02-13T21:27:41Z",
+      "phase": "build_scenes",
+      "action": "Marked built: scene_02_demo.py (Scene02Demo); advanced index to 2"
+    },
+    {
+      "timestamp": "2026-02-13T21:28:08Z",
+      "phase": "build_scenes",
+      "action": "Marked built: scene_03_recap.py (Scene03Recap); advanced index to 3"
+    },
+    {
+      "timestamp": "2026-02-13T21:30:00Z",
+      "phase": "precache_voiceovers",
+      "action": "Detected media/voiceovers/qwen/cache.json; advanced to final_render (deterministic)"
+    },
+    "Phase final_render: Rendered and verified all scenes (scripted), advancing to assemble",
+    "Phase assemble: Assembled final_video.mp4 (scripted)"
+  ],
+  "flags": {
+    "needs_human_review": false,
+    "dry_run": false,
+    "force_replan": false
+  }
+}
