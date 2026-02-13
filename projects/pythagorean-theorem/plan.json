@@ -1,0 +1,64 @@
+{
+  "title": "The Pythagorean Theorem Explained",
+  "topic_summary": "A visual explanation of the Pythagorean theorem, from carpenter's rule to practical applications",
+  "target_audience": "Middle school students learning geometry",
+  "estimated_duration_seconds": 150,
+  "total_estimated_words": 450,
+  "scenes": [
+    {
+      "id": "scene_01_intro",
+      "title": "Introduction",
+      "narration_key": "intro",
+      "narration_summary": "Hook with carpenters using 3-4-5 rule",
+      "estimated_words": 75,
+      "estimated_duration": "30s",
+      "animations": ["Show carpenter icon", "Draw 3-4-5 triangle"],
+      "complexity": "low",
+      "risk_flags": []
+    },
+    {
+      "id": "scene_02_theorem",
+      "title": "The Theorem",
+      "narration_key": "theorem",
+      "narration_summary": "Introduce a²+b²=c² with labeled triangle",
+      "estimated_words": 75,
+      "estimated_duration": "30s",
+      "animations": ["Draw right triangle", "Label sides a, b, c"],
+      "complexity": "low",
+      "risk_flags": []
+    },
+    {
+      "id": "scene_03_proof",
+      "title": "Visual Proof",
+      "narration_key": "proof",
+      "narration_summary": "Proof using squares on each side",
+      "estimated_words": 100,
+      "estimated_duration": "40s",
+      "animations": ["Draw squares on sides", "Show area calculations"],
+      "complexity": "medium",
+      "risk_flags": []
+    },
+    {
+      "id": "scene_04_application",
+      "title": "Ladder Problem",
+      "narration_key": "application",
+      "narration_summary": "Practical application with ladder against wall",
+      "estimated_words": 100,
+      "estimated_duration": "30s",
+      "animations": ["Draw ladder scenario", "Solve for height"],
+      "complexity": "low",
+      "risk_flags": []
+    },
+    {
+      "id": "scene_05_conclusion",
+      "title": "Conclusion",
+      "narration_key": "conclusion",
+      "narration_summary": "Theorem works for any right triangle",
+      "estimated_words": 50,
+      "estimated_duration": "20s",
+      "animations": ["Show 5-12-13 triangle", "Verify equation"],
+      "complexity": "low",
+      "risk_flags": []
+    }
+  ]
+}
