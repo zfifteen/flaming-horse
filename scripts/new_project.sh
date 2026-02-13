@@ -69,6 +69,21 @@ PROJECT_DIR="${PROJECTS_DIR}/${PROJECT_NAME}"
 
 mkdir -p "$PROJECT_DIR"
 
+# Default Qwen voice clone config (local, CPU float32)
+mkdir -p "$PROJECT_DIR/assets/voice_ref"
+cat > "$PROJECT_DIR/voice_clone_config.json" <<'EOF'
+{
+  "qwen_python": "~/qwen3-tts-local/.venv/bin/python",
+  "model_id": "Qwen/Qwen3-TTS-12Hz-1.7B-Base",
+  "device": "cpu",
+  "dtype": "float32",
+  "language": "English",
+  "ref_audio": "assets/voice_ref/ref.wav",
+  "ref_text": "assets/voice_ref/ref.txt",
+  "output_dir": "media/voiceovers/qwen"
+}
+EOF
+
 cat > "$PROJECT_DIR/project_state.json" <<EOF
 {
   "project_name": "$PROJECT_NAME",

@@ -24,11 +24,7 @@ base.SpeechService.set_transcription = patched_set_transcription
 
 # Voiceover Imports
 from manim_voiceover_plus import VoiceoverScene
-from manim_voiceover_plus.services.elevenlabs import ElevenLabsService
-from elevenlabs import VoiceSettings
-
-# Import Shared Configuration
-from voice_config import VOICE_ID, MODEL_ID, VOICE_SETTINGS
+from flaming_horse_voice import get_speech_service
 from narration_script import SCRIPT
 
 # LOCKED CONFIGURATION (DO NOT MODIFY)
@@ -112,15 +108,8 @@ def play_text_in_slot(scene, animation, slot, *, max_text_seconds=2.0, min_run_t
 # Scene Class
 class {class_name}(VoiceoverScene):
     def construct(self):
-        # ELEVENLABS ONLY - NO FALLBACK - FAIL LOUD
-        self.set_speech_service(
-            ElevenLabsService(
-                voice_id=VOICE_ID,
-                model_id=MODEL_ID,
-                voice_settings=VOICE_SETTINGS,
-                transcription_model=None,
-            )
-        )
+        # Qwen cached voiceover (precache required)
+        self.set_speech_service(get_speech_service())
 
         # Animation Sequence
         # Timing budget: Calculate BEFORE writing animations

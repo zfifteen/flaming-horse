@@ -305,24 +305,12 @@ validate_voiceover_sync() {
     # Don't fail, just warn
   fi
   
-  # Check: ElevenLabs production path is not empty
-  if grep -q "if os.getenv.*MANIM_VOICE_PROD" "$scene_file"; then
-    echo "  - Checking ElevenLabs production path..." | tee -a "$LOG_FILE"
-    
-    # Look for 'pass' statement in the production block (within 5 lines)
-    if grep -A 5 "if os.getenv.*MANIM_VOICE_PROD" "$scene_file" | grep -q "^\s*pass\s*$"; then
-      echo "    ✗ ERROR: ElevenLabs production path is empty (just 'pass')" | tee -a "$LOG_FILE"
-      echo "    This will cause production renders to fall back to gTTS!" | tee -a "$LOG_FILE"
+  # Check: Qwen cached voice service is used
+  if grep -q "VoiceoverScene" "$scene_file"; then
+    if ! grep -q "get_project_voice_service" "$scene_file"; then
+      echo "    ✗ ERROR: Scene missing cached Qwen voice service" | tee -a "$LOG_FILE"
       return 1
     fi
-    
-    # Verify ElevenLabsService is actually initialized
-    if ! grep -A 8 "if os.getenv.*MANIM_VOICE_PROD" "$scene_file" | grep -q "ElevenLabsService"; then
-      echo "    ✗ ERROR: ElevenLabs production path missing service initialization" | tee -a "$LOG_FILE"
-      return 1
-    fi
-    
-    echo "    ✓ ElevenLabs production path implemented" | tee -a "$LOG_FILE"
   fi
   
   echo "✓ Voiceover sync checks passed" | tee -a "$LOG_FILE"
@@ -497,6 +485,21 @@ handle_narration() {
   invoke_agent "narration" "$(get_run_count)"
 }
 
+handle_precache_voiceovers() {
+  echo "🎙️  Precaching Qwen voiceovers..." | tee -a "$LOG_FILE"
+  cd "$PROJECT_DIR"
+  if [[ ! -f "voice_clone_config.json" ]]; then
+    echo "✗ ERROR: voice_clone_config.json missing in project" | tee -a "$LOG_FILE"
+    return 1
+  fi
+  if [[ ! -f "assets/voice_ref/ref.wav" || ! -f "assets/voice_ref/ref.txt" ]]; then
+    echo "✗ ERROR: Missing voice reference assets in assets/voice_ref" | tee -a "$LOG_FILE"
+    return 1
+  fi
+  echo "→ Running precache script" | tee -a "$LOG_FILE"
+  python3 "${SCRIPT_DIR}/precache_voiceovers_qwen.py" "$PROJECT_DIR" 2>&1 | tee -a "$LOG_FILE"
+}
+
 handle_build_scenes() {
   echo "🎨 Building scenes..." | tee -a "$LOG_FILE"
   
@@ -574,8 +577,8 @@ PYEOF
 }
 
 handle_final_render() {
-  echo "🎬 Final render with ElevenLabs..." | tee -a "$LOG_FILE"
-  export MANIM_VOICE_PROD=1
+echo "🎬 Final render with cached Qwen voiceover..." | tee -a "$LOG_FILE"
+export MANIM_VOICE_PROD=1
 
   # Clear prior final_render-related errors so the loop can proceed.
   # Keep unrelated errors intact.
@@ -604,8 +607,7 @@ with open("${STATE_FILE}", "w") as f:
     json.dump(state, f, indent=2)
 PY
 
-  acquire_global_elevenlabs_lock
-  trap 'release_global_elevenlabs_lock; release_lock' EXIT INT TERM
+  trap 'release_lock' EXIT INT TERM
 
   cd "$PROJECT_DIR"
 
@@ -819,7 +821,7 @@ with open("${STATE_FILE}", "w") as f:
 PY
   }
 
-  echo "→ Rendering scenes sequentially (ElevenLabs)" | tee -a "$LOG_FILE"
+  echo "→ Rendering scenes sequentially (Qwen cached)" | tee -a "$LOG_FILE"
 
   while IFS='|' read -r scene_id scene_file scene_class est_duration; do
     [[ -n "$scene_id" ]] || continue
@@ -1113,6 +1115,8 @@ main() {
       review) handle_review ;;
       narration) handle_narration ;;
       build_scenes) handle_build_scenes ;;
+      precache_voiceovers) handle_precache_voiceovers ;;
+      precache_voiceovers) handle_precache_voiceovers ;;
       final_render) handle_final_render ;;
       assemble) handle_assemble ;;
       complete) handle_complete ;;
