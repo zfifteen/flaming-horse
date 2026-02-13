@@ -176,7 +176,7 @@ state['phase'] = 'review'
 
 **Validation Checks:**
 - ✅ Scene progression is logical
-- ✅ No 3D animations (complex, avoid unless essential)
+- ✅ 3D is allowed and often preferred when it improves clarity/engagement; flag only if unusually complex (camera rotations, heavy surfaces, many moving objects)
 - ✅ No custom mobject definitions without clear implementation
 - ✅ Timing allows for both narration + animation
 - ⚠️ Flag scenes with >5 simultaneous objects
