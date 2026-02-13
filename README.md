@@ -30,6 +30,13 @@ Whether you're an educator creating course content, a researcher presenting find
 
 # Build from a prompt (configure your AI agent in build_video.sh)
 ./scripts/build_video.sh projects/my_video
+
+# (Optional) Scaffold a new scene file before adding animations
+./scripts/scaffold_scene.py \
+  --project projects/my_video \
+  --scene-id scene_01_intro \
+  --class-name Scene01Intro \
+  --narration-key intro
 ```
 
 Your video appears in `projects/my_video/final_video.mp4`.

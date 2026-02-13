@@ -33,16 +33,16 @@ After analyzing the current workflow, I identified **7 high-value scripting oppo
 
 ## High-Value Scripting Opportunities
 
-### 1. Scene File Scaffolding Script 🔥 **HIGH PRIORITY**
+### 1. Scene File Scaffolding Script ✅ **IMPLEMENTED**
 
 **Current Agent Task:**  
 The agent generates complete scene `.py` files from scratch, including 60+ lines of boilerplate (imports, compatibility patch, config, helpers, class structure).
 
-**What Can Be Scripted:**  
-A `scaffold_scene.py` script that generates the entire boilerplate and leaves only a `# TODO: Add animations here` placeholder.
+**Implemented Script:**  
+`scripts/scaffold_scene.py` now generates the full scene boilerplate and leaves only a `# TODO: Add animations here` placeholder.
 
 ```bash
-# Proposed usage:
+# Usage:
 ./scripts/scaffold_scene.py \
     --project projects/my_video \
     --scene-id scene_01_intro \
@@ -63,7 +63,18 @@ A `scaffold_scene.py` script that generates the entire boilerplate and leaves on
 - Ensures consistency across all scenes
 - Agent only needs to fill in the animation content
 
-**Estimated Complexity:** Medium (template string substitution)
+Optional overwrite flag:
+
+```bash
+./scripts/scaffold_scene.py \
+    --project projects/my_video \
+    --scene-id scene_01_intro \
+    --class-name Scene01Intro \
+    --narration-key intro \
+    --force
+```
+
+**Implementation Status:** Completed (2026-02-13)
 
 ---
 

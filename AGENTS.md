@@ -235,10 +235,19 @@ state['phase'] = 'build_scenes'
 
 **Process:**
 1. Get current scene: `scene = state['scenes'][state['current_scene_index']]`
-2. Generate complete `.py` file using template below
-3. Update scene status to `'built'`
-4. Increment `current_scene_index`
-5. If all scenes built: advance to `final_render`
+2. Scaffold the scene file first using:
+   ```bash
+   ./scripts/scaffold_scene.py \
+       --project <project_dir> \
+       --scene-id <scene_file_without_py> \
+       --class-name <SceneClassName> \
+       --narration-key <script_key>
+   ```
+3. Fill in animations inside the scaffolded `# TODO: Add animations here` block
+4. Keep the generated boilerplate structure unchanged unless absolutely necessary
+5. Update scene status to `'built'`
+6. Increment `current_scene_index`
+7. If all scenes built: advance to `final_render`
 
 ---
 
