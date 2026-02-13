@@ -22,7 +22,7 @@ After analyzing the current workflow, I identified **7 high-value scripting oppo
 4. **Quality control** (`qc_final_video.sh`) - Audio/video duration checks, silence detection
 5. **Phase reset** (`reset_phase.sh`) - Manual recovery
 6. **Scene file scaffolding** (`scaffold_scene.py`) - Generates boilerplate, leaves animation TODO
-7. **scenes.txt generation** (`generate_scenes_txt.py`) - Automated ffmpeg concat file creation
+7. **scenes.txt generation** (`generate_scenes_txt.py`) - Automated FFmpeg concat list file creation (used as input for final assembly)
 
 ### What the Agent Still Decides (⚠️ Opportunities)
 1. Voice config file creation
@@ -187,7 +187,7 @@ Use Python's `ast` module to parse the scene file and extract `tracker.duration 
 ### 5. scenes.txt Generator ✅ **IMPLEMENTED**
 
 **Previous Agent Task:**  
-During `assemble` phase, the agent created `scenes.txt` with file paths for ffmpeg concatenation.
+During `assemble` phase, the agent created `scenes.txt` with file paths for FFmpeg concatenation.
 
 **Implemented Script:**  
 `scripts/generate_scenes_txt.py` now handles this automatically by reading `project_state.json`.
@@ -206,7 +206,7 @@ file 'media/videos/scene_02_demo/1440p60/Scene02Demo.mp4'
 - Validates state structure before generation
 - Supports both explicit `video_file` paths and default path construction
 - Comprehensive error handling with descriptive messages
-- Generates ffmpeg-compatible concat file format
+- Generates FFmpeg-compatible concat file format (useful for tooling and for driving filter-based assembly)
 
 **Why This Matters:**  
 - 100% deterministic output based on project state

@@ -146,7 +146,7 @@ MANIM_VOICE_PROD=1 ./build_video.sh ~/manim_projects/simple_math
 **Proven capabilities:**
 1. ✅ Agent can generate multi-scene videos (3 scenes, 43.8 seconds)
 2. ✅ ElevenLabs voice cloning integration works (rBgRd5IfS6iqrGfuhlKR)
-3. ✅ Scene concatenation works (ffmpeg concat, clean joins)
+3. ✅ Scene concatenation works (FFmpeg concat *filter* + re-encode, clean joins)
 4. ✅ QC validation works (correctly flagged 89% gTTS, passed 98% ElevenLabs)
 5. ✅ Animation sync patterns work (tracker.duration * fraction)
 
@@ -1061,4 +1061,3 @@ Confidence:            95% (production ready)
 **Questions? Energy check? Ready for Fix #2 code?**
 
 Let me know if you want Option A (finish tonight) or Option B (finish tomorrow).
-

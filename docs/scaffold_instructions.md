@@ -230,7 +230,9 @@ Re-render all scenes with `MANIM_VOICE_PROD=1` (ElevenLabs)
 
 ### Phase: `assemble`
 
-Generate `scenes.txt`, run ffmpeg concat, produce `final_video.mp4`
+Generate `scenes.txt`, assemble with FFmpeg concat *filter* (NOT concat demuxer) and re-encode, then verify `final_video.mp4` has continuous audio timestamps (no large PTS gaps).
+
+See: `docs/AUDIO_LESSONS_LEARNED.md`
 
 ***
 
@@ -326,4 +328,3 @@ After scaffolding, please verify:
 ***
 
 Please create all files with complete, working code. I will then integrate my actual agent invocation mechanism into the `invoke_agent()` function placeholder.
-

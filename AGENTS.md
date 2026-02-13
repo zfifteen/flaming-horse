@@ -613,10 +613,34 @@ state['phase'] = 'assemble'
    
    **DO NOT manually create scenes.txt** - always use the script for consistency and correctness.
 
-2. Run ffmpeg concat:
+2. **Assemble using FFmpeg concat *filter* (NOT concat demuxer) and re-encode.**
+
+   🚨 **Do NOT use `-c copy` for final assembly.** Stream-copy concatenation is prone to producing MP4s with broken/discontinuous audio timestamps (PTS gaps), which can manifest as audio cutting out in QuickTime until seeking.
+
+   Use a concat filtergraph over all scene inputs, then force a continuous audio timeline:
+
    ```bash
-   ffmpeg -f concat -safe 0 -i scenes.txt -c copy final_video.mp4
+   # Pattern (N scenes):
+   # - add one -i per scene file, in scene order
+   # - build: [0:v:0][0:a:0][1:v:0][1:a:0]... concat=n=N:v=1:a=1
+   # - then normalize audio timestamps: aresample=async=1:first_pts=0
+   ffmpeg -y \
+     -i media/videos/scene_01_intro/1440p60/Scene01Intro.mp4 \
+     -i media/videos/scene_02_demo/1440p60/Scene02Demo.mp4 \
+     -filter_complex "\
+       [0:v:0][0:a:0][1:v:0][1:a:0]concat=n=2:v=1:a=1[v][a];\
+       [a]aresample=async=1:first_pts=0[aout]" \
+     -map "[v]" -map "[aout]" \
+     -c:v libx264 -pix_fmt yuv420p -crf 18 -preset medium \
+     -c:a aac -b:a 192k -ar 48000 \
+     -movflags +faststart \
+     final_video.mp4
    ```
+
+   Notes:
+   - `concat=n=...` must match the number of `-i` inputs.
+   - Keep audio consistent across scenes (recommend 48kHz stereo AAC).
+   - The `aresample=async=1:first_pts=0` step is mandatory to prevent multi-second audio timestamp gaps.
 
 3. **MANDATORY VERIFICATION**:
    ```python
@@ -648,8 +672,50 @@ state['phase'] = 'assemble'
    # Check 5: Audio track present
    if final_clip.audio is None:
        raise ValueError("final_video.mp4 has no audio track")
-   
+
    final_clip.close()
+
+   # Check 6: Audio timestamps are continuous (no large PTS gaps)
+   # Rationale: QuickTime can go silent mid-playback if AAC PTS has big discontinuities.
+   # Implementation: scan audio packet pts_time for multi-second jumps.
+   import subprocess
+   p = subprocess.run(
+       [
+           "ffprobe",
+           "-v",
+           "error",
+           "-select_streams",
+           "a:0",
+           "-show_packets",
+           "-show_entries",
+           "packet=pts_time",
+           "-of",
+           "csv=p=0",
+           "final_video.mp4",
+       ],
+       capture_output=True,
+       text=True,
+       check=True,
+   )
+   pts = []
+   for line in p.stdout.splitlines():
+       line = line.strip()
+       if not line:
+           continue
+       try:
+           pts.append(float(line))
+       except ValueError:
+           pass
+   pts.sort()
+   if len(pts) > 2:
+       diffs = [pts[i + 1] - pts[i] for i in range(len(pts) - 1)]
+       diffs_pos = sorted(d for d in diffs if d > 0)
+       typical = diffs_pos[max(0, int(len(diffs_pos) * 0.1))] if diffs_pos else 0.0
+       # Flag gaps >0.5s or >20x typical packet delta
+       threshold = max(0.5, (typical * 20 if typical else 0.5))
+       gaps = [(pts[i], pts[i + 1], d) for i, d in enumerate(diffs) if d > threshold]
+       if gaps:
+           raise ValueError(f"final_video.mp4 has audio PTS gaps (example: {gaps[0]})")
    
    # Log to state
    state['final_verification'] = {

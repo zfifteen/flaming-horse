@@ -172,9 +172,10 @@ with self.voiceover(text=SCRIPT["factors"]) as tracker:
 3. Play first 10 seconds of each scene
 4. Check for silence/dead air
 5. Verify voiceover is continuous
+6. Scan final audio packet timestamps (PTS) for large gaps (QuickTime can go silent if PTS jumps)
 
 **What I Actually Did**:
-1. Checked that ffmpeg concat succeeded
+1. Checked that ffmpeg concat succeeded (but did not validate audio timestamp continuity)
 2. Checked that file exists
 3. Assumed success ❌
 
@@ -882,7 +883,7 @@ PYEOF
 handle_assemble() {
     # ... existing assembly code ...
     
-    # After ffmpeg concat:
+    # After final assembly (FFmpeg concat filter + re-encode):
     echo "Running quality control on final video..." | tee -a "$LOG_FILE"
     "${SCRIPT_DIR}/qc_final_video.sh" "$PROJECT_DIR/final_video.mp4" "$PROJECT_DIR" || {
         echo "❌ QC failed! Video has quality issues." | tee -a "$LOG_FILE"

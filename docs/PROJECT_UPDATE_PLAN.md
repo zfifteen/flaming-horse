@@ -593,12 +593,12 @@ handle_final_render() {
 
 #### Change 2.4: Add QC to assemble Handler (Modify lines ~290-310)
 
-**Location**: In `handle_assemble()`, after ffmpeg concat  
+**Location**: In `handle_assemble()`, after final assembly (FFmpeg concat *filter* + re-encode)  
 **Size**: Add ~20 lines
 
 ```bash
 handle_assemble() {
-    # ...existing ffmpeg concat code...
+    # ...existing assembly code (concat filter + re-encode)...
     
     # NEW: Run quality control
     echo "Running quality control on final video..." | tee -a "$LOG_FILE"

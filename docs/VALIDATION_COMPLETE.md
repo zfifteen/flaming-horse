@@ -76,7 +76,7 @@ This will cause production renders to fall back to gTTS!
 ### What Still Works:
 ✅ Import validation (manim_voiceover_plus vs manim-voiceover-plus)
 ✅ Hardcoded text detection (must use SCRIPT dictionary)
-✅ Multi-scene concatenation (ffmpeg concat)
+✅ Multi-scene concatenation (FFmpeg concat *filter* + re-encode)
 ✅ QC script (audio coverage checks)
 
 ---
@@ -155,4 +155,3 @@ cd ~/manim_projects/simple_math
 - How the fixes work → Read POST_MORTEM_simple_math.md
 - Technical details → Read VALIDATION_IMPROVEMENTS.md
 - What broke in your video → Read FIX_LOG.md (in simple_math project)
-
