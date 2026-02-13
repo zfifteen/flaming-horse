@@ -335,13 +335,18 @@ class Scene01Intro(VoiceoverScene):
             # Title (ALWAYS use UP * 3.8, NEVER .to_edge(UP))
             title = Text("Your Title", font_size=48, weight=BOLD)
             title.move_to(UP * 3.8)
-            self.play(Write(title), run_time=tracker.duration * 0.4)
+            # Text must never take longer than 2 seconds to display.
+            slot = tracker.duration * 0.4
+            self.play(Write(title), run_time=min(2.0, max(0.3, slot)))
+            self.wait(max(0.0, slot - min(2.0, max(0.3, slot))))
             
             # Subtitle with safe positioning
             subtitle = Text("Subtitle", font_size=32)
             subtitle.next_to(title, DOWN, buff=0.5)
             safe_position(subtitle)  # ALWAYS call after .next_to()
-            self.play(FadeIn(subtitle), run_time=tracker.duration * 0.3)
+            slot = tracker.duration * 0.3
+            self.play(FadeIn(subtitle), run_time=min(2.0, max(0.3, slot)))
+            self.wait(max(0.0, slot - min(2.0, max(0.3, slot))))
             
             # Main content
             content = Circle(radius=1.5, color=BLUE)
@@ -436,13 +441,19 @@ safe_layout(label1, label2, label3)  # MANDATORY for siblings
 ## 🎨 VISUAL QUALITY RULES
 
 ### Text Animation Speed
-- ❌ NEVER use a fixed 2-second run_time for all text
-- ✅ Scale text animation duration by content length:
-    - Formula: `run_time = max(0.5, min(3.0, len(text) * 0.04))`
-    - Short labels (< 15 chars): 0.5 - 0.8s
-    - Medium text (15-60 chars): 1.0 - 2.0s
-    - Long text (60+ chars): 2.0 - 3.0s (consider FadeIn instead of Write)
-- ✅ For bullet lists, use FadeIn with lag_ratio, NOT Write
+- ✅ Text must appear quickly and consistently
+- ❌ NEVER let any text animation take longer than 2.0 seconds
+- ✅ Use timing *slots* tied to the voiceover, and fill the remaining time with waits
+
+Recommended pattern:
+
+```python
+slot = tracker.duration * 0.3
+play_text_in_slot(self, Write(title), slot, max_text_seconds=2.0)
+# Next beat stays voiceover-cued by using its own slot (or waiting the remainder)
+```
+
+- ✅ For bullet lists, prefer `FadeIn(..., lag_ratio=...)` over `Write`
 
 ### Content Density Per Scene
 - ❌ NEVER place more than 5 primary visual elements in one voiceover block

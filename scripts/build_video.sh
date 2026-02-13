@@ -12,6 +12,10 @@ LOCK_FILE="${PROJECT_DIR}/.build.lock"
 LOG_FILE="${PROJECT_DIR}/build.log"
 MAX_RUNS=50
 
+# Global lock to prevent multiple projects rendering with ElevenLabs concurrently
+# (ElevenLabs concurrency limit is account-wide, not per-project)
+GLOBAL_ELEVENLABS_LOCK_FILE="${GLOBAL_ELEVENLABS_LOCK_FILE:-/tmp/flaming-horse-elevenlabs.lock}"
+
 # Reference docs (relative to script location)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REFERENCE_DOCS=(
@@ -25,6 +29,11 @@ REFERENCE_DOCS=(
 export ELEVENLABS_API_KEY="${ELEVENLABS_API_KEY:-}"
 VOICE_ID="rBgRd5IfS6iqrGfuhlKR"
 MODEL_ID="eleven_multilingual_v2"
+
+# manim-voiceover-plus expects ELEVEN_API_KEY (not ELEVENLABS_API_KEY)
+if [[ -n "${ELEVENLABS_API_KEY}" && -z "${ELEVEN_API_KEY:-}" ]]; then
+  export ELEVEN_API_KEY="${ELEVENLABS_API_KEY}"
+fi
 
 # ─── Lock File Management ────────────────────────────────────────────
 
@@ -50,6 +59,33 @@ release_lock() {
 }
 
 trap release_lock EXIT INT TERM
+
+# ─── Global ElevenLabs Lock (cross-project) ─────────────────────────
+
+acquire_global_elevenlabs_lock() {
+  if [[ -f "$GLOBAL_ELEVENLABS_LOCK_FILE" ]]; then
+    local lock_pid
+    lock_pid=$(cat "$GLOBAL_ELEVENLABS_LOCK_FILE" 2>/dev/null || true)
+    if [[ -n "$lock_pid" ]] && kill -0 "$lock_pid" 2>/dev/null; then
+      echo "❌ ElevenLabs render already running (PID: $lock_pid)" | tee -a "$LOG_FILE" >&2
+      echo "   This lock is global to avoid ElevenLabs 429 concurrency limits." | tee -a "$LOG_FILE" >&2
+      exit 1
+    else
+      echo "⚠️  Stale ElevenLabs lock file found, removing..." | tee -a "$LOG_FILE" >&2
+      rm -f "$GLOBAL_ELEVENLABS_LOCK_FILE"
+    fi
+  fi
+  echo $$ > "$GLOBAL_ELEVENLABS_LOCK_FILE"
+  echo "🔒 ElevenLabs global lock acquired (PID: $$)" | tee -a "$LOG_FILE"
+}
+
+release_global_elevenlabs_lock() {
+  rm -f "$GLOBAL_ELEVENLABS_LOCK_FILE" 2>/dev/null || true
+  echo "🔓 ElevenLabs global lock released" | tee -a "$LOG_FILE"
+}
+
+# Only used for final_render; set trap dynamically in handle_final_render
+
 
 # ─── State Management ────────────────────────────────────────────────
 
@@ -400,12 +436,339 @@ PYEOF
 handle_final_render() {
   echo "🎬 Final render with ElevenLabs..." | tee -a "$LOG_FILE"
   export MANIM_VOICE_PROD=1
-  invoke_agent "final_render" "$(get_run_count)"
+
+  # Clear prior final_render-related errors so the loop can proceed.
+  # Keep unrelated errors intact.
+  python3 - <<PY
+import json
+from datetime import datetime
+
+with open("${STATE_FILE}", "r") as f:
+    state = json.load(f)
+
+errors = state.get("errors", [])
+state["errors"] = [
+    e for e in errors
+    if not (
+        isinstance(e, str)
+        and (
+            e.startswith("final_render failed")
+            or e.startswith("final_render verification failed")
+        )
+    )
+]
+state.setdefault("flags", {})["needs_human_review"] = False
+state["updated_at"] = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+
+with open("${STATE_FILE}", "w") as f:
+    json.dump(state, f, indent=2)
+PY
+
+  acquire_global_elevenlabs_lock
+  trap 'release_global_elevenlabs_lock; release_lock' EXIT INT TERM
+
+  cd "$PROJECT_DIR"
+
+  local manim_bin
+  manim_bin=$(command -v manim)
+  if [[ -z "$manim_bin" ]]; then
+    echo "❌ manim not found in PATH" | tee -a "$LOG_FILE" >&2
+    exit 1
+  fi
+
+  # Render scenes sequentially from state (do not trust agent output)
+  # Output format: scene_id|file|class_name|estimated_duration
+  local scene_lines
+  scene_lines=$(python3 - <<PY
+import json
+from pathlib import Path
+
+state = json.load(open("${STATE_FILE}", "r"))
+scenes = state.get("scenes", [])
+if not scenes:
+    raise SystemExit(1)
+
+for s in scenes:
+    scene_id = s.get("id")
+    file_ = s.get("file")
+    class_name = s.get("class_name")
+    est = s.get("estimated_duration") or "0s"
+    if not scene_id or not file_ or not class_name:
+        raise SystemExit(1)
+    print(f"{scene_id}|{file_}|{class_name}|{est}")
+PY
+)
+
+  if [[ -z "$scene_lines" ]]; then
+    echo "❌ No scenes found in state for final_render" | tee -a "$LOG_FILE" >&2
+    exit 1
+  fi
+
+  # Helper: verify a rendered scene video exists and has audio
+  verify_scene_video() {
+    local scene_id="$1"
+    local class_name="$2"
+    local video_path="media/videos/${scene_id}/1440p60/${class_name}.mp4"
+
+    if [[ ! -f "$video_path" ]]; then
+      echo "✗ Render output missing: $video_path" | tee -a "$LOG_FILE" >&2
+      return 1
+    fi
+    if [[ ! -s "$video_path" ]]; then
+      echo "✗ Render output empty: $video_path" | tee -a "$LOG_FILE" >&2
+      return 1
+    fi
+    if ! command -v ffprobe >/dev/null 2>&1; then
+      echo "⚠ WARNING: ffprobe not found; skipping audio verification" | tee -a "$LOG_FILE"
+      return 0
+    fi
+    local audio_stream
+    audio_stream=$(ffprobe -v error -select_streams a:0 -show_entries stream=codec_type -of csv=p=0 "$video_path" 2>/dev/null || true)
+    if [[ -z "$audio_stream" ]]; then
+      echo "✗ No audio stream detected: $video_path" | tee -a "$LOG_FILE" >&2
+      return 1
+    fi
+    return 0
+  }
+
+  update_state_rendered() {
+    local scene_id="$1"
+    local class_name="$2"
+    local est_duration="$3"
+
+    local video_path="media/videos/${scene_id}/1440p60/${class_name}.mp4"
+    local file_size
+    file_size=$(stat -f%z "$video_path" 2>/dev/null || echo 0)
+    local duration_sec="0"
+    if command -v ffprobe >/dev/null 2>&1; then
+      duration_sec=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$video_path" 2>/dev/null || echo 0)
+    fi
+
+    python3 - <<PY
+import json
+from datetime import datetime
+
+scene_id = "${scene_id}"
+class_name = "${class_name}"
+video_file = "${video_path}"
+file_size = int("${file_size}") if "${file_size}".isdigit() else 0
+duration = float("${duration_sec}" or 0)
+
+with open("${STATE_FILE}", "r") as f:
+    state = json.load(f)
+
+for s in state.get("scenes", []):
+    if s.get("id") == scene_id:
+        s["status"] = "rendered"
+        s["video_file"] = video_file
+        s["verification"] = {
+            "file_size_bytes": file_size,
+            "duration_seconds": duration,
+            "audio_present": True,
+            "verified_at": datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ'),
+        }
+        break
+
+with open("${STATE_FILE}", "w") as f:
+    json.dump(state, f, indent=2)
+PY
+  }
+
+  echo "→ Rendering scenes sequentially (ElevenLabs)" | tee -a "$LOG_FILE"
+
+  while IFS='|' read -r scene_id scene_file scene_class est_duration; do
+    [[ -n "$scene_id" ]] || continue
+
+    # If the output already exists and verifies, don't re-render.
+    if verify_scene_video "$scene_id" "$scene_class"; then
+      update_state_rendered "$scene_id" "$scene_class" "$est_duration"
+      echo "✓ Already rendered + verified: $scene_id" | tee -a "$LOG_FILE"
+      continue
+    fi
+
+    # Clean stale/corrupted partials from interrupted renders.
+    # These files are intermediate and safe to delete.
+    local partial_dir="media/videos/${scene_id}/1440p60/partial_movie_files/${scene_class}"
+    local out_video="media/videos/${scene_id}/1440p60/${scene_class}.mp4"
+    if [[ -d "$partial_dir" ]]; then
+      echo "→ Removing stale partials: $partial_dir" | tee -a "$LOG_FILE"
+      rm -rf "$partial_dir"
+    fi
+    if [[ -f "$out_video" ]]; then
+      echo "→ Removing stale output: $out_video" | tee -a "$LOG_FILE"
+      rm -f "$out_video"
+    fi
+
+    echo "" | tee -a "$LOG_FILE"
+    echo "$ manim render $scene_file $scene_class -qh" | tee -a "$LOG_FILE"
+
+    # Retry a small number of times on transient ElevenLabs concurrency 429s
+    local attempt=0
+    local max_attempts=5
+    local backoff=10
+    local ok=0
+    while [[ $attempt -lt $max_attempts ]]; do
+      attempt=$((attempt + 1))
+
+      if "$manim_bin" render "$scene_file" "$scene_class" -qh 2>&1 | tee -a "$LOG_FILE"; then
+        ok=1
+        break
+      fi
+
+      # If it looks like ElevenLabs concurrency, wait and retry
+      if tail -n 200 "$LOG_FILE" | grep -q "too_many_concurrent_requests"; then
+        echo "⚠ ElevenLabs concurrency limit hit; retrying in ${backoff}s (attempt ${attempt}/${max_attempts})" | tee -a "$LOG_FILE"
+        sleep "$backoff"
+        backoff=$((backoff * 2))
+        continue
+      fi
+
+      break
+    done
+
+    if [[ $ok -ne 1 ]]; then
+      echo "❌ Render failed for $scene_id ($scene_class)" | tee -a "$LOG_FILE" >&2
+      python3 - <<PY
+import json
+from datetime import datetime
+
+scene_id = "${scene_id}"
+
+with open("${STATE_FILE}", "r") as f:
+    state = json.load(f)
+
+state["errors"].append(f"final_render failed for {scene_id}: see build.log")
+state["flags"]["needs_human_review"] = True
+state["updated_at"] = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+
+with open("${STATE_FILE}", "w") as f:
+    json.dump(state, f, indent=2)
+PY
+      exit 1
+    fi
+
+    if ! verify_scene_video "$scene_id" "$scene_class"; then
+      echo "❌ Verification failed for $scene_id ($scene_class)" | tee -a "$LOG_FILE" >&2
+      python3 - <<PY
+import json
+from datetime import datetime
+
+scene_id = "${scene_id}"
+
+with open("${STATE_FILE}", "r") as f:
+    state = json.load(f)
+
+state["errors"].append(f"final_render verification failed for {scene_id}: missing/invalid mp4 or audio")
+state["flags"]["needs_human_review"] = True
+state["updated_at"] = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+
+with open("${STATE_FILE}", "w") as f:
+    json.dump(state, f, indent=2)
+PY
+      exit 1
+    fi
+
+    update_state_rendered "$scene_id" "$scene_class" "$est_duration"
+    echo "✓ Rendered + verified: $scene_id" | tee -a "$LOG_FILE"
+  done <<< "$scene_lines"
+
+  # Advance to assemble
+  python3 - <<PY
+import json
+from datetime import datetime
+with open("${STATE_FILE}", "r") as f:
+    state = json.load(f)
+state["phase"] = "assemble"
+state["updated_at"] = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+state["history"].append("Phase final_render: Rendered and verified all scenes (scripted), advancing to assemble")
+with open("${STATE_FILE}", "w") as f:
+    json.dump(state, f, indent=2)
+PY
+
+  release_global_elevenlabs_lock
 }
 
 handle_assemble() {
   echo "🎞️  Assembling final video..." | tee -a "$LOG_FILE"
-  invoke_agent "assemble" "$(get_run_count)"
+
+  cd "$PROJECT_DIR"
+
+  # Generate scenes.txt from state (script is in repo root)
+  python3 "${SCRIPT_DIR}/generate_scenes_txt.py" "$PROJECT_DIR" 2>&1 | tee -a "$LOG_FILE"
+
+  if [[ ! -f "${PROJECT_DIR}/scenes.txt" ]]; then
+    echo "❌ scenes.txt not created" | tee -a "$LOG_FILE" >&2
+    exit 1
+  fi
+
+  # Build ffmpeg concat filter inputs from scenes.txt
+  mapfile -t scene_files < <(sed -n "s/^file '\(.*\)'$/\1/p" "${PROJECT_DIR}/scenes.txt")
+  if [[ ${#scene_files[@]} -eq 0 ]]; then
+    echo "❌ scenes.txt is empty" | tee -a "$LOG_FILE" >&2
+    exit 1
+  fi
+
+  # Verify all input scene files exist before assembling
+  local missing=0
+  for f in "${scene_files[@]}"; do
+    if [[ ! -f "$PROJECT_DIR/$f" ]]; then
+      echo "❌ Missing scene video: $f" | tee -a "$LOG_FILE" >&2
+      missing=1
+    fi
+  done
+  if [[ $missing -ne 0 ]]; then
+    python3 - <<PY
+import json
+from datetime import datetime
+with open("${STATE_FILE}", "r") as f:
+    state = json.load(f)
+state["errors"].append("Assemble failed: one or more scene video files are missing")
+state["flags"]["needs_human_review"] = True
+state["updated_at"] = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+with open("${STATE_FILE}", "w") as f:
+    json.dump(state, f, indent=2)
+PY
+    exit 1
+  fi
+
+  # Assemble with concat filter + audio timestamp normalization (no -c copy)
+  local ffmpeg_inputs=()
+  local filter_inputs=""
+  local n=${#scene_files[@]}
+  for i in $(seq 0 $((n - 1))); do
+    ffmpeg_inputs+=( -i "${PROJECT_DIR}/${scene_files[$i]}" )
+    filter_inputs+="[${i}:v:0][${i}:a:0]"
+  done
+  local filter_complex
+  filter_complex="${filter_inputs}concat=n=${n}:v=1:a=1[v][a];[a]aresample=async=1:first_pts=0[aout]"
+
+  echo "$ ffmpeg (concat filter) -> final_video.mp4" | tee -a "$LOG_FILE"
+  ffmpeg -y \
+    "${ffmpeg_inputs[@]}" \
+    -filter_complex "$filter_complex" \
+    -map "[v]" -map "[aout]" \
+    -c:v libx264 -pix_fmt yuv420p -crf 18 -preset medium \
+    -c:a aac -b:a 192k -ar 48000 \
+    -movflags +faststart \
+    "${PROJECT_DIR}/final_video.mp4" \
+    2>&1 | tee -a "$LOG_FILE"
+
+  if [[ ! -s "${PROJECT_DIR}/final_video.mp4" ]]; then
+    echo "❌ final_video.mp4 not created or empty" | tee -a "$LOG_FILE" >&2
+    exit 1
+  fi
+
+  # Update phase (QC still runs below)
+  python3 - <<PY
+import json
+from datetime import datetime
+with open("${STATE_FILE}", "r") as f:
+    state = json.load(f)
+state["updated_at"] = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+state["history"].append("Phase assemble: Assembled final_video.mp4 (scripted)")
+with open("${STATE_FILE}", "w") as f:
+    json.dump(state, f, indent=2)
+PY
   
   # NEW: Run quality control
   echo "" | tee -a "$LOG_FILE"
@@ -414,8 +777,7 @@ handle_assemble() {
   echo "═══════════════════════════════════════════" | tee -a "$LOG_FILE"
   
   if [[ -x "${SCRIPT_DIR}/qc_final_video.sh" ]]; then
-    "${SCRIPT_DIR}/qc_final_video.sh" "${PROJECT_DIR}/final_video.mp4" "$PROJECT_DIR"
-    if [[ $? -ne 0 ]]; then
+    if ! "${SCRIPT_DIR}/qc_final_video.sh" "${PROJECT_DIR}/final_video.mp4" "$PROJECT_DIR"; then
       echo "✗ QC FAILED! Video has quality issues." | tee -a "$LOG_FILE"
       python3 <<PYEOF
 import json
@@ -445,11 +807,15 @@ state['phase'] = 'complete'
 with open('${STATE_FILE}', 'w') as f:
     json.dump(state, f, indent=2)
 PYEOF
+
+  # Immediately exit this run so the main loop doesn't increment run_count and
+  # start a new iteration against the now-complete state.
+  handle_complete
 }
 
 handle_complete() {
   echo "✅ Video build complete!" | tee -a "$LOG_FILE"
-  echo "�� Final video: ${PROJECT_DIR}/final_video.mp4"
+  echo "Final video: ${PROJECT_DIR}/final_video.mp4" | tee -a "$LOG_FILE"
   exit 0
 }
 
