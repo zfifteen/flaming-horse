@@ -2,15 +2,16 @@
 
 ## 🚨 CRITICAL: VOICE SERVICE CONFIGURATION
 
-**FOR THIS PROJECT: ELEVENLABS ONLY - NO OTHER TTS SERVICES ALLOWED**
+**FOR THIS PROJECT: LOCAL QWEN VOICE CLONE ONLY - NO NETWORK TTS**
 
-- ✅ **Voice Service:** ElevenLabs ONLY
-- ✅ **Voice ID:** `rBgRd5IfS6iqrGfuhlKR` (Big D's cloned voice)
-- ✅ **Model:** `eleven_multilingual_v2`
-- ❌ **DO NOT use:** gTTS, Azure, OpenAI, pyttsx3, or any other TTS backend
-- ❌ **DO NOT create fallback code** - ElevenLabs or FAIL
+- ✅ **Voice Service:** Local cached Qwen voice clone
+- ✅ **Model:** `Qwen/Qwen3-TTS-12Hz-1.7B-Base`
+- ✅ **Device/Dtype:** CPU `float32`
+- ✅ **Reference assets:** `assets/voice_ref/ref.wav` + `assets/voice_ref/ref.txt`
+- ❌ **DO NOT use:** ElevenLabs, gTTS, Azure, OpenAI, pyttsx3, or any other TTS backend
+- ❌ **DO NOT create fallback code** - cached Qwen or FAIL
 
-**This document describes various TTS options for reference, but YOU MUST ONLY USE ELEVENLABS.**
+**If cached audio is missing, the build MUST fail and instruct to run the precache step.**
 
 ---
 
@@ -39,7 +40,7 @@ synchronization via external editors or ffmpeg stitching.
 This project uses `manim-voiceover-plus` exclusively:
 
 ```bash
-pip install --upgrade "manim-voiceover-plus[elevenlabs]"
+pip install --upgrade "manim-voiceover-plus"
 ```
 
 **Do NOT install the `[transcribe]` extra unless you need bookmark-driven per-word sync.**
@@ -49,13 +50,13 @@ on Python 3.13 due to removed `pkg_resources`. If you only need duration-based s
 
 ```bash
 # ONLY if you need per-word bookmark timing (and are NOT on Python 3.13):
-pip install "manim-voiceover-plus[elevenlabs,transcribe]"
+pip install "manim-voiceover-plus[transcribe]"
 
 # For translation via DeepL
-pip install "manim-voiceover-plus[elevenlabs,translate]"
+pip install "manim-voiceover-plus[translate]"
 
 # For microphone recording
-pip install "manim-voiceover-plus[elevenlabs,recorder]"
+pip install "manim-voiceover-plus[recorder]"
 ```
 
 ### System Dependency: SoX
@@ -67,19 +68,14 @@ manim-voiceover requires SoX (Sound eXchange) for audio processing:
 brew install sox
 ```
 
-### Environment Variable
+### Voice Reference Assets
 
-Set your ElevenLabs API key as an environment variable:
+Each project must include:
 
-```bash
-export ELEVENLABS_API_KEY="your_api_key_here"
-```
+- `assets/voice_ref/ref.wav`
+- `assets/voice_ref/ref.txt`
 
-Or in a `.env` file (manim-voiceover reads from `python-dotenv`):
-
-```
-ELEVENLABS_API_KEY=your_api_key_here
-```
+These are used by the Qwen precache step to generate local audio files.
 
 ---
 
@@ -129,17 +125,10 @@ _base.SpeechService.set_transcription = _patched_set_transcription
 **Place this block at the top of your scene file, after `from manim import *` but
 before importing `VoiceoverScene` or `ElevenLabsService`.**
 
-Then pass `transcription_model=None` when constructing `ElevenLabsService`:
+Then pass `transcription_model=None` when constructing the speech service (if needed):
 
 ```python
-self.set_speech_service(
-    ElevenLabsService(
-        voice_id=VOICE_ID,
-        model_id=MODEL_ID,
-        voice_settings=VOICE_SETTINGS,
-        transcription_model=None,
-    )
-)
+self.set_speech_service(get_project_voice_service())
 ```
 
 ### When You Do NOT Need This Patch
@@ -771,6 +760,5 @@ class QuickDemo(VoiceoverScene):
 ```python
 # ONLY VALID IMPORT PATTERN
 from manim_voiceover_plus import VoiceoverScene
-from manim_voiceover_plus.services.elevenlabs import ElevenLabsService
-from elevenlabs import VoiceSettings
+from scripts.voice_services import get_project_voice_service
 ```
