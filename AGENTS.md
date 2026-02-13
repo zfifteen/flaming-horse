@@ -1,8 +1,8 @@
 # AGENTS.md
 ## Manim Video Production Agent System Prompt
 
-**Version:** 2.0  
-**Last Updated:** 2026-02-11  
+**Version:** 2.1  
+**Last Updated:** 2026-02-12  
 **Purpose:** Instructions for automated agents building Manim voiceover videos
 
 ---
@@ -600,11 +600,18 @@ state['phase'] = 'assemble'
 **Goal:** Concatenate all rendered scenes into final video and verify output
 
 **Actions:**
-1. Generate `scenes.txt` file list:
+1. **Generate `scenes.txt` using automated script:**
+   ```bash
+   python scripts/generate_scenes_txt.py <project_dir>
+   ```
+   
+   This script reads `project_state.json` and creates the ffmpeg concat file automatically:
    ```
    file 'media/videos/scene_01_intro/1440p60/Scene01Intro.mp4'
    file 'media/videos/scene_02_demo/1440p60/Scene02Demo.mp4'
    ```
+   
+   **DO NOT manually create scenes.txt** - always use the script for consistency and correctness.
 
 2. Run ffmpeg concat:
    ```bash
