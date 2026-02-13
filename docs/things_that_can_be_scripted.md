@@ -1,344 +1,222 @@
-# Opportunities for More Deterministic Video Production
+# Determinism Opportunities in Flaming Horse (Updated Analysis)
 
 **Analysis Date:** 2026-02-13  
-**Purpose:** Identify tasks currently performed by the AI agent that could be "put on rails" via bash/python scripts to reduce variability and errors in rendered videos.
+**Primary Entrypoint:** `scripts/create_video.sh`  
+**Scope:** Re-evaluate what is already deterministic vs. what can still be scripted so implementing agents do less boilerplate work.
 
 ---
 
 ## Executive Summary
 
-After analyzing the current workflow, I identified **7 high-value scripting opportunities** that would reduce agent decision-making and increase determinism. The current system already does a good job with `build_video.sh` orchestration and validation, but there are several areas where the agent is still making decisions that could be codified into scripts.
+The pipeline is already strongly scripted from project creation through final assembly:
 
-**Implementation Status: 2 of 7 complete** (✅ Scene scaffolding, ✅ scenes.txt generator)
+- `create_video.sh` standardizes CLI input and delegates reliably.
+- `new_project.sh` seeds deterministic project state and Qwen voice clone config/assets.
+- `build_video.sh` enforces a phased state machine, lock file protection, state validation/sanitization, and render/assembly/QC gates.
+- `scaffold_scene.py` and `generate_scenes_txt.py` remove major repetitive agent work.
 
----
-
-## Current State Analysis
-
-### What's Already Scripted (✅ Good)
-1. **Project scaffolding** (`new_project.sh`) - Creates `project_state.json` with correct structure
-2. **State machine orchestration** (`build_video.sh`) - Phase transitions, locking, backups
-3. **Validation gates** (`validate_scene_imports`, `validate_voiceover_sync`) - Import naming, hardcoded text detection
-4. **Quality control** (`qc_final_video.sh`) - Audio/video duration checks, silence detection
-5. **Phase reset** (`reset_phase.sh`) - Manual recovery
-6. **Scene file scaffolding** (`scaffold_scene.py`) - Generates boilerplate, leaves animation TODO
-7. **scenes.txt generation** (`generate_scenes_txt.py`) - Automated FFmpeg concat list file creation (used as input for final assembly)
-
-### What the Agent Still Decides (⚠️ Opportunities)
-1. Voice config file creation
-2. Narration script file structure
-3. Timing budget calculations
-4. Pre-render validation (positioning, timing)
-5. State file updates between phases
+The remaining high-value determinism gains are now mostly **validator/scaffolding additions**, not orchestration rewrites.
 
 ---
 
-## High-Value Scripting Opportunities
+## Current Deterministic Baseline (What is already scripted well)
 
-### 1. Scene File Scaffolding Script ✅ **IMPLEMENTED**
+## 1) Entrypoint and argument normalization
 
-**Current Agent Task:**  
-The agent generates complete scene `.py` files from scratch, including 60+ lines of boilerplate (imports, compatibility patch, config, helpers, class structure).
+### `scripts/create_video.sh`
+- Deterministically parses:
+  - `<project_name>`
+  - `--topic`
+  - `--projects-dir`
+  - `--build-args` (via Python `shlex.split`)
+- Enforces topic presence (`--topic` or `VIDEO_TOPIC`).
+- Always executes:
+  1. `scripts/new_project.sh`
+  2. `scripts/build_video.sh`
 
-**Implemented Script:**  
-`scripts/scaffold_scene.py` now generates the full scene boilerplate and leaves only a `# TODO: Add animations here` placeholder.
+**Result:** user gets one consistent command path into the system.
 
-```bash
-# Usage:
-./scripts/scaffold_scene.py \
-    --project projects/my_video \
-    --scene-id scene_01_intro \
-    --class-name Scene01Intro \
-    --narration-key intro
-```
+## 2) Project bootstrap and voice prerequisites
 
-**Script Output:** A valid `.py` file with:
-- All imports (correct `manim_voiceover_plus` naming)
-- Python 3.13 compatibility patch
-- Locked config block
-- `safe_position()` and `safe_layout()` helpers
-- VoiceoverScene class with cached Qwen setup
-- A single `with self.voiceover(text=SCRIPT["intro"]) as tracker:` block ready for animations
+### `scripts/new_project.sh`
+- Creates deterministic `project_state.json` skeleton.
+- Writes `voice_clone_config.json` with locked Qwen defaults (CPU/float32).
+- Ensures voice reference assets exist (`assets/voice_ref/ref.wav` + `ref.txt`), seeding from template if needed.
+- Fails fast if required voice assets are unavailable.
 
-**Why This Matters:**  
-- Eliminates import naming mistakes (currently 10+ lines of validation in `build_video.sh`)
-- Ensures consistency across all scenes
-- Agent only needs to fill in the animation content
+**Result:** avoids ad-hoc setup and missing-file drift across projects.
 
-Optional overwrite flag:
+## 3) Build orchestration and state safety
 
-```bash
-./scripts/scaffold_scene.py \
-    --project projects/my_video \
-    --scene-id scene_01_intro \
-    --class-name Scene01Intro \
-    --narration-key intro \
-    --force
-```
+### `scripts/build_video.sh`
+- Lock file prevents concurrent builders.
+- Validates required state schema/phase values each loop.
+- Attempts JSON repair for malformed/trailing output in `project_state.json`.
+- Backs up state and restores on invalid transitions.
+- Enforces max iterations and human-review pausing.
 
-**Implementation Status:** Completed (2026-02-13)
+**Result:** robust, repeatable state machine behavior.
 
----
+## 4) Agent guardrails already in place
 
-### 2. Voice Config Generator 🔥 **HIGH PRIORITY**
+- `validate_scene_imports()` catches common module naming/syntax mistakes.
+- `validate_voiceover_sync()` blocks hardcoded narration text and requires scripted voice service usage.
+- Narration post-step sanitizes known markup artifacts in `narration_script.py`.
 
-**Current Agent Task:**  
-The agent relies on cached Qwen voice configured in `voice_clone_config.json` during the narration phase.
+**Result:** fewer invalid scene/narration outputs pass downstream.
 
-**What Can Be Scripted:**  
-Precache cached Qwen audio once per project to guarantee voice assets exist before rendering.
+## 5) Rendering, assembly, and quality gates are script-owned
 
-```bash
-# Precache cached Qwen audio
-python3 scripts/precache_voiceovers_qwen.py "$PROJECT_DIR"
-```
+- `handle_final_render()` renders scenes from `project_state.json` metadata (not freeform agent output), verifies audio stream presence, updates per-scene verification.
+- `handle_assemble()` generates `scenes.txt` via script, verifies inputs, and assembles with deterministic ffmpeg filter graph.
+- `qc_final_video.sh` enforces final media checks (audio coverage, silence detection, per-scene checks).
 
-**Why This Matters:**  
-- Ensures cached audio exists before render
-- No agent decision required
-- Reuses deterministic cache across renders
-
-**Estimated Complexity:** Low (invoke precache script once per project)
+**Result:** final output path is already mostly deterministic and script-driven.
 
 ---
 
-### 3. Narration Script Scaffolding 📄 **MEDIUM PRIORITY**
+## Re-analysis of Prior Document (what changed)
 
-**Current Agent Task:**  
-The agent creates `narration_script.py` with a `SCRIPT` dictionary containing keys matching `plan.json` scene IDs.
+The previous analysis correctly identified major opportunities, but status has shifted:
 
-**What Can Be Scripted:**  
-A script that reads `plan.json` and generates the `narration_script.py` skeleton with correct keys and placeholders.
-
-```bash
-# Proposed usage:
-./scripts/scaffold_narration.py --project projects/my_video
-
-# Reads plan.json, generates:
-SCRIPT = {
-    "intro": """# TODO: Write narration for 'What Are Gravity Anomalies?'
-    # Target: ~75 words, ~30 seconds
-    """,
-    "bouguer_correction": """# TODO: Write narration for 'The Bouguer Correction'
-    # Target: ~150 words, ~60 seconds
-    """,
-    ...
-}
-```
-
-**Why This Matters:**  
-- Keys always match `plan.json`
-- Word count targets are embedded
-- Agent only writes content, not structure
-
-**Estimated Complexity:** Low (JSON parsing + template)
+- ✅ **Implemented and integrated:**
+  - Scene scaffolding (`scaffold_scene.py`)
+  - `scenes.txt` generation (`generate_scenes_txt.py`)
+- ✅ **Implemented (script exists) + used in build flow:**
+  - Qwen precache (`precache_voiceovers_qwen.py`) via `build_video.sh` before render when cache is missing; also available as explicit phase.
+- ⏳ **Still pending:**
+  - Timing budget validator
+  - Narration skeleton generator
+  - Positioning linter
+  - Additional schema/contract validators around plan/narration/scene metadata
 
 ---
 
-### 4. Timing Budget Validator 🕐 **HIGH PRIORITY**
+## Additional Opportunities for Determinism (Updated Priorities)
 
-**Current Agent Task:**  
-The agent must manually calculate that timing fractions sum to ≤1.0 within each `voiceover` block. This is error-prone and causes animation/audio desync.
+## Priority 1 (High): Timing budget validator for `tracker.duration * fraction`
 
-**What Can Be Scripted:**  
-A Python linter that parses scene files and validates timing budgets.
+### Problem
+Agents still manually manage timing fractions inside voiceover blocks. Over-allocation causes dead air or desync.
 
-```bash
-# Proposed usage:
-./scripts/validate_timing.py projects/my_video/scene_01_intro.py
+### Script opportunity
+Add `scripts/validate_timing.py` that parses scene AST and enforces per-voiceover timing budgets.
 
-# Output:
-✅ Scene01Intro: voiceover block 1 - timing total: 0.4 + 0.3 + 0.3 = 1.0 ✓
-❌ Scene01Intro: voiceover block 2 - timing total: 0.6 + 0.5 = 1.1 > 1.0 OVERFLOW
-   Line 45: run_time=tracker.duration * 0.6
-   Line 48: run_time=tracker.duration * 0.5
-```
+### Suggested checks
+- Sum of explicit `tracker.duration * X` allocations per voiceover block must be `<= 1.0` (with small epsilon).
+- Flag blocks with no explicit budgeting (warning mode) if desired.
+- Emit file + line diagnostics.
 
-**Implementation:**  
-Use Python's `ast` module to parse the scene file and extract `tracker.duration * X` patterns, then sum them per voiceover block.
-
-**Why This Matters:**  
-- Prevents the most common cause of "dead air" in videos
-- Can be added to `build_video.sh` as a gate before `final_render`
-- Catches errors before expensive render steps
-
-**Estimated Complexity:** Medium (AST parsing)
+### Integration point
+- Run in `handle_build_scenes()` after existing import/sync validators.
 
 ---
 
-### 5. scenes.txt Generator ✅ **IMPLEMENTED**
+## Priority 2 (High): Deterministic narration skeleton generation from `plan.json`
 
-**Previous Agent Task:**  
-During `assemble` phase, the agent created `scenes.txt` with file paths for FFmpeg concatenation.
+### Problem
+Agent currently writes `narration_script.py` structure manually.
 
-**Implemented Script:**  
-`scripts/generate_scenes_txt.py` now handles this automatically by reading `project_state.json`.
+### Script opportunity
+Add `scripts/scaffold_narration.py`:
+- Reads `plan.json` scene entries.
+- Creates/updates `narration_script.py` with exact SCRIPT keys, placeholders, and optional target word counts.
 
-```bash
-# Usage:
-python scripts/generate_scenes_txt.py projects/my_video
+### Integration point
+- Run immediately after plan/review success or at start of narration phase.
 
-# Output: projects/my_video/scenes.txt
-file 'media/videos/scene_01_intro/1440p60/Scene01Intro.mp4'
-file 'media/videos/scene_02_demo/1440p60/Scene02Demo.mp4'
-```
-
-**Script Features:**
-- Reads scene metadata from `project_state.json`
-- Validates state structure before generation
-- Supports both explicit `video_file` paths and default path construction
-- Comprehensive error handling with descriptive messages
-- Generates FFmpeg-compatible concat file format (useful for tooling and for driving filter-based assembly)
-
-**Why This Matters:**  
-- 100% deterministic output based on project state
-- Agent doesn't need to make decisions about file paths
-- Eliminates risk of malformed scenes.txt files
-- Can be integrated into `build_video.sh` at start of `assemble` phase
-
-**Testing:**
-```bash
-python scripts/test_generate_scenes_txt.py
-# 13 tests covering all error cases and success paths
-```
-
-**Implementation Status:** Completed (2026-02-12)
-**Documentation:** Updated in AGENTS.md assemble phase
+**Benefit:** agent fills content only; scripts own structure and key matching.
 
 ---
 
-### 6. Pre-Render Positioning Validator 📐 **MEDIUM PRIORITY**
+## Priority 3 (Medium): Plan/state contract validator before narration/build
 
-**Current Agent Task:**  
-The agent is responsible for following positioning rules (use `UP * 3.8` not `.to_edge(UP)`, call `safe_position()` after `.next_to()`, etc.).
+### Problem
+`build_video.sh` validates top-level state shape, but not deep contracts between files.
 
-**What Can Be Scripted:**  
-A linter that scans scene files for known anti-patterns.
+### Script opportunity
+Add `scripts/validate_project_contract.py` checking:
+- `plan.json` scene IDs are unique.
+- `project_state.json.scenes[*].id` matches plan scenes.
+- Narration SCRIPT keys exist for all required scene narration keys.
+- Scene metadata (`id/file/class_name`) completeness before final render.
 
-```bash
-# Proposed usage:
-./scripts/lint_positioning.py projects/my_video/scene_01_intro.py
+### Integration point
+- Gate at start of `narration`, `build_scenes`, and `final_render`.
 
-# Output:
-⚠️  Line 42: .to_edge(UP) detected - use .move_to(UP * 3.8) for titles
-⚠️  Line 56: .next_to() without safe_position() call
-❌  Line 63: Multiple elements at ORIGIN without offsets
-```
-
-**Patterns to Detect:**
-- `.to_edge(UP)` → suggest `.move_to(UP * 3.8)`
-- `.next_to(...)` not followed by `safe_position()`
-- Multiple `.move_to(ORIGIN)` calls without offsets
-- Missing `safe_layout()` for VGroups with siblings
-
-**Why This Matters:**  
-- Prevents top-of-frame clipping (a real issue mentioned in docs)
-- Catches overlap issues before rendering
-- Complements existing `validate_voiceover_sync` check
-
-**Estimated Complexity:** Medium (regex + AST analysis)
+**Benefit:** catches structural mismatches earlier than render time.
 
 ---
 
-### 7. State Machine Advancement Script 🔄 **LOW PRIORITY**
+## Priority 4 (Medium): Positioning/style linter for common Manim anti-patterns
 
-**Current Agent Task:**  
-The agent updates `project_state.json` to advance phases, update scene status, and log history entries.
+### Problem
+Visual clipping/overlap rules remain mostly convention-based.
 
-**What Can Be Scripted:**  
-State transition helpers that the agent calls instead of writing JSON directly.
+### Script opportunity
+Add `scripts/lint_positioning.py` with static checks, e.g.:
+- `.to_edge(UP)` usage where fixed safe coordinates are preferred.
+- `.next_to(...)` patterns missing `safe_position(...)` usage nearby.
+- suspicious repeated `.move_to(ORIGIN)` overlaps.
 
-```bash
-# scripts/advance_phase.py
-./scripts/advance_phase.py projects/my_video plan review
-
-# scripts/mark_scene_built.py  
-./scripts/mark_scene_built.py projects/my_video scene_01_intro
-
-# scripts/mark_scene_rendered.py
-./scripts/mark_scene_rendered.py projects/my_video scene_01_intro \
-    --video-path media/videos/.../Scene01Intro.mp4
-```
-
-**Why This Matters:**  
-- Reduces JSON manipulation errors
-- Ensures consistent history logging
-- Agent just calls command, doesn't write JSON
-
-**Estimated Complexity:** Low (JSON manipulation)
+### Integration point
+- Optional warning gate in `handle_build_scenes()`; can be elevated to fail-on-error later.
 
 ---
 
-## Recommended Implementation Order
+## Priority 5 (Medium): Preflight environment checker from entrypoint
 
-| Priority | Script | Effort | Impact | Status |
-|----------|--------|--------|--------|--------|
-| 1 | Voice Config Generator | Low | High (eliminates voice ID errors) | ⏳ Pending |
-| 2 | Scene File Scaffolding | Medium | High (60+ lines of boilerplate per scene) | ✅ **DONE** |
-| 3 | Timing Budget Validator | Medium | High (prevents audio desync) | ⏳ Pending |
-| 4 | Narration Script Scaffolding | Low | Medium (structure correctness) | ⏳ Pending |
-| 5 | scenes.txt Generator | Very Low | Low (but trivial to implement) | ✅ **DONE** |
-| 6 | Pre-Render Positioning Validator | Medium | Medium (prevents clipping) | ⏳ Pending |
-| 7 | State Machine Advancement | Low | Low (convenience) | ⏳ Pending |
+### Problem
+Some failures (missing `manim`, `ffmpeg`, `ffprobe`, `opencode`, invalid qwen python path) surface late.
 
----
+### Script opportunity
+Add `scripts/preflight_check.py` (or `.sh`) and call it from `create_video.sh` before project creation/build.
 
-## What Should Remain Agent Tasks
+### Checks
+- Required binaries in PATH.
+- Qwen python executable from voice config exists (or guidance to regenerate config).
+- Writable project directory.
 
-Some tasks are inherently creative and should NOT be scripted:
-
-1. **Plan generation** (`plan.json`) - Requires understanding the topic and breaking it into scenes
-2. **Narration writing** - The actual prose content
-3. **Animation design** - The creative visualization choices
-4. **Review phase judgments** - Feasibility assessment requires reasoning
-
-The goal is to give the agent **less boilerplate to write** and **more guardrails to operate within**, not to replace its creative function.
+**Benefit:** fast, deterministic failure with actionable diagnostics.
 
 ---
 
-## Implementation Notes
+## Priority 6 (Low): Narrower scripted state mutation helpers
 
-### Adding New Validators to build_video.sh
+### Problem
+State updates are currently done inline in multiple embedded Python snippets.
 
-New validation scripts should follow this pattern:
+### Script opportunity
+Add helper scripts for common mutations (append error/history, phase advance, scene rendered update).
 
-```bash
-# In handle_build_scenes()
-if ! ./scripts/validate_timing.py "$scene_file"; then
-    echo "✗ Timing validation failed" | tee -a "$LOG_FILE"
-    # Log error to state, return 1
-fi
-```
-
-### Script Location
-
-All new scripts should go in `/scripts/` directory and be executable:
-
-```bash
-chmod +x scripts/scaffold_scene.py
-chmod +x scripts/generate_scenes_txt.py
-chmod +x scripts/validate_timing.py
-```
-
-### Testing New Scripts
-
-Before integrating, test against existing projects:
-
-```bash
-python scripts/test_scaffold_scene.py
-python scripts/test_generate_scenes_txt.py
-./scripts/validate_timing.py projects/parametric_resonance/scene_01_threshold_intro.py
-./scripts/lint_positioning.py projects/parametric_resonance/scene_02_resonance_mechanism.py
-```
+### Note
+Current inline approach works today; this is maintainability/consistency optimization, not urgent reliability work.
 
 ---
 
-## Conclusion
+## What Should Remain Agent-Owned (not worth scripting)
 
-The current system is well-architected with good separation between orchestration (`build_video.sh`) and creative work (agent). The opportunities identified here focus on:
+- Creative plan content and narrative flow decisions.
+- Narration prose writing quality.
+- Visual pedagogy/animation design choices.
 
-1. **Eliminating boilerplate** - Scene scaffolding ✅, voice config ⏳
-2. **Catching errors earlier** - Timing validation ⏳, positioning linting ⏳
-3. **Removing trivial decisions** - scenes.txt generation ✅, state updates ⏳
+The best deterministic split is:
+- **Scripts own structure, validation, contracts, and repetitive glue.**
+- **Agents own creative content within those rails.**
 
-With 2 of 7 scripts implemented, the system has already gained significant determinism. Implementing priorities 2-4 (voice config, timing validator, narration scaffolding) would eliminate most remaining failure modes.
+---
+
+## Recommended Implementation Sequence
+
+1. **Timing validator** (`validate_timing.py`) + gate in `handle_build_scenes()`.
+2. **Narration scaffold generator** (`scaffold_narration.py`) from `plan.json`.
+3. **Project contract validator** (`validate_project_contract.py`) across state/plan/narration.
+4. **Positioning linter** (`lint_positioning.py`) as warning-first.
+5. **Entrypoint preflight check** from `create_video.sh`.
+6. Optional state-helper refactor.
+
+---
+
+## Bottom Line
+
+Compared to the previous analysis, the system is now more deterministic than the old document implied. The biggest remaining wins are **adding scripted validators and scaffolds around timing, narration structure, and cross-file contracts** so agents spend less time on mechanical correctness and more on actual educational content.
