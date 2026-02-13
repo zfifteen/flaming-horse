@@ -1,0 +1,196 @@
+{
+  "project_name": "color-perception",
+  "topic": "concepts/tetrachromacy-markov-kernels-perception/tetrachromacy-markov-kernels-perception.md .md",
+  "phase": "final_render",
+  "created_at": "2026-02-13T06:09:56Z",
+  "updated_at": "2026-02-13T06:16:04Z",
+  "run_count": 6,
+  "plan_file": "plan.json",
+  "narration_file": "narration_script.py",
+  "voice_config_file": "voice_config.py",
+  "scenes": [
+    {
+      "id": "scene_01_intro",
+      "title": "Introduction to the Problem",
+      "narration_key": "intro",
+      "narration_summary": "Hook the audience with the paradox of more receptors not always yielding richer perception, introduce Hoffman's formalism.",
+      "estimated_words": 80,
+      "estimated_duration": "32s",
+      "animations": [
+        "Write title",
+        "Fade in subtitle",
+        "Show key question"
+      ],
+      "complexity": "low",
+      "risk_flags": [],
+      "status": "rendered",
+      "file": "scene_01_intro.py",
+      "class_name": "Scene01Intro",
+      "video_file": "media/videos/scene_01_intro/1440p60/Scene01Intro.mp4",
+      "verification": {
+        "file_size_bytes": 1668133,
+        "duration_seconds": 35.416667,
+        "audio_present": true,
+        "verified_at": "2026-02-13T06:13:56Z"
+      }
+    },
+    {
+      "id": "scene_02_bottleneck",
+      "title": "The Bottleneck Theorem",
+      "narration_key": "bottleneck",
+      "narration_summary": "Explain how receptor count doesn't directly determine perceptual dimensions due to neural processing limits.",
+      "estimated_words": 85,
+      "estimated_duration": "34s",
+      "animations": [
+        "Display equation for bottleneck",
+        "Compare receptor vs neural channels"
+      ],
+      "complexity": "medium",
+      "risk_flags": [
+        "Math rendering"
+      ],
+      "status": "rendered",
+      "file": "scene_02_bottleneck.py",
+      "class_name": "Scene02Bottleneck",
+      "video_file": "media/videos/scene_02_bottleneck/1440p60/Scene02Bottleneck.mp4",
+      "verification": {
+        "file_size_bytes": 2176599,
+        "duration_seconds": 40.853333,
+        "audio_present": true,
+        "verified_at": "2026-02-13T06:14:31Z"
+      }
+    },
+    {
+      "id": "scene_03_polytope_compression",
+      "title": "Polytope Compression Ratio",
+      "narration_key": "compression",
+      "narration_summary": "Introduce the Markov polytope and the efficiency ratio \u03b7 = JNDs / k(k-1).",
+      "estimated_words": 90,
+      "estimated_duration": "36s",
+      "animations": [
+        "Animate polytope growth",
+        "Show efficiency calculation",
+        "MathTex for \u03b7"
+      ],
+      "complexity": "high",
+      "risk_flags": [
+        "Complex math concepts",
+        "Polytope visualization"
+      ],
+      "status": "rendered",
+      "file": "scene_03_polytope_compression.py",
+      "class_name": "Scene03PolytopeCompression",
+      "video_file": "media/videos/scene_03_polytope_compression/1440p60/Scene03PolytopeCompression.mp4",
+      "verification": {
+        "file_size_bytes": 2336872,
+        "duration_seconds": 56.45,
+        "audio_present": true,
+        "verified_at": "2026-02-13T06:15:18Z"
+      }
+    },
+    {
+      "id": "scene_04_examples",
+      "title": "Cross-Species Examples",
+      "narration_key": "examples",
+      "narration_summary": "Compare humans (k=3, high \u03b7) vs mantis shrimp (k=12, low \u03b7), discuss tetrachromats.",
+      "estimated_words": 95,
+      "estimated_duration": "38s",
+      "animations": [
+        "Side-by-side comparison table",
+        "Bar chart of \u03b7 values",
+        "Fade in species data"
+      ],
+      "complexity": "medium",
+      "risk_flags": [
+        "Data visualization accuracy"
+      ],
+      "status": "rendered",
+      "file": "scene_04_examples.py",
+      "class_name": "Scene04Examples",
+      "video_file": "media/videos/scene_04_examples/1440p60/Scene04Examples.mp4",
+      "verification": {
+        "file_size_bytes": 2314506,
+        "duration_seconds": 53.933333,
+        "audio_present": true,
+        "verified_at": "2026-02-13T06:16:02Z"
+      }
+    },
+    {
+      "id": "scene_05_prediction",
+      "title": "The Inverse Scaling Prediction",
+      "narration_key": "prediction",
+      "narration_summary": "Present the falsifiable prediction of inverse \u03b7 scaling with k across taxa.",
+      "estimated_words": 85,
+      "estimated_duration": "34s",
+      "animations": [
+        "Plot inverse relationship graph",
+        "Highlight prediction text"
+      ],
+      "complexity": "medium",
+      "risk_flags": [
+        "Graph rendering"
+      ],
+      "status": "built",
+      "file": "scene_05_prediction.py",
+      "class_name": "Scene05Prediction"
+    },
+    {
+      "id": "scene_06_implications",
+      "title": "Implications for Consciousness",
+      "narration_key": "implications",
+      "narration_summary": "Discuss how this tests Hoffman's theory and implications for AI sensory systems.",
+      "estimated_words": 90,
+      "estimated_duration": "36s",
+      "animations": [
+        "Show decision rule",
+        "Transition to broader implications"
+      ],
+      "complexity": "medium",
+      "risk_flags": [
+        "Abstract concepts"
+      ],
+      "status": "built",
+      "file": "scene_06_implications.py",
+      "class_name": "Scene06Implications"
+    },
+    {
+      "id": "scene_07_recap",
+      "title": "Recap and Key Takeaways",
+      "narration_key": "recap",
+      "narration_summary": "Summarize the core insight: more receptors don't automatically mean richer experience without scaled processing.",
+      "estimated_words": 75,
+      "estimated_duration": "30s",
+      "animations": [
+        "Bullet list of key points",
+        "Fade out with final message"
+      ],
+      "complexity": "low",
+      "risk_flags": [],
+      "status": "built",
+      "file": "scene_07_recap.py",
+      "class_name": "Scene07Recap"
+    }
+  ],
+  "current_scene_index": 7,
+  "errors": [
+    "final_render failed for scene_05_prediction: see build.log"
+  ],
+  "history": [
+    "Phase plan completed: Generated video plan with 7 scenes, estimated 600 words, 240 seconds duration. Target audience: researchers in perceptual neuroscience and consciousness theory. High complexity scenes flagged for math and visualization risks.",
+    "Phase review completed: Plan validated for technical feasibility. Narrative flow coherent, animations feasible in Manim, timing allows for narration + animation. High-risk scenes flagged (polytope visualization, graph rendering, math concepts). Approved to proceed to narration.",
+    "Phase narration completed: Generated narration scripts with 7 segments totaling ~650 words. Configured ElevenLabs voice settings for Big D's cloned voice. Advanced to build_scenes phase.",
+    "Built scene scene_01_intro successfully.",
+    "Built scene scene_02_bottleneck successfully.",
+    "Built scene scene_03_polytope_compression successfully.",
+    "Built scene scene_04_examples successfully.",
+    "Built scene scene_05_prediction successfully.",
+    "Built scene scene_06_implications successfully.",
+    "Built scene scene_07_recap successfully.",
+    "All scenes built successfully. Advanced to final_render phase."
+  ],
+  "flags": {
+    "needs_human_review": true,
+    "dry_run": false,
+    "force_replan": false
+  }
+}

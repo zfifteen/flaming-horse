@@ -1,0 +1,86 @@
+{
+  "title": "Tetrachromacy and Markov Kernels in Perception",
+  "topic_summary": "Exploring the relationship between sensory receptor count and perceptual dimensionality using Hoffman's polytope framework, revealing an inverse efficiency ratio across species.",
+  "target_audience": "Researchers and advanced students in perceptual neuroscience, consciousness theory, and comparative sensory ecology.",
+  "estimated_duration_seconds": 240,
+  "total_estimated_words": 600,
+  "scenes": [
+    {
+      "id": "scene_01_intro",
+      "title": "Introduction to the Problem",
+      "narration_key": "intro",
+      "narration_summary": "Hook the audience with the paradox of more receptors not always yielding richer perception, introduce Hoffman's formalism.",
+      "estimated_words": 80,
+      "estimated_duration": "32s",
+      "animations": ["Write title", "Fade in subtitle", "Show key question"],
+      "complexity": "low",
+      "risk_flags": []
+    },
+    {
+      "id": "scene_02_bottleneck",
+      "title": "The Bottleneck Theorem",
+      "narration_key": "bottleneck",
+      "narration_summary": "Explain how receptor count doesn't directly determine perceptual dimensions due to neural processing limits.",
+      "estimated_words": 85,
+      "estimated_duration": "34s",
+      "animations": ["Display equation for bottleneck", "Compare receptor vs neural channels"],
+      "complexity": "medium",
+      "risk_flags": ["Math rendering"]
+    },
+    {
+      "id": "scene_03_polytope_compression",
+      "title": "Polytope Compression Ratio",
+      "narration_key": "compression",
+      "narration_summary": "Introduce the Markov polytope and the efficiency ratio η = JNDs / k(k-1).",
+      "estimated_words": 90,
+      "estimated_duration": "36s",
+      "animations": ["Animate polytope growth", "Show efficiency calculation", "MathTex for η"],
+      "complexity": "high",
+      "risk_flags": ["Complex math concepts", "Polytope visualization"]
+    },
+    {
+      "id": "scene_04_examples",
+      "title": "Cross-Species Examples",
+      "narration_key": "examples",
+      "narration_summary": "Compare humans (k=3, high η) vs mantis shrimp (k=12, low η), discuss tetrachromats.",
+      "estimated_words": 95,
+      "estimated_duration": "38s",
+      "animations": ["Side-by-side comparison table", "Bar chart of η values", "Fade in species data"],
+      "complexity": "medium",
+      "risk_flags": ["Data visualization accuracy"]
+    },
+    {
+      "id": "scene_05_prediction",
+      "title": "The Inverse Scaling Prediction",
+      "narration_key": "prediction",
+      "narration_summary": "Present the falsifiable prediction of inverse η scaling with k across taxa.",
+      "estimated_words": 85,
+      "estimated_duration": "34s",
+      "animations": ["Plot inverse relationship graph", "Highlight prediction text"],
+      "complexity": "medium",
+      "risk_flags": ["Graph rendering"]
+    },
+    {
+      "id": "scene_06_implications",
+      "title": "Implications for Consciousness",
+      "narration_key": "implications",
+      "narration_summary": "Discuss how this tests Hoffman's theory and implications for AI sensory systems.",
+      "estimated_words": 90,
+      "estimated_duration": "36s",
+      "animations": ["Show decision rule", "Transition to broader implications"],
+      "complexity": "medium",
+      "risk_flags": ["Abstract concepts"]
+    },
+    {
+      "id": "scene_07_recap",
+      "title": "Recap and Key Takeaways",
+      "narration_key": "recap",
+      "narration_summary": "Summarize the core insight: more receptors don't automatically mean richer experience without scaled processing.",
+      "estimated_words": 75,
+      "estimated_duration": "30s",
+      "animations": ["Bullet list of key points", "Fade out with final message"],
+      "complexity": "low",
+      "risk_flags": []
+    }
+  ]
+}
