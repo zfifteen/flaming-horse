@@ -9,6 +9,8 @@
 
 After analyzing the current workflow, I identified **7 high-value scripting opportunities** that would reduce agent decision-making and increase determinism. The current system already does a good job with `build_video.sh` orchestration and validation, but there are several areas where the agent is still making decisions that could be codified into scripts.
 
+**Implementation Status: 2 of 7 complete** (✅ Scene scaffolding, ✅ scenes.txt generator)
+
 ---
 
 ## Current State Analysis
@@ -19,15 +21,15 @@ After analyzing the current workflow, I identified **7 high-value scripting oppo
 3. **Validation gates** (`validate_scene_imports`, `validate_voiceover_sync`) - Import naming, hardcoded text detection
 4. **Quality control** (`qc_final_video.sh`) - Audio/video duration checks, silence detection
 5. **Phase reset** (`reset_phase.sh`) - Manual recovery
+6. **Scene file scaffolding** (`scaffold_scene.py`) - Generates boilerplate, leaves animation TODO
+7. **scenes.txt generation** (`generate_scenes_txt.py`) - Automated ffmpeg concat file creation
 
 ### What the Agent Still Decides (⚠️ Opportunities)
-1. Scene file boilerplate generation
-2. Voice config file creation
-3. Narration script file structure
-4. Timing budget calculations
-5. `scenes.txt` file generation for ffmpeg
-6. Pre-render validation (positioning, timing)
-7. State file updates between phases
+1. Voice config file creation
+2. Narration script file structure
+3. Timing budget calculations
+4. Pre-render validation (positioning, timing)
+5. State file updates between phases
 
 ---
 
@@ -182,34 +184,44 @@ Use Python's `ast` module to parse the scene file and extract `tracker.duration 
 
 ---
 
-### 5. scenes.txt Generator 📝 **LOW PRIORITY (but easy)**
+### 5. scenes.txt Generator ✅ **IMPLEMENTED**
 
-**Current Agent Task:**  
-During `assemble` phase, the agent creates `scenes.txt` with file paths for ffmpeg concatenation.
+**Previous Agent Task:**  
+During `assemble` phase, the agent created `scenes.txt` with file paths for ffmpeg concatenation.
 
-**What Can Be Scripted:**  
-100% deterministic—read `project_state.json` and generate the file.
+**Implemented Script:**  
+`scripts/generate_scenes_txt.py` now handles this automatically by reading `project_state.json`.
 
 ```bash
-# scripts/generate_scenes_txt.sh
-PROJECT_DIR="$1"
-STATE_FILE="${PROJECT_DIR}/project_state.json"
+# Usage:
+python scripts/generate_scenes_txt.py projects/my_video
 
-python3 <<EOF
-import json
-with open('${STATE_FILE}') as f:
-    state = json.load(f)
-with open('${PROJECT_DIR}/scenes.txt', 'w') as out:
-    for scene in state['scenes']:
-        out.write(f"file '{scene['video_file']}'\n")
-EOF
+# Output: projects/my_video/scenes.txt
+file 'media/videos/scene_01_intro/1440p60/Scene01Intro.mp4'
+file 'media/videos/scene_02_demo/1440p60/Scene02Demo.mp4'
 ```
 
-**Why This Matters:**  
-- Agent doesn't need to touch this
-- Could be built into `build_video.sh` at the start of `assemble` phase
+**Script Features:**
+- Reads scene metadata from `project_state.json`
+- Validates state structure before generation
+- Supports both explicit `video_file` paths and default path construction
+- Comprehensive error handling with descriptive messages
+- Generates ffmpeg-compatible concat file format
 
-**Estimated Complexity:** Very Low
+**Why This Matters:**  
+- 100% deterministic output based on project state
+- Agent doesn't need to make decisions about file paths
+- Eliminates risk of malformed scenes.txt files
+- Can be integrated into `build_video.sh` at start of `assemble` phase
+
+**Testing:**
+```bash
+python scripts/test_generate_scenes_txt.py
+# 13 tests covering all error cases and success paths
+```
+
+**Implementation Status:** Completed (2026-02-12)
+**Documentation:** Updated in AGENTS.md assemble phase
 
 ---
 
@@ -277,15 +289,15 @@ State transition helpers that the agent calls instead of writing JSON directly.
 
 ## Recommended Implementation Order
 
-| Priority | Script | Effort | Impact |
-|----------|--------|--------|--------|
-| 1 | Voice Config Generator | Low | High (eliminates voice ID errors) |
-| 2 | Scene File Scaffolding | Medium | High (60+ lines of boilerplate per scene) |
-| 3 | Timing Budget Validator | Medium | High (prevents audio desync) |
-| 4 | Narration Script Scaffolding | Low | Medium (structure correctness) |
-| 5 | scenes.txt Generator | Very Low | Low (but trivial to implement) |
-| 6 | Pre-Render Positioning Validator | Medium | Medium (prevents clipping) |
-| 7 | State Machine Advancement | Low | Low (convenience) |
+| Priority | Script | Effort | Impact | Status |
+|----------|--------|--------|--------|--------|
+| 1 | Voice Config Generator | Low | High (eliminates voice ID errors) | ⏳ Pending |
+| 2 | Scene File Scaffolding | Medium | High (60+ lines of boilerplate per scene) | ✅ **DONE** |
+| 3 | Timing Budget Validator | Medium | High (prevents audio desync) | ⏳ Pending |
+| 4 | Narration Script Scaffolding | Low | Medium (structure correctness) | ⏳ Pending |
+| 5 | scenes.txt Generator | Very Low | Low (but trivial to implement) | ✅ **DONE** |
+| 6 | Pre-Render Positioning Validator | Medium | Medium (prevents clipping) | ⏳ Pending |
+| 7 | State Machine Advancement | Low | Low (convenience) | ⏳ Pending |
 
 ---
 
@@ -322,6 +334,7 @@ All new scripts should go in `/scripts/` directory and be executable:
 
 ```bash
 chmod +x scripts/scaffold_scene.py
+chmod +x scripts/generate_scenes_txt.py
 chmod +x scripts/validate_timing.py
 ```
 
@@ -330,6 +343,8 @@ chmod +x scripts/validate_timing.py
 Before integrating, test against existing projects:
 
 ```bash
+python scripts/test_scaffold_scene.py
+python scripts/test_generate_scenes_txt.py
 ./scripts/validate_timing.py projects/parametric_resonance/scene_01_threshold_intro.py
 ./scripts/lint_positioning.py projects/parametric_resonance/scene_02_resonance_mechanism.py
 ```
@@ -340,8 +355,8 @@ Before integrating, test against existing projects:
 
 The current system is well-architected with good separation between orchestration (`build_video.sh`) and creative work (agent). The opportunities identified here focus on:
 
-1. **Eliminating boilerplate** - Scene scaffolding, voice config
-2. **Catching errors earlier** - Timing validation, positioning linting
-3. **Removing trivial decisions** - scenes.txt generation, state updates
+1. **Eliminating boilerplate** - Scene scaffolding ✅, voice config ⏳
+2. **Catching errors earlier** - Timing validation ⏳, positioning linting ⏳
+3. **Removing trivial decisions** - scenes.txt generation ✅, state updates ⏳
 
-Implementing priorities 1-3 would likely eliminate the most common failure modes with minimal development effort.
+With 2 of 7 scripts implemented, the system has already gained significant determinism. Implementing priorities 2-4 (voice config, timing validator, narration scaffolding) would eliminate most remaining failure modes.
