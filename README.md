@@ -1,3 +1,5 @@
+![Flaming Horse Banner](assets/flaming_horse_readme_banner.jpeg)
+
 # Flaming Horse
 
 **Transform ideas into professional math videos with a single prompt.**
