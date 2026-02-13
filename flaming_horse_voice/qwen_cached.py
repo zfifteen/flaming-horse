@@ -1,5 +1,4 @@
 import hashlib
-import hashlib
 import json
 from pathlib import Path
 
@@ -30,26 +29,48 @@ class QwenCachedService(SpeechService):
     def from_project(cls, project_dir):
         project_dir = Path(project_dir).resolve()
         cache_dir = project_dir / "media" / DEFAULT_VOICEOVER_CACHE_DIR / "qwen"
+        config_path = project_dir / "voice_clone_config.json"
+        if config_path.exists():
+            try:
+                config = json.loads(config_path.read_text(encoding="utf-8"))
+                output_dir = config.get("output_dir")
+                if output_dir:
+                    cache_dir = (
+                        Path(output_dir).expanduser()
+                        if Path(output_dir).is_absolute()
+                        else project_dir / output_dir
+                    )
+            except (json.JSONDecodeError, OSError):
+                pass
         cache_file = cache_dir / "cache.json"
-        if not cache_file.exists():
+        cache_index = {}
+        text_index = {}
+        if cache_file.exists():
+            for entry in json.loads(cache_file.read_text(encoding="utf-8")):
+                key = entry.get("narration_key")
+                audio_file = entry.get("audio_file")
+                text = entry.get("text")
+                if key and audio_file:
+                    cache_index[key] = audio_file
+                if text and audio_file:
+                    normalized = " ".join(str(text).split())
+                    text_index[normalized] = audio_file
+        else:
+            script_path = project_dir / "narration_script.py"
+            if script_path.exists():
+                data = {}
+                exec(script_path.read_text(encoding="utf-8"), data)
+                for key, text in (data.get("SCRIPT") or {}).items():
+                    audio_file = f"{key}.mp3"
+                    if (cache_dir / audio_file).exists():
+                        cache_index[key] = audio_file
+                        normalized = " ".join(str(text).split())
+                        text_index[normalized] = audio_file
+
+        if not cache_index:
             raise FileNotFoundError(
                 f"Missing Qwen cache index: {cache_file}. Run precache step first."
             )
-
-        cache_index = {}
-        text_index = {}
-        for entry in json.loads(cache_file.read_text(encoding="utf-8")):
-            key = entry.get("narration_key")
-            audio_file = entry.get("audio_file")
-            text = entry.get("text")
-            if key and audio_file:
-                cache_index[key] = audio_file
-            if text and audio_file:
-                normalized = " ".join(str(text).split())
-                text_index[normalized] = audio_file
-
-        if not cache_index:
-            raise ValueError(f"No entries found in {cache_file}")
 
         return cls(
             project_dir=project_dir,
