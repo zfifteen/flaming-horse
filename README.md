@@ -14,7 +14,7 @@ Skip the tedious coding. Provide a description or mathematical concept, and Flam
 
 ### Professional Quality Output
 
-- **Studio-grade voiceovers** powered by ElevenLabs multilingual AI
+- **Studio-grade voiceovers** powered by cached Qwen voice clones
 - **Manim-native animations** with full mathematical typesetting
 - **Multi-scene orchestration** with intelligent pacing and transitions
 - **Production-ready exports** suitable for YouTube, courses, and presentations
@@ -50,7 +50,7 @@ Flaming Horse uses an intelligent agentic workflow to decompose your concept int
 1. **Video plan** with scene breakdown and timing
 2. **Narration script** synchronized to visual elements
 3. **Scene generation** with Manim code for each segment
-4. **Voice synthesis** with professional AI narration
+4. **Voice synthesis** with cached Qwen narration
 5. **Final assembly** into a polished video
 
 The system iterates until each component meets quality standards, then assembles everything into your final video.
@@ -62,11 +62,11 @@ The system iterates until each component meets quality standards, then assembles
 pip install manim manim-voiceover-plus
 brew install sox ffmpeg
 
-# Configure voice service
-export ELEVENLABS_API_KEY="your_api_key_here"
+# Precache Qwen voiceovers
+python3 scripts/precache_voiceovers_qwen.py projects/my_video
 ```
 
-**Voice Requirements:** Flaming Horse requires an ElevenLabs API key for professional voice synthesis. Free tier available at [elevenlabs.io](https://elevenlabs.io).
+**Voice Requirements:** Flaming Horse uses cached Qwen voice clones configured via `voice_clone_config.json`. Run the precache step before building.
 
 ## Configuration
 
@@ -113,7 +113,7 @@ projects/my_video/
 - Python 3.8+
 - Manim Community Edition
 - FFmpeg and Sox
-- ElevenLabs API key
+- Cached Qwen voice clone assets
 
 
 ## License

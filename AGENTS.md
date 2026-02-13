@@ -94,7 +94,7 @@ Consult these files for technical details:
   "run_count": 0,
   "plan_file": "plan.json",
   "narration_file": "narration_script.py",
-  "voice_config_file": "voice_config.py",
+  "voice_config_file": null,
   "scenes": [
     {
       "id": "scene_01",
@@ -189,7 +189,7 @@ state['phase'] = 'review'
 
 ### Phase: `narration`
 
-**Goal:** Generate narration scripts and voice configuration
+**Goal:** Generate narration scripts (cached Qwen configuration is already in `voice_clone_config.json`)
 
 **Output 1: `narration_script.py`**
 
@@ -211,32 +211,11 @@ SCRIPT = {
 }
 ```
 
-**Output 2: `voice_config.py`**
-
-```python
-"""
-Voice configuration for ElevenLabs TTS
-LOCKED - Do not modify after narration phase
-"""
-
-from elevenlabs import VoiceSettings
-
-# Big D's cloned voice - DO NOT CHANGE
-VOICE_ID = "rBgRd5IfS6iqrGfuhlKR"
-MODEL_ID = "eleven_multilingual_v2"
-
-VOICE_SETTINGS = VoiceSettings(
-    stability=0.5,
-    similarity_boost=0.75,
-    style=0.0,
-    use_speaker_boost=True
-)
-```
+**Output 2:** None (cached Qwen configuration lives in `voice_clone_config.json`)
 
 **State Update:**
 ```python
 state['narration_file'] = 'narration_script.py'
-state['voice_config_file'] = 'voice_config.py'
 state['phase'] = 'build_scenes'
 ```
 
@@ -287,13 +266,9 @@ def patched_set_transcription(self, model=None, kwargs=None):
 
 base.SpeechService.set_transcription = patched_set_transcription
 
-# Voiceover Imports
+from pathlib import Path
 from manim_voiceover_plus import VoiceoverScene
-from manim_voiceover_plus.services.elevenlabs import ElevenLabsService
-from elevenlabs import VoiceSettings
-
-# Import Shared Configuration
-from voice_config import VOICE_ID, MODEL_ID, VOICE_SETTINGS
+from flaming_horse_voice import get_speech_service
 from narration_script import SCRIPT
 
 # LOCKED CONFIGURATION (DO NOT MODIFY)
@@ -316,15 +291,8 @@ def safe_position(mobject, max_y=4.0, min_y=-4.0):
 # Scene Class
 class Scene01Intro(VoiceoverScene):
     def construct(self):
-        # ELEVENLABS ONLY - NO FALLBACK - FAIL LOUD
-        self.set_speech_service(
-            ElevenLabsService(
-                voice_id=VOICE_ID,
-                model_id=MODEL_ID,
-                voice_settings=VOICE_SETTINGS,
-                transcription_model=None,
-            )
-        )
+        # Cached Qwen voiceover (precache required)
+        self.set_speech_service(get_speech_service(Path(__file__).resolve().parent))
         
         # Animation Sequence
         # Timing budget: Calculate BEFORE writing animations
@@ -358,11 +326,10 @@ class Scene01Intro(VoiceoverScene):
 ## 🚨 CRITICAL RULES - NEVER VIOLATE
 
 ### 1. Voice Configuration
-- ❌ **NEVER** use any TTS service except `ElevenLabsService`
+- ❌ **NEVER** use any network TTS service
 - ❌ **NEVER** create conditional fallback patterns
 - ❌ **NEVER** import other TTS services
-- ✅ **ALWAYS** use voice ID `rBgRd5IfS6iqrGfuhlKR`
-- ✅ **ALWAYS** import from `voice_config.py`
+- ✅ **ALWAYS** use cached Qwen voice via `flaming_horse_voice.get_speech_service`
 
 ### 2. Import Naming (Python Module Convention)
 - ❌ **WRONG:** `from manim-voiceover-plus import ...` (hyphens = SyntaxError)
