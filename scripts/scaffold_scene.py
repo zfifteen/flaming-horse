@@ -68,20 +68,35 @@ def safe_layout(*mobjects, min_horizontal_spacing=0.5, max_y=4.0, min_y=-4.0):
     return list(mobjects)
 
 # Timing Helpers
-def play_in_slot(scene, animation, slot, *, max_run_time=None, min_run_time=0.3, **play_kwargs):
-    '''Play an animation, then wait to fill the remaining slot time.
+def play_in_slot(scene, *args, max_run_time=None, min_run_time=0.3, **play_kwargs):
+    '''Play one or more animations, then wait to fill the remaining slot.
 
-    Args:
-        scene: The Manim scene (typically `self`)
-        animation: A Manim Animation instance (e.g., Write(title))
-        slot: Total time budget for this beat (seconds)
-        max_run_time: Optional cap for the animation portion (seconds)
-        min_run_time: Minimum perceptible animation time (seconds)
-        **play_kwargs: Passed to scene.play(...)
+    Compatible with both call styles:
+      - play_in_slot(self, Create(obj), tracker.duration * 0.3)
+      - play_in_slot(self, *[Write(m) for m in mobs], tracker.duration * 0.3)
+
+    The last positional argument is interpreted as the time slot in seconds.
     '''
-    slot = float(slot)
-    if slot <= 0:
+    if len(args) < 2:
         return
+
+    *animations, slot = args
+    try:
+        slot = float(slot)
+    except (TypeError, ValueError) as e:
+        raise TypeError(
+            "play_in_slot(...): last positional argument must be a numeric slot (seconds)"
+        ) from e
+
+    if slot <= 0 or not animations:
+        return
+
+    # Support multiple animations by grouping them into a single animation.
+    animation = (
+        animations[0]
+        if len(animations) == 1
+        else LaggedStart(*animations, lag_ratio=0.15)
+    )
 
     run_time = slot
     if max_run_time is not None:
@@ -95,12 +110,13 @@ def play_in_slot(scene, animation, slot, *, max_run_time=None, min_run_time=0.3,
         scene.wait(remaining)
 
 
-def play_text_in_slot(scene, animation, slot, *, max_text_seconds=2.0, min_run_time=0.3, **play_kwargs):
+def play_text_in_slot(
+    scene, *args, max_text_seconds=2.0, min_run_time=0.3, **play_kwargs
+):
     '''Text animations must complete quickly; fill the rest with waits.'''
     return play_in_slot(
         scene,
-        animation,
-        slot,
+        *args,
         max_run_time=max_text_seconds,
         min_run_time=min_run_time,
         **play_kwargs,

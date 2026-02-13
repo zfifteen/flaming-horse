@@ -133,8 +133,18 @@ try:
         print("❌ Invalid type for 'topic' (must be string or null)", file=sys.stderr)
         sys.exit(1)
     
-    valid_phases = ['plan', 'review', 'narration', 'build_scenes', 
-                    'final_render', 'assemble', 'complete', 'error']
+    valid_phases = [
+        'init',
+        'plan',
+        'review',
+        'narration',
+        'build_scenes',
+        'precache_voiceovers',
+        'final_render',
+        'assemble',
+        'complete',
+        'error',
+    ]
     if state['phase'] not in valid_phases:
         print(f"❌ Invalid phase: {state['phase']}", file=sys.stderr)
         sys.exit(1)
@@ -147,6 +157,59 @@ except Exception as e:
     print(f"❌ Validation error: {e}", file=sys.stderr)
     sys.exit(1)
 EOF
+}
+
+sanitize_state_json() {
+  # Best-effort: if project_state.json contains extra trailing data or duplicated
+  # JSON blocks (some models occasionally emit this), rewrite it as a single
+  # valid JSON document.
+  #
+  # Returns:
+  #   0 if file is valid (or repaired successfully)
+  #   1 if file is invalid and could not be repaired
+  python3 - <<PY
+import json
+import sys
+
+state_file = "${STATE_FILE}"
+if not state_file:
+    sys.exit(0)
+
+try:
+    raw = open(state_file, "r", encoding="utf-8").read()
+except OSError:
+    sys.exit(0)
+
+try:
+    json.loads(raw)
+    sys.exit(0)
+except json.JSONDecodeError:
+    pass
+
+# Attempt: decode the first JSON object and discard trailing garbage.
+decoder = json.JSONDecoder()
+idx = raw.find("{")
+if idx < 0:
+    sys.exit(1)
+
+try:
+    obj, end = decoder.raw_decode(raw[idx:])
+except json.JSONDecodeError:
+    sys.exit(1)
+
+if not isinstance(obj, dict):
+    sys.exit(1)
+
+try:
+    with open(state_file, "w", encoding="utf-8") as f:
+        json.dump(obj, f, indent=2)
+        f.write("\n")
+    print("⚠ Repaired corrupted JSON in project_state.json (truncated trailing data)")
+except OSError:
+    sys.exit(1)
+
+sys.exit(0)
+PY
 }
 
 ensure_topic_present_for_plan() {
@@ -445,6 +508,46 @@ handle_review() {
 handle_narration() {
   echo "🎙️  Generating narration scripts..." | tee -a "$LOG_FILE"
   invoke_agent "narration" "$(get_run_count)"
+
+  # Post-step: ensure narration_script.py is valid Python.
+  # Some agent outputs have been observed to include stray XML-like artifacts.
+  cd "$PROJECT_DIR"
+  python3 - <<'PY'
+import re
+from pathlib import Path
+
+path = Path("narration_script.py")
+if not path.exists():
+    raise SystemExit(0)
+
+src = path.read_text(encoding="utf-8")
+
+def is_valid(code: str) -> bool:
+    try:
+        compile(code, str(path), "exec")
+        return True
+    except SyntaxError:
+        return False
+
+if is_valid(src):
+    raise SystemExit(0)
+
+lines = src.splitlines(True)
+patterns = [
+    re.compile(r"^\s*</?content>\s*$"),
+    re.compile(r"^\s*<parameter\b.*>\s*$"),
+    re.compile(r"^\s*</parameter>\s*$"),
+]
+
+cleaned = [ln for ln in lines if not any(p.match(ln.rstrip("\n")) for p in patterns)]
+cleaned_src = "".join(cleaned)
+
+if cleaned_src != src and is_valid(cleaned_src):
+    path.write_text(cleaned_src, encoding="utf-8")
+    print("✓ Sanitized narration_script.py (removed stray markup)")
+else:
+    print("⚠ WARNING: narration_script.py has syntax errors (manual fix may be required)")
+PY
 }
 
 handle_precache_voiceovers() {
@@ -541,7 +644,11 @@ PYEOF
 handle_final_render() {
   echo "🎬 Final render with cached Qwen voiceover..." | tee -a "$LOG_FILE"
   export MANIM_VOICE_PROD=1
-  export PYTHONPATH="${SCRIPT_DIR}:${PYTHONPATH:-}"
+  # Ensure repo-root packages (e.g. flaming_horse_voice) are importable when
+  # manim runs from inside the project directory.
+  local repo_root
+  repo_root="$(realpath "${SCRIPT_DIR}/..")"
+  export PYTHONPATH="${repo_root}:${SCRIPT_DIR}:${PYTHONPATH:-}"
 
   # Clear prior final_render-related errors so the loop can proceed.
   # Keep unrelated errors intact.
@@ -573,6 +680,27 @@ PY
   trap 'release_lock' EXIT INT TERM
 
   cd "$PROJECT_DIR"
+
+  # Ensure Qwen cache exists (precache step). If missing, generate it now.
+  if [[ ! -f "media/voiceovers/qwen/cache.json" ]]; then
+    echo "→ Missing Qwen cache index; running precache step..." | tee -a "$LOG_FILE"
+    if ! handle_precache_voiceovers; then
+      echo "❌ Precaching voiceovers failed; cannot render." | tee -a "$LOG_FILE" >&2
+      python3 - <<PY
+import json
+from datetime import datetime
+
+with open("${STATE_FILE}", "r") as f:
+    state = json.load(f)
+state.setdefault("errors", []).append("final_render failed: precache_voiceovers failed")
+state.setdefault("flags", {})["needs_human_review"] = True
+state["updated_at"] = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+with open("${STATE_FILE}", "w") as f:
+    json.dump(state, f, indent=2)
+PY
+      exit 1
+    fi
+  fi
 
   # Best-effort repair: ensure scene metadata needed for rendering exists.
   # (Some agents forget to persist scene file/class_name into project_state.json.)
@@ -1053,14 +1181,23 @@ main() {
   local iteration=0
   while [[ $iteration -lt $MAX_RUNS ]]; do
     iteration=$((iteration + 1))
-    
-    backup_state
-    
+
+    # If the state file was corrupted (extra JSON / trailing output), attempt
+    # to repair it before validating.
+    if ! sanitize_state_json; then
+      echo "❌ State file is invalid JSON and could not be repaired." | tee -a "$LOG_FILE" >&2
+      echo "   See: $STATE_FILE" | tee -a "$LOG_FILE" >&2
+      [[ -f "$STATE_BACKUP" ]] && echo "   Backup: $STATE_BACKUP" | tee -a "$LOG_FILE" >&2
+      exit 1
+    fi
+
     if ! validate_state; then
       echo "❌ State validation failed. Restoring backup..." >&2
       [[ -f "$STATE_BACKUP" ]] && cp "$STATE_BACKUP" "$STATE_FILE"
       exit 1
     fi
+
+    backup_state
     
     local current_phase
     current_phase=$(get_phase)
@@ -1078,12 +1215,32 @@ main() {
       narration) handle_narration ;;
       build_scenes) handle_build_scenes ;;
       precache_voiceovers) handle_precache_voiceovers ;;
-      precache_voiceovers) handle_precache_voiceovers ;;
       final_render) handle_final_render ;;
       assemble) handle_assemble ;;
       complete) handle_complete ;;
       *) echo "❌ Unknown phase: $current_phase" >&2; exit 1 ;;
     esac
+
+    # Post-phase: ensure state is still valid JSON.
+    if ! sanitize_state_json; then
+      echo "❌ Phase produced an invalid state file; restoring last backup." | tee -a "$LOG_FILE" >&2
+      [[ -f "$STATE_BACKUP" ]] && cp "$STATE_BACKUP" "$STATE_FILE"
+      python3 - <<PY
+import json
+from datetime import datetime
+
+with open("${STATE_FILE}", "r") as f:
+    state = json.load(f)
+
+state.setdefault("errors", []).append("Build stopped: project_state.json became invalid JSON during phase '${current_phase}'")
+state.setdefault("flags", {})["needs_human_review"] = True
+state["updated_at"] = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+
+with open("${STATE_FILE}", "w") as f:
+    json.dump(state, f, indent=2)
+PY
+      exit 1
+    fi
     
     increment_run_count
     
