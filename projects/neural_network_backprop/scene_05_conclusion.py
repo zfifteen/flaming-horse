@@ -1,3 +1,8 @@
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
 from manim import *
 import numpy as np
 
@@ -17,10 +22,8 @@ def patched_set_transcription(self, model=None, kwargs=None):
 base.SpeechService.set_transcription = patched_set_transcription
 
 from manim_voiceover_plus import VoiceoverScene
-from manim_voiceover_plus.services.elevenlabs import ElevenLabsService
-from elevenlabs import VoiceSettings
+from flaming_horse_voice import get_speech_service
 
-from voice_config import VOICE_ID, MODEL_ID, VOICE_SETTINGS
 from narration_script import SCRIPT
 
 config.frame_height = 10
@@ -61,14 +64,7 @@ def safe_layout(*mobjects, min_horizontal_spacing=0.5, max_y=4.0, min_y=-4.0):
 
 class Scene05Conclusion(VoiceoverScene):
     def construct(self):
-        self.set_speech_service(
-            ElevenLabsService(
-                voice_id=VOICE_ID,
-                model_id=MODEL_ID,
-                voice_settings=VOICE_SETTINGS,
-                transcription_model=None,
-            )
-        )
+        self.set_speech_service(get_speech_service(Path(__file__).resolve().parent))
 
         with self.voiceover(text=SCRIPT["conclusion"]) as tracker:
             # Timing budget: 0.12 + 0.10 + 0.16 + 0.13 + 0.20 + 0.12 + 0.07 + 0.10 = 1.00

@@ -1,3 +1,8 @@
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
 from manim import *
 import numpy as np
 
@@ -19,11 +24,9 @@ base.SpeechService.set_transcription = patched_set_transcription
 
 # Voiceover Imports
 from manim_voiceover_plus import VoiceoverScene
-from manim_voiceover_plus.services.elevenlabs import ElevenLabsService
-from elevenlabs import VoiceSettings
+from flaming_horse_voice import get_speech_service
 
 # Import Shared Configuration
-from voice_config import VOICE_ID, MODEL_ID, VOICE_SETTINGS
 from narration_script import SCRIPT
 
 # LOCKED CONFIGURATION (DO NOT MODIFY)
@@ -84,15 +87,8 @@ def safe_layout(*mobjects, min_horizontal_spacing=0.5, max_y=4.0, min_y=-4.0):
 
 class Scene04Example(VoiceoverScene):
     def construct(self):
-        # ELEVENLABS ONLY - NO FALLBACK - FAIL LOUD
-        self.set_speech_service(
-            ElevenLabsService(
-                voice_id=VOICE_ID,
-                model_id=MODEL_ID,
-                voice_settings=VOICE_SETTINGS,
-                transcription_model=None,
-            )
-        )
+        # Cached Qwen voiceover (precache required)
+        self.set_speech_service(get_speech_service(Path(__file__).resolve().parent))
 
         with self.voiceover(text=SCRIPT["example"]) as tracker:
             title = Text("Worked Example", font_size=52, weight=BOLD)
