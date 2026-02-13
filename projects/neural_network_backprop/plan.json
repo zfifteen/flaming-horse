@@ -1,0 +1,64 @@
+{
+  "title": "How Neural Networks Learn Through Backpropagation",
+  "topic_summary": "An introduction to backpropagation - the fundamental algorithm that enables neural networks to learn by adjusting connection weights based on prediction errors",
+  "target_audience": "Tech-curious adults with no machine learning background",
+  "estimated_duration_seconds": 180,
+  "total_estimated_words": 450,
+  "scenes": [
+    {
+      "id": "scene_01_intro",
+      "title": "Introduction",
+      "narration_key": "intro",
+      "narration_summary": "Hook question about recognizing cats, introducing the puzzle of learning without explicit programming",
+      "estimated_words": 75,
+      "estimated_duration": "30s",
+      "animations": ["Title animation", "Hook question reveal"],
+      "complexity": "low",
+      "risk_flags": []
+    },
+    {
+      "id": "scene_02_basics",
+      "title": "Neural Network Basics",
+      "narration_key": "basics",
+      "narration_summary": "Explaining layers, nodes, and weights as the fundamental building blocks",
+      "estimated_words": 90,
+      "estimated_duration": "36s",
+      "animations": ["Network visualization", "Node and weight highlights"],
+      "complexity": "low",
+      "risk_flags": []
+    },
+    {
+      "id": "scene_03_forward_pass",
+      "title": "Forward Pass",
+      "narration_key": "forward_pass",
+      "narration_summary": "Showing how input flows through layers, weights combine, and prediction emerges",
+      "estimated_words": 105,
+      "estimated_duration": "42s",
+      "animations": ["Data flow visualization", "Weight combination animation", "Prediction output"],
+      "complexity": "medium",
+      "risk_flags": []
+    },
+    {
+      "id": "scene_04_backprop",
+      "title": "Backpropagation",
+      "narration_key": "backprop",
+      "narration_summary": "Error calculation and working backwards to adjust weights proportionally",
+      "estimated_words": 120,
+      "estimated_duration": "48s",
+      "animations": ["Error visualization", "Gradient flow backwards", "Weight adjustment highlights"],
+      "complexity": "medium",
+      "risk_flags": []
+    },
+    {
+      "id": "scene_05_conclusion",
+      "title": "Key Insight",
+      "narration_key": "conclusion",
+      "narration_summary": "The network discovers patterns through thousands of examples, not explicit programming",
+      "estimated_words": 60,
+      "estimated_duration": "24s",
+      "animations": ["Summary visualization", "Final insight text"],
+      "complexity": "low",
+      "risk_flags": []
+    }
+  ]
+}
