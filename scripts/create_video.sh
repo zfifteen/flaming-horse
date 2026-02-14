@@ -9,7 +9,7 @@ export TOKENIZERS_PARALLELISM=false
 usage() {
   cat <<'EOF'
 Usage:
-  ./scripts/create_video.sh <project_name> --topic "..." [--projects-dir <dir>] [--build-args "..."] [--mock]
+  ./scripts/create_video.sh <project_name> [--topic "..."] [--projects-dir <dir>] [--build-args "..."] [--mock]
 
 Examples:
   ./scripts/create_video.sh semi_prime_factorization --topic "Create a video about factoring semi primes"
@@ -26,6 +26,7 @@ Notes:
   - For reliability, it also warms up the voice service once before building.
   - --build-args is parsed like a shell command line (quotes supported).
   - You can also provide the topic via VIDEO_TOPIC.
+  - If the project already exists (has project_state.json), this script resumes it and does NOT reinitialize state.
   - Set FLAMING_HORSE_MOCK_VOICE=1 to use mock voice service globally.
 EOF
 }
@@ -93,14 +94,28 @@ while [[ ${#} -gt 0 ]]; do
   esac
 done
 
+PROJECT_DIR="${PROJECTS_DIR%/}/${PROJECT_NAME}"
+STATE_FILE="${PROJECT_DIR}/project_state.json"
+
 TOPIC="${TOPIC:-${VIDEO_TOPIC:-}}"
-if [[ -z "${TOPIC}" ]]; then
-  echo "❌ No topic provided." >&2
-  echo "   Provide --topic \"...\" or set VIDEO_TOPIC." >&2
+
+RESUME_MODE=0
+if [[ -f "${STATE_FILE}" ]]; then
+  RESUME_MODE=1
+fi
+
+if [[ $RESUME_MODE -eq 0 && -d "${PROJECT_DIR}" && ! -f "${STATE_FILE}" ]]; then
+  echo "❌ Project directory exists but no project_state.json found:" >&2
+  echo "   ${PROJECT_DIR}" >&2
+  echo "   Cannot safely resume or initialize over an unknown directory." >&2
   exit 1
 fi
 
-PROJECT_DIR="${PROJECTS_DIR%/}/${PROJECT_NAME}"
+if [[ $RESUME_MODE -eq 0 && -z "${TOPIC}" ]]; then
+  echo "❌ No topic provided for new project." >&2
+  echo "   Provide --topic \"...\" or set VIDEO_TOPIC." >&2
+  exit 1
+fi
 
 # Set mock voice mode if requested
 if [[ $USE_MOCK -eq 1 ]]; then
@@ -108,7 +123,11 @@ if [[ $USE_MOCK -eq 1 ]]; then
   echo "→ Mock voice mode enabled (FLAMING_HORSE_MOCK_VOICE=1)"
 fi
 
-"${SCRIPT_DIR}/new_project.sh" "${PROJECT_NAME}" --topic "${TOPIC}" --projects-dir "${PROJECTS_DIR}"
+if [[ $RESUME_MODE -eq 1 ]]; then
+  echo "→ Existing project detected; resuming without reinitialization: ${PROJECT_DIR}"
+else
+  "${SCRIPT_DIR}/new_project.sh" "${PROJECT_NAME}" --topic "${TOPIC}" --projects-dir "${PROJECTS_DIR}"
+fi
 
 echo ""
 echo "═══════════════════════════════════════════"

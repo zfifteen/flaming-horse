@@ -68,27 +68,50 @@ def safe_layout(*mobjects, min_horizontal_spacing=0.5, max_y=4.0, min_y=-4.0):
     return list(mobjects)
 
 # Timing Helpers
-def play_in_slot(scene, *args, max_run_time=None, min_run_time=0.3, **play_kwargs):
-    '''Play one or more animations, then wait to fill the remaining slot.
+class BeatPlan:
+    '''Deterministic timing allocator for one voiceover block.
 
-    Compatible with both call styles:
-      - play_in_slot(self, Create(obj), tracker.duration * 0.3)
-      - play_in_slot(self, *[Write(m) for m in mobs], tracker.duration * 0.3)
-
-    The last positional argument is interpreted as the time slot in seconds.
+    Use integer-ish weights for each visual beat and consume slots in order.
+    Agents should avoid manual wait/run_time math and use this plan instead.
     '''
-    if len(args) < 2:
+
+    def __init__(self, total_duration, weights):
+        self.total_duration = max(0.0, float(total_duration))
+        cleaned = [max(0.0, float(w)) for w in weights]
+        if not cleaned:
+            raise ValueError("BeatPlan requires at least one weight")
+        weight_sum = sum(cleaned)
+        if weight_sum <= 0:
+            cleaned = [1.0 for _ in cleaned]
+            weight_sum = float(len(cleaned))
+
+        slots = []
+        consumed = 0.0
+        for idx, weight in enumerate(cleaned):
+            if idx == len(cleaned) - 1:
+                slot = max(0.0, self.total_duration - consumed)
+            else:
+                slot = self.total_duration * (weight / weight_sum)
+                consumed += slot
+            slots.append(slot)
+        self._slots = slots
+        self._cursor = 0
+
+    def next_slot(self):
+        if self._cursor >= len(self._slots):
+            return 0.0
+        slot = self._slots[self._cursor]
+        self._cursor += 1
+        return slot
+
+
+def play_in_slot(scene, slot, *animations, max_run_time=None, min_run_time=0.3, **play_kwargs):
+    '''Play one or more animations in a fixed slot and fill remainder with wait.'''
+    if not animations:
         return
 
-    *animations, slot = args
-    try:
-        slot = float(slot)
-    except (TypeError, ValueError) as e:
-        raise TypeError(
-            "play_in_slot(...): last positional argument must be a numeric slot (seconds)"
-        ) from e
-
-    if slot <= 0 or not animations:
+    slot = max(0.0, float(slot))
+    if slot <= 0:
         return
 
     # Support multiple animations by grouping them into a single animation.
@@ -110,14 +133,37 @@ def play_in_slot(scene, *args, max_run_time=None, min_run_time=0.3, **play_kwarg
         scene.wait(remaining)
 
 
-def play_text_in_slot(
-    scene, *args, max_text_seconds=2.0, min_run_time=0.3, **play_kwargs
-):
+def play_text_in_slot(scene, slot, *animations, max_text_seconds=2.0, min_run_time=0.3, **play_kwargs):
     '''Text animations must complete quickly; fill the rest with waits.'''
     return play_in_slot(
         scene,
-        *args,
+        slot,
+        *animations,
         max_run_time=max_text_seconds,
+        min_run_time=min_run_time,
+        **play_kwargs,
+    )
+
+
+def play_next(scene, beats, *animations, max_run_time=None, min_run_time=0.3, **play_kwargs):
+    '''Play next deterministic beat slot from BeatPlan.'''
+    return play_in_slot(
+        scene,
+        beats.next_slot(),
+        *animations,
+        max_run_time=max_run_time,
+        min_run_time=min_run_time,
+        **play_kwargs,
+    )
+
+
+def play_text_next(scene, beats, *animations, max_text_seconds=2.0, min_run_time=0.3, **play_kwargs):
+    '''Play next beat slot with text reveal cap.'''
+    return play_text_in_slot(
+        scene,
+        beats.next_slot(),
+        *animations,
+        max_text_seconds=max_text_seconds,
         min_run_time=min_run_time,
         **play_kwargs,
     )
@@ -129,22 +175,27 @@ class {class_name}(VoiceoverScene):
         self.set_speech_service(get_speech_service(Path(__file__).resolve().parent))
 
         # Animation Sequence
-        # Timing budget: Calculate BEFORE writing animations
-        # Example: 0.4 + 0.3 + 0.3 = 1.0 ✓
+        # Timing is deterministic: define beat weights, then consume slots in order.
         with self.voiceover(text=SCRIPT["{narration_key}"]) as tracker:
             # TODO: Add animations here
-            # NOTE: Text must never take longer than 2 seconds to appear.
-            # Use play_text_in_slot(...) to cap text reveal time, and let waits
-            # (or later non-text animations) consume the remaining narration slot.
+            # IMPORTANT: Do not write raw wait/run_time timing math.
+            # Use BeatPlan + play_next/play_text_next only.
             #
-            # Example pattern:
+            # Example pattern (weights 3,2,5 consume full tracker.duration):
+            # beats = BeatPlan(tracker.duration, [3, 2, 5])
+            #
             # title = Text("Title", font_size=48, weight=BOLD)
             # title.move_to(UP * 3.8)
-            # play_text_in_slot(self, Write(title), tracker.duration * 0.3)
+            # play_text_next(self, beats, Write(title))
             #
             # box = Rectangle(width=4, height=2.2, color=BLUE)
             # box.move_to(ORIGIN)
-            # play_in_slot(self, Create(box), tracker.duration * 0.7)
+            # play_next(self, beats, Create(box))
+            #
+            # footer = Text("Key idea", font_size=30)
+            # footer.next_to(box, DOWN, buff=0.4)
+            # safe_position(footer)
+            # play_text_next(self, beats, FadeIn(footer))
             self.wait(tracker.duration)
 """
 

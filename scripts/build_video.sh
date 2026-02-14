@@ -65,6 +65,7 @@ LOG_FILE="${PROJECT_DIR}/build.log"
 
 # Reference docs (relative to script location)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCENE_QC_PROMPT_DOC="${SCRIPT_DIR}/../docs/SCENE_QC_AGENT_PROMPT.md"
 REFERENCE_DOCS=(
   "${SCRIPT_DIR}/../reference_docs/manim_content_pipeline.md"
   "${SCRIPT_DIR}/../reference_docs/manim_voiceover.md"
@@ -162,6 +163,7 @@ try:
         'review',
         'narration',
         'build_scenes',
+        'scene_qc',
         'precache_voiceovers',
         'final_render',
         'assemble',
@@ -409,6 +411,11 @@ PY
   
   # Change to project directory for agent execution
   cd "$PROJECT_DIR"
+
+  local phase_specific_instruction=""
+  if [[ "$phase" == "build_scenes" ]]; then
+    phase_specific_instruction="- Read AGENTS.md CAREFULLY before writing or editing any scene code."
+  fi
   
   # Create a temporary prompt file
   local prompt_file=".agent_prompt_${phase}.md"
@@ -451,6 +458,9 @@ IMPORTANT PATH NOTE:
 - Your working directory is the project directory, which does NOT contain a ./scripts folder.
 - If you need to scaffold a scene, run the scaffold tool via the absolute path above, e.g.:
   python3 "${SCRIPT_DIR}/scaffold_scene.py" --project . --scene-id <scene_id> --class-name <ClassName> --narration-key <key>
+
+PHASE-SPECIFIC REMINDER:
+${phase_specific_instruction}
 
 TOPIC REQUIREMENT:
 - For the plan phase, you MUST use the provided video topic (above). If it is empty, fail the phase with an error explaining how to set it.
@@ -796,6 +806,88 @@ PYEOF
   return 0
 }
 
+handle_scene_qc() {
+  echo "🧪 Running scene QC pass..." | tee -a "$LOG_FILE"
+  cd "$PROJECT_DIR"
+
+  if [[ ! -f "$SCENE_QC_PROMPT_DOC" ]]; then
+    echo "❌ Missing scene QC prompt doc: $SCENE_QC_PROMPT_DOC" | tee -a "$LOG_FILE" >&2
+    return 1
+  fi
+
+  local scene_count
+  scene_count=$(ls scene_*.py 2>/dev/null | wc -l | tr -d ' ')
+  if [[ "${scene_count:-0}" -eq 0 ]]; then
+    echo "❌ No scene files found for QC" | tee -a "$LOG_FILE" >&2
+    return 1
+  fi
+
+  local prompt_file=".agent_prompt_scene_qc.md"
+  cat > "$prompt_file" <<EOF
+You are executing a dedicated scene quality-control pass for this project.
+
+Working directory: ${PROJECT_DIR}
+State file: ${STATE_FILE}
+
+Primary instructions:
+- Read and follow docs/SCENE_QC_AGENT_PROMPT.md exactly.
+- Validate and patch all scene_*.py files in this directory.
+- Keep creative intent; fix timing sync and overlap/layout defects.
+- Do NOT edit project_state.json.
+- Write a report file named scene_qc_report.md in this directory.
+
+Attached files include:
+- AGENTS.md
+- docs/SCENE_QC_AGENT_PROMPT.md
+- project_state.json
+
+Begin now.
+EOF
+
+  opencode run --model "xai/grok-code-fast-1" \
+    --file "$prompt_file" \
+    --file "${SCRIPT_DIR}/../AGENTS.md" \
+    --file "$SCENE_QC_PROMPT_DOC" \
+    --file "$STATE_FILE" \
+    -- \
+    "Read .agent_prompt_scene_qc.md and execute the QC pass. Patch scene_*.py and write scene_qc_report.md." \
+    2>&1 | tee -a "$LOG_FILE"
+
+  local exit_code=${PIPESTATUS[0]}
+  if [[ $exit_code -ne 0 ]]; then
+    # Some environments do not expose the pinned xai model to opencode.
+    # Fallback to the user's default configured model for this QC pass.
+    if tail -n 120 "$LOG_FILE" | grep -q "ProviderModelNotFoundError"; then
+      echo "⚠ Requested model unavailable for scene_qc; retrying with default model..." | tee -a "$LOG_FILE"
+      opencode run \
+        --file "$prompt_file" \
+        --file "${SCRIPT_DIR}/../AGENTS.md" \
+        --file "$SCENE_QC_PROMPT_DOC" \
+        --file "$STATE_FILE" \
+        -- \
+        "Read .agent_prompt_scene_qc.md and execute the QC pass. Patch scene_*.py and write scene_qc_report.md." \
+        2>&1 | tee -a "$LOG_FILE"
+      exit_code=${PIPESTATUS[0]}
+    fi
+  fi
+
+  rm -f "$prompt_file"
+
+  if [[ $exit_code -ne 0 ]]; then
+    echo "❌ Scene QC agent failed with exit code: $exit_code" | tee -a "$LOG_FILE"
+    return 1
+  fi
+
+  if [[ ! -s "scene_qc_report.md" ]]; then
+    echo "❌ scene_qc_report.md missing or empty after scene QC" | tee -a "$LOG_FILE" >&2
+    return 1
+  fi
+
+  echo "✓ Scene QC complete: scene_qc_report.md" | tee -a "$LOG_FILE"
+  apply_state_phase "scene_qc" || true
+  return 0
+}
+
 handle_final_render() {
   echo "🎬 Final render with cached Qwen voiceover..." | tee -a "$LOG_FILE"
   export MANIM_VOICE_PROD=1
@@ -859,11 +951,12 @@ PY
 
   # Best-effort repair: ensure scene metadata needed for rendering exists.
   # (Some agents forget to persist scene file/class_name into project_state.json.)
-  python3 - <<'PY'
+  STATE_FILE="$STATE_FILE" PROJECT_DIR="$PROJECT_DIR" python3 - <<'PY'
 import json
 import os
 import re
 from datetime import datetime
+from typing import Optional
 
 state_file = os.environ.get("STATE_FILE")
 project_dir = os.environ.get("PROJECT_DIR")
@@ -877,7 +970,7 @@ scenes = state.get("scenes") or []
 changed = False
 notes = []
 
-def infer_class_name(scene_path: str) -> str | None:
+def infer_class_name(scene_path: str) -> Optional[str]:
     try:
         with open(scene_path, "r") as sf:
             txt = sf.read()
@@ -1368,6 +1461,7 @@ while [[ $iteration -lt $MAX_RUNS ]]; do
       review) handle_review ;;
       narration) handle_narration ;;
       build_scenes) handle_build_scenes ;;
+      scene_qc) handle_scene_qc ;;
       precache_voiceovers) handle_precache_voiceovers ;;
       final_render) handle_final_render ;;
       assemble) handle_assemble ;;
