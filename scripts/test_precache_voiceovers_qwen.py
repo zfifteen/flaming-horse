@@ -136,7 +136,6 @@ class TestFullPrecacheFlow(unittest.TestCase):
             
             # Run precache (this should use mock mode)
             from precache_voiceovers_qwen import main as precache_main
-            import sys
             old_argv = sys.argv
             try:
                 sys.argv = ["precache_voiceovers_qwen.py", str(project_dir)]
