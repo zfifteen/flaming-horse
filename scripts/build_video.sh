@@ -458,6 +458,7 @@ Begin execution now.
 EOF
   
   # Check if opencode is available; fall back to deterministic generator if not.
+  local exit_code=0
   if command -v opencode >/dev/null 2>&1; then
     # Invoke OpenCode with Grok - message must come after all options
     opencode run --model "xai/grok-code-fast-1" \
@@ -471,12 +472,12 @@ EOF
       "Read the first attached file (.agent_prompt_${phase}.md) which contains your complete instructions. Execute the ${phase} phase as described. All reference documentation and the current project state are also attached." \
       2>&1 | tee -a "$LOG_FILE"
 
-    local exit_code=${PIPESTATUS[0]}
+    exit_code=${PIPESTATUS[0]}
   else
     echo "⚠ opencode not found; using fallback agent for phase: $phase" | tee -a "$LOG_FILE"
     python3 "${SCRIPT_DIR}/fallback_agent.py" "$phase" "$PROJECT_DIR" "${SCRIPT_DIR}/scaffold_scene.py" \
       2>&1 | tee -a "$LOG_FILE"
-    local exit_code=${PIPESTATUS[0]}
+    exit_code=${PIPESTATUS[0]}
   fi
 
   # Clean up prompt file

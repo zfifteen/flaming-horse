@@ -81,8 +81,7 @@ def generate_narration(topic: str, plan: dict) -> str:
         "SCRIPT = {",
     ]
     for key, text in scripts.items():
-        escaped = text.replace("\\", "\\\\").replace('"', '\\"')
-        lines.append(f'    "{key}": """{escaped}""",')
+        lines.append(f'    "{key}": """{text}""",')
     lines.append("}")
     lines.append("")
     return "\n".join(lines)
