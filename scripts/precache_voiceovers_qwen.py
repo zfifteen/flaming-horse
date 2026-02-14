@@ -8,6 +8,11 @@ import time
 from pathlib import Path
 
 
+# Voice generation constants
+WORDS_PER_SECOND = 2.5  # ~150 words per minute reading speed
+MIN_DURATION_SECONDS = 0.5  # Minimum audio duration
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Precache Qwen3 voiceovers")
     parser.add_argument("project_dir", help="Project directory path")
@@ -111,9 +116,9 @@ def generate_mock_cache(
     
     entries = []
     for narration_key, text in script.items():
-        # Calculate duration based on word count (~2.5 words/sec = 150 WPM)
+        # Calculate duration based on word count
         word_count = len(text.split())
-        duration = max(0.5, word_count / 2.5)
+        duration = max(MIN_DURATION_SECONDS, word_count / WORDS_PER_SECOND)
         
         # First create a WAV file using Python's wave module
         sample_rate = 24000

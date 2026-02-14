@@ -32,7 +32,9 @@ source ~/qwen3-tts-local/.venv/bin/activate
 pip install torch transformers soundfile
 
 # Install qwen_tts package
-# Note: Replace with actual installation command when available
+# TODO: The qwen-tts package may not be publicly available yet.
+# Check Hugging Face documentation or use the official installation method:
+# pip install git+https://github.com/QwenLM/qwen-tts.git
 pip install qwen-tts
 ```
 

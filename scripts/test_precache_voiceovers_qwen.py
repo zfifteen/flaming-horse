@@ -18,6 +18,9 @@ from precache_voiceovers_qwen import (
     generate_mock_cache,
 )
 
+# Test constants
+CACHE_DIR_PATH = "media/voiceovers/qwen"
+
 
 class TestQwenEnvCheck(unittest.TestCase):
     """Test the Qwen environment availability check."""
@@ -46,7 +49,7 @@ class TestMockCacheGeneration(unittest.TestCase):
     def test_generate_mock_cache_creates_files(self):
         """Should create audio files and cache entries."""
         with tempfile.TemporaryDirectory() as td:
-            output_dir = Path(td) / "media" / "voiceovers" / "qwen"
+            output_dir = Path(td) / CACHE_DIR_PATH
             
             script = {
                 "intro": "Hello world, this is a test.",
@@ -78,7 +81,7 @@ class TestMockCacheGeneration(unittest.TestCase):
     def test_generate_mock_cache_calculates_duration_from_word_count(self):
         """Should calculate appropriate duration based on word count."""
         with tempfile.TemporaryDirectory() as td:
-            output_dir = Path(td) / "media" / "voiceovers" / "qwen"
+            output_dir = Path(td) / CACHE_DIR_PATH
             
             # Test with known word counts
             script = {
@@ -145,7 +148,7 @@ class TestFullPrecacheFlow(unittest.TestCase):
                 self.assertEqual(result, 0)
                 
                 # Check cache was created
-                cache_file = project_dir / "media" / "voiceovers" / "qwen" / "cache.json"
+                cache_file = project_dir / CACHE_DIR_PATH / "cache.json"
                 self.assertTrue(cache_file.exists())
                 
                 cache = json.loads(cache_file.read_text(encoding="utf-8"))
@@ -154,7 +157,7 @@ class TestFullPrecacheFlow(unittest.TestCase):
                 self.assertEqual(cache[0]["text"], "Hello world")
                 
                 # Check audio file exists
-                audio_file = project_dir / "media" / "voiceovers" / "qwen" / cache[0]["audio_file"]
+                audio_file = project_dir / CACHE_DIR_PATH / cache[0]["audio_file"]
                 self.assertTrue(audio_file.exists())
                 self.assertGreater(audio_file.stat().st_size, 0)
             finally:
