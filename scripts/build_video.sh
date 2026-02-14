@@ -19,6 +19,8 @@ shift || true
 TOPIC_OVERRIDE=""
 MAX_RUNS=50
 MAX_RUNS_EXPLICIT=0
+PHASE_RETRY_LIMIT=3
+PHASE_RETRY_BACKOFF_SECONDS=2
 while [[ ${#} -gt 0 ]]; do
   case "${1}" in
     --topic)
@@ -203,6 +205,75 @@ apply_state_phase() {
     --mode apply \
     --phase "${phase}" \
     >/dev/null
+}
+
+is_retryable_phase() {
+  local phase="$1"
+  case "$phase" in
+    init|plan|narration|build_scenes|scene_qc|final_render|assemble)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+get_retry_context_file() {
+  local phase="$1"
+  printf "%s/.agent_retry_%s.md" "$PROJECT_DIR" "$phase"
+}
+
+build_retry_context() {
+  local phase="$1"
+  local attempt="$2"
+  local context_file
+  context_file="$(get_retry_context_file "$phase")"
+
+  python3 - <<PY > "$context_file"
+import json
+from pathlib import Path
+from datetime import datetime
+
+phase = "${phase}"
+attempt = int("${attempt}")
+limit = int("${PHASE_RETRY_LIMIT}")
+state_path = Path("${STATE_FILE}")
+log_path = Path("${LOG_FILE}")
+
+state_error = "(none)"
+if state_path.exists():
+    try:
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+        errors = state.get("errors") if isinstance(state.get("errors"), list) else []
+        if errors:
+            state_error = str(errors[-1])
+    except Exception as exc:
+        state_error = f"(failed to parse state error: {exc})"
+
+log_excerpt = []
+if log_path.exists():
+    lines = log_path.read_text(encoding="utf-8", errors="replace").splitlines()
+    for line in lines[-140:]:
+        if any(k in line for k in ["Syntax", "Traceback", "ERROR", "failed", "validation", "Exception"]):
+            log_excerpt.append(line)
+    if not log_excerpt:
+        log_excerpt = lines[-40:]
+
+print(f"Retry context for phase '{phase}'")
+print(f"Attempt: {attempt}/{limit}")
+print(f"Generated: {datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')}")
+print()
+print("The previous attempt failed. Fix the failure and execute ONLY this same phase.")
+print("Do not modify project_state.json.")
+print()
+print("Most recent state error:")
+print(state_error)
+print()
+print("Recent build.log excerpt:")
+for ln in log_excerpt[-80:]:
+    print(ln)
+PY
 }
 
 ensure_topic_present_for_plan() {
@@ -416,6 +487,15 @@ PY
   if [[ "$phase" == "build_scenes" ]]; then
     phase_specific_instruction="- Read AGENTS.md CAREFULLY before writing or editing any scene code."
   fi
+
+  local retry_context_file
+  retry_context_file="$(get_retry_context_file "$phase")"
+  local retry_context_notice=""
+  local -a retry_context_arg=()
+  if [[ -s "$retry_context_file" ]]; then
+    retry_context_notice=$'RETRY CONTEXT:\n- A retry context file is attached. Read it first and fix the exact failure before any new changes.\n'
+    retry_context_arg=(--file "$retry_context_file")
+  fi
   
   # Create a temporary prompt file
   local prompt_file=".agent_prompt_${phase}.md"
@@ -462,6 +542,8 @@ IMPORTANT PATH NOTE:
 PHASE-SPECIFIC REMINDER:
 ${phase_specific_instruction}
 
+${retry_context_notice}
+
 TOPIC REQUIREMENT:
 - For the plan phase, you MUST use the provided video topic (above). If it is empty, fail the phase with an error explaining how to set it.
 
@@ -470,13 +552,14 @@ EOF
   
   # Invoke OpenCode with Grok - message must come after all options
   # TODO Replace this with an option to select from available models configured in OpenCode
-  opencode run --model "xai/grok-code-fast-1" \
+  opencode run --model "xai/grok-4-1-fast" \
     --file "$prompt_file" \
     --file "${SCRIPT_DIR}/../reference_docs/manim_content_pipeline.md" \
     --file "${SCRIPT_DIR}/../reference_docs/manim_voiceover.md" \
     --file "${SCRIPT_DIR}/../reference_docs/manim_template.py.txt" \
     --file "${SCRIPT_DIR}/../reference_docs/manim_config_guide.md" \
     --file "$STATE_FILE" \
+    "${retry_context_arg[@]}" \
     -- \
     "Read the first attached file (.agent_prompt_${phase}.md) which contains your complete instructions. Execute the ${phase} phase as described. All reference documentation and the current project state are also attached." \
     2>&1 | tee -a "$LOG_FILE"
@@ -492,6 +575,130 @@ EOF
   fi
   
   echo "[Run $run_num] Agent completed phase: $phase" | tee -a "$LOG_FILE"
+}
+
+scene_python_syntax_ok() {
+  local scene_file="$1"
+  cd "$PROJECT_DIR"
+  python3 - <<PY >/dev/null 2>&1
+import pathlib
+path = pathlib.Path("${scene_file}")
+if not path.exists():
+    raise SystemExit(1)
+compile(path.read_text(encoding="utf-8"), "${scene_file}", "exec")
+PY
+}
+
+extract_recent_error_excerpt() {
+  local scene_file="$1"
+  python3 - <<PY
+from pathlib import Path
+
+log_path = Path("${LOG_FILE}")
+if not log_path.exists():
+    print("No build.log found")
+    raise SystemExit(0)
+
+lines = log_path.read_text(encoding="utf-8", errors="replace").splitlines()
+window = lines[-220:]
+keywords = ["Traceback", "Error", "Exception", "failed", "Syntax", "Indentation"]
+filtered = [ln for ln in window if ("${scene_file}" in ln) or any(k in ln for k in keywords)]
+snippet = filtered[-80:] if filtered else window[-40:]
+print("\n".join(snippet))
+PY
+}
+
+invoke_scene_fix_agent() {
+  local scene_id="$1"
+  local scene_file="$2"
+  local scene_class="$3"
+  local failure_reason="$4"
+  local attempt="$5"
+
+  cd "$PROJECT_DIR"
+
+  local prompt_file=".agent_prompt_fix_${scene_id}.md"
+  cat > "$prompt_file" <<EOF
+$(cat "${SCRIPT_DIR}/../AGENTS.md")
+
+───────────────────────────────────────────────────────────────
+
+CURRENT TASK:
+
+You are repairing one broken scene file so final_render can proceed.
+
+Target scene id: ${scene_id}
+Target file: ${scene_file}
+Target class: ${scene_class}
+Retry attempt: ${attempt}/${PHASE_RETRY_LIMIT}
+
+Failure details to fix:
+${failure_reason}
+
+INSTRUCTIONS:
+1. Edit ONLY ${scene_file}
+2. Fix the deterministic failure shown above (syntax/runtime/import/validation)
+3. Preserve AGENTS.md requirements (cached Qwen voice, SCRIPT dict usage, safe positioning, BeatPlan timing helpers)
+4. Do NOT edit project_state.json
+5. Do not add fallback code; make the scene valid and renderable
+
+When done, stop.
+EOF
+
+  opencode run --model "xai/grok-4-1-fast" \
+    --file "$prompt_file" \
+    --file "${SCRIPT_DIR}/../reference_docs/manim_content_pipeline.md" \
+    --file "${SCRIPT_DIR}/../reference_docs/manim_voiceover.md" \
+    --file "${SCRIPT_DIR}/../reference_docs/manim_template.py.txt" \
+    --file "${SCRIPT_DIR}/../reference_docs/manim_config_guide.md" \
+    --file "$STATE_FILE" \
+    --file "$scene_file" \
+    -- \
+    "Repair ${scene_file} for final_render. Execute only that targeted fix." \
+    2>&1 | tee -a "$LOG_FILE"
+
+  local exit_code=${PIPESTATUS[0]}
+  rm -f "$prompt_file"
+  return $exit_code
+}
+
+repair_scene_until_valid() {
+  local scene_id="$1"
+  local scene_file="$2"
+  local scene_class="$3"
+  local reason="$4"
+
+  local attempt=0
+  while [[ $attempt -lt $PHASE_RETRY_LIMIT ]]; do
+    attempt=$((attempt + 1))
+    echo "🛠 Self-heal scene ${scene_id} attempt ${attempt}/${PHASE_RETRY_LIMIT}" | tee -a "$LOG_FILE"
+
+    if ! invoke_scene_fix_agent "$scene_id" "$scene_file" "$scene_class" "$reason" "$attempt"; then
+      reason="Agent repair invocation failed for ${scene_file}."
+      continue
+    fi
+
+    if ! scene_python_syntax_ok "$scene_file"; then
+      reason="Scene still has Python syntax errors after repair."
+      continue
+    fi
+
+    if ! validate_scene_imports "$scene_file"; then
+      reason="Scene failed import validation after repair."
+      continue
+    fi
+
+    if ! validate_voiceover_sync "$scene_file"; then
+      reason="Scene failed voiceover sync validation after repair."
+      continue
+    fi
+
+    echo "✓ Self-heal produced a valid scene file: ${scene_file}" | tee -a "$LOG_FILE"
+    return 0
+  done
+
+  echo "✗ Self-heal exhausted for ${scene_file}" | tee -a "$LOG_FILE"
+  return 1
 }
 
 # ─── Phase Handlers ──────────────────────────────────────────────────
@@ -844,7 +1051,7 @@ Attached files include:
 Begin now.
 EOF
 
-  opencode run --model "xai/grok-code-fast-1" \
+  opencode run --model "xai/grok-4-1-fast" \
     --file "$prompt_file" \
     --file "${SCRIPT_DIR}/../AGENTS.md" \
     --file "$SCENE_QC_PROMPT_DOC" \
@@ -1165,6 +1372,31 @@ PY
   while IFS='|' read -r scene_id scene_file scene_class est_duration; do
     [[ -n "$scene_id" ]] || continue
 
+    # Pre-render syntax gate with self-healing.
+    if ! scene_python_syntax_ok "$scene_file"; then
+      echo "⚠ Pre-render syntax check failed for ${scene_file}. Starting self-heal..." | tee -a "$LOG_FILE"
+      local syntax_reason
+      syntax_reason=$(extract_recent_error_excerpt "$scene_file")
+      if ! repair_scene_until_valid "$scene_id" "$scene_file" "$scene_class" "$syntax_reason"; then
+        echo "❌ Could not repair ${scene_file} after ${PHASE_RETRY_LIMIT} attempts" | tee -a "$LOG_FILE" >&2
+        python3 - <<PY
+import json
+from datetime import datetime
+
+with open("${STATE_FILE}", "r") as f:
+    state = json.load(f)
+
+state.setdefault("errors", []).append("final_render failed: scene ${scene_id} self-heal exhausted")
+state.setdefault("flags", {})["needs_human_review"] = True
+state["updated_at"] = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+
+with open("${STATE_FILE}", "w") as f:
+    json.dump(state, f, indent=2)
+PY
+        exit 1
+      fi
+    fi
+
     # If the output already exists and verifies, don't re-render.
     if verify_scene_video "$scene_id" "$scene_class"; then
       update_state_rendered "$scene_id" "$scene_class" "$est_duration"
@@ -1188,28 +1420,50 @@ PY
     echo "" | tee -a "$LOG_FILE"
     echo "$ manim render $scene_file $scene_class -qh" | tee -a "$LOG_FILE"
 
-    # Retry a small number of times on transient voiceover errors
+    # Scene-level retry + self-heal loop.
     local attempt=0
-    local max_attempts=5
-    local backoff=10
     local ok=0
-    while [[ $attempt -lt $max_attempts ]]; do
+    while [[ $attempt -lt $PHASE_RETRY_LIMIT ]]; do
       attempt=$((attempt + 1))
 
-      if "$manim_bin" render "$scene_file" "$scene_class" -qh 2>&1 | tee -a "$LOG_FILE"; then
+      local transient_attempt=0
+      local transient_max_attempts=5
+      local backoff=10
+      local render_ok=0
+      while [[ $transient_attempt -lt $transient_max_attempts ]]; do
+        transient_attempt=$((transient_attempt + 1))
+
+        if "$manim_bin" render "$scene_file" "$scene_class" -qh 2>&1 | tee -a "$LOG_FILE"; then
+          render_ok=1
+          break
+        fi
+
+        # If it looks like a transient voiceover error, wait and retry.
+        if tail -n 200 "$LOG_FILE" | grep -q "too_many_concurrent_requests"; then
+          echo "⚠ Voiceover concurrency limit hit; retrying in ${backoff}s (attempt ${transient_attempt}/${transient_max_attempts})" | tee -a "$LOG_FILE"
+          sleep "$backoff"
+          backoff=$((backoff * 2))
+          continue
+        fi
+
+        break
+      done
+
+      if [[ $render_ok -eq 1 ]]; then
         ok=1
         break
       fi
 
-      # If it looks like a transient voiceover error, wait and retry
-      if tail -n 200 "$LOG_FILE" | grep -q "too_many_concurrent_requests"; then
-        echo "⚠ Voiceover concurrency limit hit; retrying in ${backoff}s (attempt ${attempt}/${max_attempts})" | tee -a "$LOG_FILE"
-        sleep "$backoff"
-        backoff=$((backoff * 2))
-        continue
+      if [[ $attempt -ge $PHASE_RETRY_LIMIT ]]; then
+        break
       fi
 
-      break
+      echo "⚠ Render failed for ${scene_id}; attempting self-heal (${attempt}/${PHASE_RETRY_LIMIT})" | tee -a "$LOG_FILE"
+      local failure_reason
+      failure_reason=$(extract_recent_error_excerpt "$scene_file")
+      if ! repair_scene_until_valid "$scene_id" "$scene_file" "$scene_class" "$failure_reason"; then
+        break
+      fi
     done
 
     if [[ $ok -ne 1 ]]; then
@@ -1307,13 +1561,19 @@ import json
 from datetime import datetime
 with open("${STATE_FILE}", "r") as f:
     state = json.load(f)
-state["errors"].append("Assemble failed: one or more scene video files are missing")
-state["flags"]["needs_human_review"] = True
+state.setdefault("errors", []).append("Assemble incomplete: one or more scene video files are missing; routing back to final_render")
+state.setdefault("flags", {})["needs_human_review"] = False
+state["phase"] = "final_render"
 state["updated_at"] = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+state.setdefault("history", []).append({
+    "timestamp": datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ'),
+    "phase": "assemble",
+    "action": "Missing scene inputs detected; moved phase back to final_render",
+})
 with open("${STATE_FILE}", "w") as f:
     json.dump(state, f, indent=2)
 PY
-    exit 1
+    return 0
   fi
 
   # Assemble with concat filter + audio timestamp normalization (no -c copy)
@@ -1328,7 +1588,7 @@ PY
   filter_complex="${filter_inputs}concat=n=${n}:v=1:a=1[v][a];[a]aresample=async=1:first_pts=0[aout]"
 
   echo "$ ffmpeg (concat filter) -> final_video.mp4" | tee -a "$LOG_FILE"
-  ffmpeg -y \
+  if ! ffmpeg -y \
     "${ffmpeg_inputs[@]}" \
     -filter_complex "$filter_complex" \
     -map "[v]" -map "[aout]" \
@@ -1336,7 +1596,21 @@ PY
     -c:a aac -b:a 192k -ar 48000 \
     -movflags +faststart \
     "${PROJECT_DIR}/final_video.mp4" \
-    2>&1 | tee -a "$LOG_FILE"
+    2>&1 | tee -a "$LOG_FILE"; then
+    echo "❌ ffmpeg assembly command failed" | tee -a "$LOG_FILE" >&2
+    python3 - <<PY
+import json
+from datetime import datetime
+with open("${STATE_FILE}", "r") as f:
+    state = json.load(f)
+state.setdefault("errors", []).append("assemble failed: ffmpeg concat command failed")
+state.setdefault("flags", {})["needs_human_review"] = False
+state["updated_at"] = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+with open("${STATE_FILE}", "w") as f:
+    json.dump(state, f, indent=2)
+PY
+    return 1
+  fi
 
   if [[ ! -s "${PROJECT_DIR}/final_video.mp4" ]]; then
     echo "❌ final_video.mp4 not created or empty" | tee -a "$LOG_FILE" >&2
@@ -1404,6 +1678,58 @@ handle_complete() {
   exit 0
 }
 
+run_phase_once() {
+  local phase="$1"
+  local rc=0
+
+  set +e
+  case "$phase" in
+    init) handle_init ;;
+    plan) handle_plan ;;
+    review) handle_review ;;
+    narration) handle_narration ;;
+    build_scenes) handle_build_scenes ;;
+    scene_qc) handle_scene_qc ;;
+    precache_voiceovers) handle_precache_voiceovers ;;
+    final_render) handle_final_render ;;
+    assemble) handle_assemble ;;
+    complete) handle_complete ;;
+    *) echo "❌ Unknown phase: $phase" >&2; rc=1 ;;
+  esac
+  rc=$?
+  set -e
+  return $rc
+}
+
+mark_retry_exhausted() {
+  local phase="$1"
+
+  python3 - <<PY
+import json
+from datetime import datetime
+
+with open("${STATE_FILE}", "r") as f:
+    state = json.load(f)
+
+state.setdefault("errors", []).append(
+    "Phase ${phase} failed after ${PHASE_RETRY_LIMIT} attempts: see build.log"
+)
+state.setdefault("flags", {})["needs_human_review"] = True
+state["updated_at"] = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+state.setdefault("history", []).append(
+    {
+        "timestamp": datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ'),
+        "phase": "${phase}",
+        "action": "retry_exhausted",
+        "reason": "self-healing attempts exhausted",
+    }
+)
+
+with open("${STATE_FILE}", "w") as f:
+    json.dump(state, f, indent=2)
+PY
+}
+
 # ─── Main Loop ───────────────────────────────────────────────────────
 
 main() {
@@ -1455,19 +1781,62 @@ while [[ $iteration -lt $MAX_RUNS ]]; do
     echo "Current phase: $current_phase" | tee -a "$LOG_FILE"
     echo "────────────────────────────────────────────────────────────────" | tee -a "$LOG_FILE"
     
-    case "$current_phase" in
-      init) handle_init ;;
-      plan) handle_plan ;;
-      review) handle_review ;;
-      narration) handle_narration ;;
-      build_scenes) handle_build_scenes ;;
-      scene_qc) handle_scene_qc ;;
-      precache_voiceovers) handle_precache_voiceovers ;;
-      final_render) handle_final_render ;;
-      assemble) handle_assemble ;;
-      complete) handle_complete ;;
-      *) echo "❌ Unknown phase: $current_phase" >&2; exit 1 ;;
-    esac
+    local phase_ok=0
+    local attempt=0
+    local phase_retry_file
+    phase_retry_file="$(get_retry_context_file "$current_phase")"
+
+    while true; do
+      attempt=$((attempt + 1))
+      if [[ $attempt -gt 1 ]]; then
+        echo "↻ Retry attempt ${attempt}/${PHASE_RETRY_LIMIT} for phase: $current_phase" | tee -a "$LOG_FILE"
+      fi
+
+      if run_phase_once "$current_phase"; then
+        phase_ok=1
+        rm -f "$phase_retry_file"
+        break
+      fi
+
+      normalize_state_json || true
+      local fail_needs_review
+      fail_needs_review=$(python3 -c "import json; print(json.load(open('${STATE_FILE}'))['flags'].get('needs_human_review', False))")
+      if [[ "$fail_needs_review" == "True" ]]; then
+        break
+      fi
+
+      if ! is_retryable_phase "$current_phase"; then
+        break
+      fi
+
+      if [[ $attempt -ge $PHASE_RETRY_LIMIT ]]; then
+        break
+      fi
+
+      echo "⚠ Phase $current_phase failed (attempt ${attempt}/${PHASE_RETRY_LIMIT}). Preparing retry context for agent..." | tee -a "$LOG_FILE"
+      build_retry_context "$current_phase" "$attempt"
+      sleep "$PHASE_RETRY_BACKOFF_SECONDS"
+    done
+
+    if [[ $phase_ok -ne 1 ]]; then
+      if is_retryable_phase "$current_phase"; then
+        echo "❌ Phase $current_phase failed after ${PHASE_RETRY_LIMIT} attempts. Marking for human review." | tee -a "$LOG_FILE"
+        mark_retry_exhausted "$current_phase"
+      else
+        echo "❌ Phase $current_phase failed (non-agent phase)." | tee -a "$LOG_FILE"
+      fi
+
+      normalize_state_json || true
+      local needs_review_fail
+      needs_review_fail=$(python3 -c "import json; print(json.load(open('${STATE_FILE}'))['flags'].get('needs_human_review', False))")
+      if [[ "$needs_review_fail" == "True" ]]; then
+        echo "⚠️  Human review required. Pausing build loop." | tee -a "$LOG_FILE"
+        echo "Check $STATE_FILE for details" | tee -a "$LOG_FILE"
+        exit 0
+      fi
+
+      exit 1
+    fi
 
     # Post-phase: normalize state and deterministically apply phase transition.
     if ! normalize_state_json; then
