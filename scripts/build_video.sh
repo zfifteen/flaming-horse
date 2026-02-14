@@ -1,26 +1,42 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(realpath "${SCRIPT_DIR}/..")"
+ENV_FILE="${REPO_ROOT}/.env"
+
+if [[ -f "${ENV_FILE}" ]]; then
+  # shellcheck disable=SC1090
+  source "${ENV_FILE}"
+fi
+
+AGENT_MODEL="${AGENT_MODEL:-xai/grok-4-1-fast}"
+PROJECTS_BASE_DIR="${PROJECTS_BASE_DIR:-projects}"
+PROJECT_DEFAULT_NAME="${PROJECT_DEFAULT_NAME:-default_video}"
+MAX_RUNS="${MAX_RUNS:-50}"
+PHASE_RETRY_LIMIT="${PHASE_RETRY_LIMIT:-3}"
+PHASE_RETRY_BACKOFF_SECONDS="${PHASE_RETRY_BACKOFF_SECONDS:-2}"
+
 # Force offline mode for all HuggingFace/Transformers usage in this pipeline.
-export HF_HUB_OFFLINE=1
-export TRANSFORMERS_OFFLINE=1
-export TOKENIZERS_PARALLELISM=false
+HF_HUB_OFFLINE="${HF_HUB_OFFLINE:-1}"
+TRANSFORMERS_OFFLINE="${TRANSFORMERS_OFFLINE:-1}"
+TOKENIZERS_PARALLELISM="${TOKENIZERS_PARALLELISM:-false}"
+export HF_HUB_OFFLINE
+export TRANSFORMERS_OFFLINE
+export TOKENIZERS_PARALLELISM
 
 # ─── Configuration ───────────────────────────────────────────────────
 if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
-  echo "Usage: $0 <project_dir> [--topic \"<video topic>\"] [--max-runs N]" >&2
+  echo "Usage: $0 [project_dir] [--topic \"<video topic>\"] [--max-runs N]" >&2
   exit 0
 fi
 
-PROJECT_DIR_INPUT="${1:-.}" # Original input, could be relative
+PROJECT_DIR_INPUT="${1:-${PROJECTS_BASE_DIR}/${PROJECT_DEFAULT_NAME}}" # Original input, could be relative
 shift || true
 
 # Optional topic injection (primarily for plan phase)
 TOPIC_OVERRIDE=""
-MAX_RUNS=50
 MAX_RUNS_EXPLICIT=0
-PHASE_RETRY_LIMIT=3
-PHASE_RETRY_BACKOFF_SECONDS=2
 while [[ ${#} -gt 0 ]]; do
   case "${1}" in
     --topic)
@@ -45,19 +61,24 @@ while [[ ${#} -gt 0 ]]; do
       shift 2
       ;;
     -h|--help)
-      echo "Usage: $0 <project_dir> [--topic \"<video topic>\"] [--max-runs N]" >&2
+      echo "Usage: $0 [project_dir] [--topic \"<video topic>\"] [--max-runs N]" >&2
       exit 0
       ;;
     *)
       echo "❌ Unknown argument: ${1}" >&2
-      echo "Usage: $0 <project_dir> [--topic \"<video topic>\"] [--max-runs N]" >&2
+      echo "Usage: $0 [project_dir] [--topic \"<video topic>\"] [--max-runs N]" >&2
       exit 1
       ;;
   esac
 done
 
 INITIAL_PWD="$(pwd)"
-PROJECT_DIR="$(realpath "${INITIAL_PWD}/${PROJECT_DIR_INPUT}")" # Absolute path to project directory
+if [[ "${PROJECT_DIR_INPUT}" = /* ]]; then
+  PROJECT_DIR_RAW="${PROJECT_DIR_INPUT}"
+else
+  PROJECT_DIR_RAW="${INITIAL_PWD}/${PROJECT_DIR_INPUT}"
+fi
+PROJECT_DIR="$(python3 -c 'import os,sys; print(os.path.abspath(sys.argv[1]))' "${PROJECT_DIR_RAW}")" # Absolute path to project directory
 
 STATE_FILE="${PROJECT_DIR}/project_state.json"
 STATE_BACKUP="${PROJECT_DIR}/.state_backup.json"
@@ -66,7 +87,6 @@ LOG_FILE="${PROJECT_DIR}/build.log"
 
 
 # Reference docs (relative to script location)
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCENE_QC_PROMPT_DOC="${SCRIPT_DIR}/../docs/SCENE_QC_AGENT_PROMPT.md"
 REFERENCE_DOCS=(
   "${SCRIPT_DIR}/../reference_docs/manim_content_pipeline.md"
@@ -550,9 +570,9 @@ TOPIC REQUIREMENT:
 Begin execution now.
 EOF
   
-  # Invoke OpenCode with Grok - message must come after all options
+  # Invoke OpenCode - message must come after all options
   # TODO Replace this with an option to select from available models configured in OpenCode
-  opencode run --model "xai/grok-4-1-fast" \
+  opencode run --model "${AGENT_MODEL}" \
     --file "$prompt_file" \
     --file "${SCRIPT_DIR}/../reference_docs/manim_content_pipeline.md" \
     --file "${SCRIPT_DIR}/../reference_docs/manim_voiceover.md" \
@@ -645,7 +665,7 @@ INSTRUCTIONS:
 When done, stop.
 EOF
 
-  opencode run --model "xai/grok-4-1-fast" \
+  opencode run --model "${AGENT_MODEL}" \
     --file "$prompt_file" \
     --file "${SCRIPT_DIR}/../reference_docs/manim_content_pipeline.md" \
     --file "${SCRIPT_DIR}/../reference_docs/manim_voiceover.md" \
@@ -1051,7 +1071,7 @@ Attached files include:
 Begin now.
 EOF
 
-  opencode run --model "xai/grok-4-1-fast" \
+  opencode run --model "${AGENT_MODEL}" \
     --file "$prompt_file" \
     --file "${SCRIPT_DIR}/../AGENTS.md" \
     --file "$SCENE_QC_PROMPT_DOC" \

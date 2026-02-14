@@ -2,6 +2,13 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(realpath "${SCRIPT_DIR}/..")"
+ENV_FILE="${REPO_ROOT}/.env"
+
+if [[ -f "${ENV_FILE}" ]]; then
+  # shellcheck disable=SC1090
+  source "${ENV_FILE}"
+fi
 
 usage() {
   cat <<EOF
@@ -11,6 +18,7 @@ Usage:
 
 Environment:
   VIDEO_TOPIC can be used instead of --topic.
+  PROJECTS_BASE_DIR sets the default project directory root.
 EOF
 }
 
@@ -22,7 +30,8 @@ fi
 shift
 
 TOPIC=""
-PROJECTS_DIR="./projects"
+PROJECTS_DIR="${PROJECTS_BASE_DIR:-./projects}"
+INITIAL_PWD="$(pwd)"
 
 # Backwards compatible positional projects_dir support.
 if [[ ${#} -gt 0 && "${1}" != --* ]]; then
@@ -67,6 +76,14 @@ TOPIC_JSON="null"
 if [[ -n "${TOPIC}" ]]; then
   TOPIC_JSON="$(python3 -c 'import json,sys; print(json.dumps(sys.argv[1]))' "${TOPIC}")"
 fi
+
+if [[ "${PROJECTS_DIR}" = /* ]]; then
+  PROJECTS_DIR_RAW="${PROJECTS_DIR}"
+else
+  PROJECTS_DIR_RAW="${INITIAL_PWD}/${PROJECTS_DIR}"
+fi
+PROJECTS_DIR="$(python3 -c 'import os,sys; print(os.path.abspath(sys.argv[1]))' "${PROJECTS_DIR_RAW}")"
+
 PROJECT_DIR="${PROJECTS_DIR}/${PROJECT_NAME}"
 
 mkdir -p "$PROJECT_DIR"
