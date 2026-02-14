@@ -1,9 +1,10 @@
 import argparse
 import json
 import os
-import threading
 import subprocess
 import sys
+import threading
+import time
 from pathlib import Path
 
 
@@ -61,6 +62,86 @@ def build_cache_entry(
     }
 
 
+def check_qwen_env_available(python_path_str: str) -> bool:
+    """Check if Qwen Python environment exists and is accessible."""
+    if not python_path_str:
+        return False
+    
+    python_path = Path(os.path.expanduser(python_path_str))
+    if not python_path.exists():
+        return False
+    
+    # Check if the Python can import qwen_tts
+    try:
+        result = subprocess.run(
+            [str(python_path), "-c", "import qwen_tts"],
+            capture_output=True,
+            timeout=5,
+        )
+        return result.returncode == 0
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        return False
+
+
+def generate_mock_cache(
+    script: dict,
+    output_dir: Path,
+    model_id: str,
+    ref_audio: str,
+    ref_text: str,
+) -> list:
+    """Generate mock cache entries with silent audio files."""
+    print("→ Generating mock cache entries (Qwen environment unavailable)")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    entries = []
+    for narration_key, text in script.items():
+        # Calculate duration based on word count (~2.5 words/sec = 150 WPM)
+        word_count = len(text.split())
+        duration = max(0.5, word_count / 2.5)
+        
+        audio_file = f"{narration_key}.mp3"
+        audio_path = output_dir / audio_file
+        
+        # Generate silent audio using ffmpeg
+        try:
+            subprocess.run(
+                [
+                    "ffmpeg",
+                    "-f", "lavfi",
+                    "-i", f"anullsrc=r=24000:cl=mono",
+                    "-t", str(duration),
+                    "-ac", "1",
+                    "-ar", "24000",
+                    "-b:a", "192k",
+                    "-y",
+                    str(audio_path),
+                ],
+                check=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            print(f"✓ Generated mock audio: {narration_key} ({duration:.2f}s)")
+        except (subprocess.CalledProcessError, FileNotFoundError) as e:
+            print(f"⚠ Warning: Failed to generate audio for {narration_key}: {e}")
+            # Create empty file as last resort
+            audio_path.touch()
+        
+        entry = build_cache_entry(
+            narration_key,
+            text,
+            audio_file,
+            model_id,
+            ref_audio,
+            ref_text,
+            duration,
+            time.time(),
+        )
+        entries.append(entry)
+    
+    return entries
+
+
 def main() -> int:
     args = parse_args()
     project_dir = Path(args.project_dir).resolve()
@@ -77,7 +158,14 @@ def main() -> int:
     output_dir = cfg.get("output_dir", "media/voiceovers/qwen")
 
     if not python_path:
-        raise ValueError("voice_clone_config.json must define qwen_python")
+        print("⚠ Warning: voice_clone_config.json missing qwen_python, using mock mode")
+        use_mock = True
+    elif not check_qwen_env_available(python_path):
+        print(f"⚠ Warning: Qwen Python environment unavailable at {python_path}")
+        print("→ Falling back to mock mode (silent audio)")
+        use_mock = True
+    else:
+        use_mock = False
 
     if not ref_audio or not ref_text_path:
         raise ValueError(
@@ -91,6 +179,27 @@ def main() -> int:
     cache_dir.mkdir(parents=True, exist_ok=True)
 
     cache_index_path = cache_dir / "cache.json"
+    
+    # If using mock mode, generate mock cache and exit
+    if use_mock:
+        updated_entries = generate_mock_cache(
+            script,
+            cache_dir,
+            model_id,
+            str(ref_audio_path),
+            ref_text,
+        )
+        cache_index_path.write_text(
+            json.dumps(updated_entries, indent=2),
+            encoding="utf-8",
+        )
+        print(f"✓ Updated cache index (mock): {cache_index_path}")
+        print("ℹ️  Videos will use silent audio. To use real Qwen voice:")
+        print(f"   1. Set up Qwen environment at: {python_path}")
+        print(f"   2. Re-run: python3 scripts/precache_voiceovers_qwen.py {project_dir}")
+        return 0
+    
+    # Real Qwen mode - proceed with worker
     existing_entries = []
     if cache_index_path.exists():
         existing_entries = json.loads(cache_index_path.read_text(encoding="utf-8"))
