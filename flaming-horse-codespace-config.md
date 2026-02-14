@@ -1,37 +1,34 @@
 # Flaming Horse Codespace Configuration
 
 Date: 2026-02-14  
-Scope: Create a reproducible Flaming Horse test environment in GitHub Codespaces using local Qwen3 TTS on CPU/float32.
+Scope: reproducible Codespaces rebuild for Flaming Horse with local cached Qwen voice (CPU + float32), matching current scripts.
 
 ---
 
-## 1) Goal and Constraints
+## 1) What this setup must satisfy
 
-This setup aligns with both:
+This document reflects the current behavior in:
 
-- Your Codespaces Qwen requirements (Python 3.12, CPU, float32, HF cache at `$HOME/.cache/huggingface`)
-- Flaming Horse repo policy (cached Qwen audio only, no network TTS fallback)
+- `scripts/create_video.sh`
+- `scripts/build_video.sh`
+- `scripts/new_project.sh`
+- `scripts/prepare_qwen_voice.py`
+- `scripts/precache_voiceovers_qwen.py`
 
-Important repo behavior to account for:
+Hard requirements enforced by the codebase:
 
-- `scripts/build_video.sh` forces offline mode:
-  - `HF_HUB_OFFLINE=1`
-  - `TRANSFORMERS_OFFLINE=1`
-- `scripts/prepare_qwen_voice.py` and `scripts/precache_voiceovers_qwen.py` require:
-  - `device == "cpu"`
-  - `dtype == "float32"`
-- If cached audio is missing, scene render fails by design.
-
-So the practical flow is:
-
-1. **One-time online model bootstrap** (download model into HF cache)
-2. **Offline Flaming Horse execution** (warmup, precache, render/build)
+- Qwen voice must run as local cached model, not network TTS.
+- Voice config must be CPU + float32.
+- Build flow runs offline for Hugging Face/Transformers.
+- Each project must have `voice_clone_config.json` and `assets/voice_ref/ref.wav` + `assets/voice_ref/ref.txt`.
+- `manim` must be on PATH for build/validation phases.
+- `opencode` CLI must be available for full end-to-end agent phases.
 
 ---
 
-## 2) Codespace Base Setup
+## 2) Rebuild from a fresh Codespace
 
-Run in repo root (`/workspaces/flaming-horse`).
+Run from repo root: `/workspaces/flaming-horse`.
 
 ### 2.1 System packages
 
@@ -40,312 +37,273 @@ sudo apt-get update
 sudo apt-get install -y ffmpeg sox git curl
 ```
 
-Notes:
-
-- `ffmpeg` is required by precache worker (WAV -> MP3 conversion) and final assembly.
-- `sox` is helpful for voice-related tooling and optional mock flows.
-
-### 2.2 Python environment (3.12)
-
-Create a dedicated venv for Qwen runtime (matching your local pattern):
+### 2.2 Python venv for Qwen + Manim runtime
 
 ```bash
-python3.12 -m venv "$HOME/qwen3-tts-local/.venv"
+python3 -m venv "$HOME/qwen3-tts-local/.venv"
 source "$HOME/qwen3-tts-local/.venv/bin/activate"
 python -m pip install --upgrade pip wheel setuptools
+pip install torch soundfile qwen-tts manim manim-voiceover-plus numpy moviepy
 ```
 
-Install runtime dependencies used by this repo’s Qwen workers:
+Quick check:
 
 ```bash
-pip install torch soundfile qwen-tts
-```
-
-Install Flaming Horse Python dependencies into the same venv:
-
-```bash
-pip install manim manim-voiceover-plus numpy moviepy
+/home/codespace/qwen3-tts-local/.venv/bin/python -c "import manim; print(manim.__version__)"
 ```
 
 ---
 
-## 3) Environment Variables (Session)
+## 3) Environment wiring used by this repo
 
-Export your baseline config:
+### 3.1 Repo-level `.env`
+
+The build scripts source `.env` automatically. Keep these values present:
+
+```dotenv
+AGENT_MODEL=xai/grok-4-1-fast
+PROJECTS_BASE_DIR=/workspaces/flaming-horse/projects
+PROJECT_DEFAULT_NAME=default_video
+MAX_RUNS=50
+PHASE_RETRY_LIMIT=4
+PHASE_RETRY_BACKOFF_SECONDS=5
+HF_HUB_OFFLINE=1
+TRANSFORMERS_OFFLINE=1
+TOKENIZERS_PARALLELISM=false
+PATH=/home/codespace/qwen3-tts-local/.venv/bin:$PATH
+PYTHONPATH=/workspaces/flaming-horse:${PYTHONPATH:-}
+```
+
+### 3.2 Shell persistence (`~/.bashrc`)
+
+Add this once so new terminals have `manim` and repo imports available:
+
+```bash
+cat >> ~/.bashrc <<'EOF'
+if [[ ":$PATH:" != *":/home/codespace/qwen3-tts-local/.venv/bin:"* ]]; then
+   export PATH="/home/codespace/qwen3-tts-local/.venv/bin:$PATH"
+fi
+case ":${PYTHONPATH:-}:" in
+   *":/workspaces/flaming-horse:"*) ;;
+   *) export PYTHONPATH="/workspaces/flaming-horse${PYTHONPATH:+:$PYTHONPATH}" ;;
+esac
+EOF
+source ~/.bashrc
+```
+
+---
+
+## 4) One-time Qwen model bootstrap (online)
+
+`build_video.sh` and `create_video.sh` enforce offline mode during pipeline runs, so model weights must be cached first.
+
+### 4.1 Set Hugging Face cache location
 
 ```bash
 export HF_HOME="$HOME/.cache/huggingface"
 export HF_HUB_ENABLE_HF_TRANSFER=1
+```
 
+### 4.2 Download model into local HF cache
+
+```bash
+source "$HOME/qwen3-tts-local/.venv/bin/activate"
+HF_HUB_OFFLINE=0 TRANSFORMERS_OFFLINE=0 \
+python - <<'PY'
+from qwen_tts import Qwen3TTSModel
+import torch
+
+Qwen3TTSModel.from_pretrained(
+      "Qwen/Qwen3-TTS-12Hz-1.7B-Base",
+      device_map="cpu",
+      dtype=torch.float32,
+)
+print("Qwen model cached successfully")
+PY
+```
+
+Verify:
+
+```bash
+find "$HF_HOME/hub" -maxdepth 3 -type d -name "models--Qwen--Qwen3-TTS-12Hz-1.7B-Base" -print
+```
+
+---
+
+## 5) Smoke test the Qwen runtime in Codespaces
+
+Script: `scripts/qwen_codespace_smoke_test.py`
+
+Required environment (this script enforces them):
+
+```bash
 export QWEN_TTS_MODEL="Qwen/Qwen3-TTS-12Hz-1.7B-Base"
 export QWEN_TTS_DEVICE="cpu"
 export QWEN_TTS_DTYPE="float32"
-
 export QWEN_TTS_MAX_NEW_TOKENS=256
 export QWEN_TTS_DO_SAMPLE=0
 export QWEN_TTS_TEMPERATURE=0.7
 export QWEN_TTS_TOP_P=0.9
 export QWEN_TTS_REPETITION_PENALTY=1.05
 export QWEN_TTS_INSTRUCT="Speak in clear English only. Do not switch languages."
-
 export QWEN_TTS_SPEAKER="Ryan"
 export QWEN_TTS_LANG="English"
 export QWEN_TTS_TEXT="This is a local Qwen3 TTS smoke test running in Codespaces."
 ```
 
-Optional persistence for future shells:
+If your installed `qwen_tts` runtime needs voice-clone mode, also set:
 
 ```bash
-cat >> ~/.bashrc <<'EOF'
-export HF_HOME="$HOME/.cache/huggingface"
-export HF_HUB_ENABLE_HF_TRANSFER=1
-export QWEN_TTS_MODEL="Qwen/Qwen3-TTS-12Hz-1.7B-Base"
-export QWEN_TTS_DEVICE="cpu"
-export QWEN_TTS_DTYPE="float32"
-EOF
+export QWEN_TTS_REF_AUDIO="/workspaces/flaming-horse/projects/matrix-multiplication/assets/voice_ref/ref.wav"
+export QWEN_TTS_REF_TEXT="/workspaces/flaming-horse/projects/matrix-multiplication/assets/voice_ref/ref.txt"
 ```
 
----
-
-## 4) One-Time Online Model Bootstrap
-
-Because Flaming Horse runs offline during build, do this once while internet access to Hugging Face is available.
-
-### 4.1 Verify HF cache location
-
-```bash
-python - <<'PY'
-import os
-print("HF_HOME=", os.environ.get("HF_HOME"))
-PY
-```
-
-Expected: `HF_HOME=/home/codespace/.cache/huggingface` (or your Codespace user path).
-
-### 4.2 Trigger model download into local cache
-
-Use your smoke test script below (Section 5). The first successful load will populate:
-
-- `$HF_HOME/hub/models--Qwen--Qwen3-TTS-12Hz-1.7B-Base/...`
-
----
-
-## 5) Qwen Smoke Test (`outputs/custom_voice.wav`)
-
-This verifies the exact requirements you listed.
-
-### 5.1 Run smoke test
+Run:
 
 ```bash
 source "$HOME/qwen3-tts-local/.venv/bin/activate"
 python3 scripts/qwen_codespace_smoke_test.py
 ```
 
-Success criteria:
-
-- File exists: `outputs/custom_voice.wav`
-- Command exits with code `0`
-- Prints model/device/dtype/knobs/elapsed time
-
-Script location:
-
-- `scripts/qwen_codespace_smoke_test.py`
-
-Failure behavior:
-
-- Any model load or generation error should fail non-zero and print exact exception.
+Success artifact: `outputs/custom_voice.wav`
 
 ---
 
-## 6) Configure Flaming Horse to Use This Environment
+## 6) Integrate Qwen into a project (framework path)
 
-### 6.1 Create or select a project
+### 6.1 Create project with topic
 
 ```bash
 ./scripts/new_project.sh codespace-test --topic "Explain square roots"
 ```
 
-Project path:
+This creates:
 
-- `projects/codespace-test`
-
-### 6.2 Update project voice config
-
-Edit:
-
+- `projects/codespace-test/project_state.json`
 - `projects/codespace-test/voice_clone_config.json`
-
-Set:
-
-```json
-{
-  "qwen_python": "~/qwen3-tts-local/.venv/bin/python",
-  "model_id": "Qwen/Qwen3-TTS-12Hz-1.7B-Base",
-  "device": "cpu",
-  "dtype": "float32",
-  "language": "English",
-  "ref_audio": "assets/voice_ref/ref.wav",
-  "ref_text": "assets/voice_ref/ref.txt",
-  "output_dir": "media/voiceovers/qwen"
-}
-```
-
-### 6.3 Verify project voice reference assets
-
-Required files:
-
 - `projects/codespace-test/assets/voice_ref/ref.wav`
 - `projects/codespace-test/assets/voice_ref/ref.txt`
 
-If they are missing or not your intended voice, replace them before warmup/precache.
+### 6.2 Confirm voice config
 
----
+`projects/codespace-test/voice_clone_config.json` must keep:
 
-## 7) Warmup + Precache (Repo-Aligned)
-
-### 7.1 Warmup Qwen (recommended)
-
-```bash
-source "$HOME/qwen3-tts-local/.venv/bin/activate"
-python3 scripts/prepare_qwen_voice.py --project-dir projects/codespace-test
+```json
+{
+   "qwen_python": "~/qwen3-tts-local/.venv/bin/python",
+   "model_id": "Qwen/Qwen3-TTS-12Hz-1.7B-Base",
+   "device": "cpu",
+   "dtype": "float32",
+   "language": "English",
+   "ref_audio": "assets/voice_ref/ref.wav",
+   "ref_text": "assets/voice_ref/ref.txt",
+   "output_dir": "media/voiceovers/qwen"
+}
 ```
 
-Expected artifact:
-
-- `projects/codespace-test/media/voiceovers/qwen/ready.json`
-
-### 7.2 Precache narration audio
-
-Requires `narration_script.py` to exist for the project.
+### 6.3 Warmup + precache
 
 ```bash
+python3 scripts/prepare_qwen_voice.py --project-dir projects/codespace-test
 python3 scripts/precache_voiceovers_qwen.py projects/codespace-test
 ```
 
-Expected artifacts:
+Expected outputs:
 
+- `projects/codespace-test/media/voiceovers/qwen/ready.json`
 - `projects/codespace-test/media/voiceovers/qwen/cache.json`
 - `projects/codespace-test/media/voiceovers/qwen/*.mp3`
 
-### 7.3 Run integration preflight (recommended)
-
-This validates config/assets/cache and can run prepare+precache in one command.
+### 6.4 Optional integrated validator
 
 ```bash
 python3 scripts/qwen_pipeline_preflight.py \
-    --project-dir projects/codespace-test \
-    --run-prepare \
-    --run-precache
-```
-
-Script location:
-
-- `scripts/qwen_pipeline_preflight.py`
-
----
-
-## 8) Validate Environment Before Full Build
-
-### 8.1 Quick policy checks
-
-```bash
-python3 - <<'PY'
-import json
-from pathlib import Path
-
-cfg = json.loads(Path('projects/codespace-test/voice_clone_config.json').read_text())
-assert cfg['device'] == 'cpu'
-assert cfg['dtype'] == 'float32'
-print('voice_clone_config: cpu/float32 ✅')
-PY
-```
-
-### 8.2 Verify HF cache contains model snapshot
-
-```bash
-find "$HF_HOME/hub" -maxdepth 3 -type d -name "models--Qwen--Qwen3-TTS-12Hz-1.7B-Base" -print
-```
-
-### 8.3 Verify cached audio exists
-
-```bash
-test -f projects/codespace-test/media/voiceovers/qwen/cache.json && echo "cache.json ✅"
-ls -1 projects/codespace-test/media/voiceovers/qwen/*.mp3 | head
+   --project-dir projects/codespace-test \
+   --run-prepare \
+   --run-precache
 ```
 
 ---
 
-## 9) Running Flaming Horse in Codespaces
+## 7) Full pipeline usage in Codespaces
 
-### Option A: Full agent-driven pipeline
+Preferred end-user entry point:
+
+```bash
+./scripts/create_video.sh codespace-test --topic "Explain square roots"
+```
+
+This wrapper does:
+
+1. project creation/resume
+2. voice service preparation
+3. full `build_video.sh` orchestration
+
+Direct orchestration path:
 
 ```bash
 ./scripts/build_video.sh projects/codespace-test
 ```
 
-Prerequisites:
+Prerequisites for end-to-end run:
 
-- Agent CLI path used by this repo (`opencode`) must be installed and authenticated.
-- Project must have valid `topic`, voice refs, and cached model availability.
-
-### Option B: Framework test without end-to-end agent orchestration
-
-Useful when agent CLI is not configured yet:
-
-1. Use an existing project that already contains scene files and narration.
-2. Run warmup + precache.
-3. Render a scene manually with Manim to verify voice cache integration.
-
-Example:
-
-```bash
-cd projects/123-square-roots
-python3 ../../scripts/prepare_qwen_voice.py --project-dir .
-python3 ../../scripts/precache_voiceovers_qwen.py .
-manim render scene_01_intro.py Scene01Intro -ql
-```
+- `opencode` installed and authenticated
+- API credential configured for your selected `AGENT_MODEL`
+- Qwen model already cached locally
 
 ---
 
-## 10) Common Failure Modes and Fixes
+## 8) Common failure modes and exact fixes
 
-1. **`Qwen model snapshot not found in local HuggingFace cache`**
-   - Cause: Offline scripts running before model is downloaded.
-   - Fix: Run Section 5 smoke test once with network access.
+1) `manim not found in PATH`
 
-2. **`qwen_python not found`**
-   - Cause: `voice_clone_config.json` points to wrong venv path.
-   - Fix: Set `qwen_python` to `~/qwen3-tts-local/.venv/bin/python`.
+- Cause: venv bin not exported in current shell.
+- Fix: source venv or set PATH in `.env` and `~/.bashrc` as above.
 
-3. **`Missing ref audio/ref text`**
-   - Cause: Missing `assets/voice_ref` files.
-   - Fix: Provide explicit `ref.wav` and matching transcript `ref.txt`.
+2) `Qwen model snapshot not found in local HuggingFace cache`
 
-4. **Build fails for missing cached audio**
-   - Cause: `precache_voiceovers_qwen.py` not run (or narration changed after precache).
-   - Fix: Re-run precache for the project.
+- Cause: offline pipeline before model bootstrap.
+- Fix: perform Section 4 one-time online download.
 
-5. **CPU generation appears slow/hung**
-   - Cause: Expected CPU behavior for Qwen TTS.
-   - Fix: Keep test text short and `QWEN_TTS_MAX_NEW_TOKENS` low (e.g., 128-256).
+3) `qwen_python not found`
 
----
+- Cause: bad path in `voice_clone_config.json`.
+- Fix: set to `~/qwen3-tts-local/.venv/bin/python`.
 
-## 11) Recommended Day-1 Bring-Up Checklist
+4) Missing reference assets
 
-- [ ] Create Python 3.12 venv at `~/qwen3-tts-local/.venv`
-- [ ] Install `torch`, `qwen-tts`, `soundfile`, `manim`, `manim-voiceover-plus`
-- [ ] Export HF + Qwen env vars
-- [ ] Run smoke test and confirm `outputs/custom_voice.wav`
-- [ ] Create test project with `new_project.sh`
-- [ ] Verify `voice_clone_config.json` points to Codespace venv
-- [ ] Confirm `assets/voice_ref/ref.wav` + `ref.txt`
-- [ ] Run `prepare_qwen_voice.py`
-- [ ] Run `precache_voiceovers_qwen.py`
-- [ ] Run `build_video.sh` (or manual scene render if agent CLI unavailable)
+- Cause: no `assets/voice_ref/ref.wav` or `ref.txt` in project.
+- Fix: restore these files in project and rerun warmup/precache.
+
+5) Import failure for `flaming_horse_voice`
+
+- Cause: repo root not on PYTHONPATH in shell/tooling.
+- Fix: ensure `PYTHONPATH=/workspaces/flaming-horse:${PYTHONPATH:-}` via `.env` or shell startup.
+
+6) Precache/build fails after narration changes
+
+- Cause: stale cached voice files.
+- Fix: rerun `scripts/precache_voiceovers_qwen.py <project_dir>`.
 
 ---
 
-## 12) Notes on Policy Consistency
+## 9) Day-1 verification checklist
 
-This repo contains mock-voice docs and helpers, but core policy/docs for production pipeline require cached Qwen voice without fallback. For this Codespace test environment, keep focus on the strict cached-Qwen path above so behavior matches the enforced build scripts and project expectations.
+- [ ] Qwen/Manim venv exists at `~/qwen3-tts-local/.venv`
+- [ ] `manim` import works from venv python
+- [ ] `.env` contains PATH/PYTHONPATH + retry/offline settings
+- [ ] Shell startup includes PATH/PYTHONPATH persistence
+- [ ] Qwen model exists in local HF cache
+- [ ] Smoke test writes `outputs/custom_voice.wav`
+- [ ] Project has `voice_clone_config.json` with CPU + float32
+- [ ] Project has `assets/voice_ref/ref.wav` and `ref.txt`
+- [ ] Warmup writes `ready.json`
+- [ ] Precache writes `cache.json` and MP3 files
+- [ ] `create_video.sh` can start and progress phases
+
+---
+
+## 10) Notes
+
+- The repository also has mock voice paths for development, but production path in this Codespace guide is strict cached Qwen.
+- If you only need pipeline readiness checks without a full agent run, use `scripts/qwen_pipeline_preflight.py` and a manual single-scene `manim render`.
