@@ -296,6 +296,16 @@ See reference_docs/visual_helpers.md for more on enhanced helpers and aesthetics
 - ❌ **NEVER** use `.to_edge(UP)` for titles (causes clipping)
 - ✅ **ALWAYS** use `.move_to(UP * 3.8)` for titles (or adaptive_title_position)
 - ✅ **ALWAYS** call `safe_position()` after `.next_to()`
+- ❌ **NEVER** use `.to_edge(...)` for titles or labels (causes clipping/edge drift)
+- ✅ **ALWAYS** place graphs/diagrams below the subtitle (e.g., `.move_to(DOWN * 0.6)`)
+- ✅ **ALWAYS** call `safe_layout(...)` when positioning 2+ siblings in a group
+
+### Layout Contract (Mandatory)
+- Title must exist and be visible at `UP * 3.8` (or via `adaptive_title_position`).
+- Subtitle must be `.next_to(title, DOWN, buff=0.4)` and then `safe_position(subtitle)`.
+- Graphs/diagrams must be offset downward (e.g., `DOWN * 0.6` to `DOWN * 1.2`) to avoid title overlap.
+- Labels must attach to nearby elements (e.g., `label.next_to(curve.get_end(), UP, buff=0.2)`), then `safe_position(label)`.
+- After positioning, run `safe_layout(...)` for any group of 2+ elements.
 ### Adaptive Positioning (New)
 - Use enhanced helpers for dynamic layouts:
   ```python

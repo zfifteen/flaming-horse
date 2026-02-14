@@ -17,3 +17,7 @@ generated/
 *.log
 __pycache__/
 *.pyc
+
+# Exceptions for specific project assets
+!projects/matrix-multiplication/assets/voice_ref/ref.txt
+!projects/matrix-multiplication/assets/voice_ref/ref.wav

@@ -174,6 +174,15 @@ Assistants must treat the Space's template as authoritative:
     - Keep important content within +/-7 horizontally and +/-4 vertically.
     - Use the `safe_position()` helper after `.next_to()` chains.
 
+#### Layout Checklist (Mandatory)
+
+- Title must exist and be visible at `UP * 3.8` (or via `adaptive_title_position`).
+- Subtitle must be `.next_to(title, DOWN, buff=0.4)` and then `safe_position(subtitle)`.
+- Graphs/diagrams must be offset downward (e.g., `DOWN * 0.6` to `DOWN * 1.2`) to avoid title overlap.
+- Labels must attach to nearby elements (e.g., `label.next_to(curve.get_end(), UP, buff=0.2)`), then `safe_position(label)`.
+- After positioning, run `safe_layout(...)` for any group of 2+ elements.
+- ❌ NEVER use `.to_edge(...)` for titles or labels (causes clipping/edge drift).
+
 ### 5.2. VoiceoverScene and Cached Qwen
 
 The generated scene class should:

@@ -72,6 +72,18 @@ while [[ ${#} -gt 0 ]]; do
 done
 
 TOPIC="${TOPIC:-${VIDEO_TOPIC:-}}"
+
+if [[ -n "${TOPIC}" && -f "${TOPIC}" ]]; then
+  TOPIC_CONTENT=$(cat "${TOPIC}")
+  if [[ -n "${TOPIC_CONTENT}" ]]; then
+    TOPIC="${TOPIC_CONTENT}"
+    echo "→ Loaded topic content from file: ${TOPIC}" | head -c 100  # Truncate for logging
+  else
+    echo "❌ Topic file is empty: ${TOPIC}" >&2
+    exit 1
+  fi
+fi
+
 TOPIC_JSON="null"
 if [[ -n "${TOPIC}" ]]; then
   TOPIC_JSON="$(python3 -c 'import json,sys; print(json.dumps(sys.argv[1]))' "${TOPIC}")"
