@@ -94,21 +94,28 @@ The previous analysis correctly identified major opportunities, but status has s
 
 ## Additional Opportunities for Determinism (Updated Priorities)
 
-## Priority 1 (High): Timing budget validator for `tracker.duration * fraction`
+## Priority 1 (High): Deterministic scene runtime safety + timing validator
 
 ### Problem
-Agents still manually manage timing fractions inside voiceover blocks. Over-allocation causes dead air or desync.
+Agent scenes can be syntactically valid but still fail at render time due to deterministic runtime errors (for example `self.wait(0)`). Timing over-allocation also causes dead air or desync.
 
 ### Script opportunity
-Add `scripts/validate_timing.py` that parses scene AST and enforces per-voiceover timing budgets.
+Add `scripts/validate_scene_deterministic.py` that parses scene AST and enforces runtime safety and timing constraints before render.
 
 ### Suggested checks
-- Sum of explicit `tracker.duration * X` allocations per voiceover block must be `<= 1.0` (with small epsilon).
-- Flag blocks with no explicit budgeting (warning mode) if desired.
-- Emit file + line diagnostics.
+- Reject non-positive waits: `self.wait(0)`, negative constants, simple foldable zero expressions.
+- Reject invalid run times: `run_time <= 0` and literal `run_time < 0.3`.
+- Enforce timing budget: sum of explicit `tracker.duration * X` allocations per voiceover block must be `<= 1.0` (with small epsilon).
+- Warn when no explicit budgeting is detected in a voiceover block.
+- Emit deterministic diagnostics with file + line + rule id + fix hint.
 
 ### Integration point
-- Run in `handle_build_scenes()` after existing import/sync validators.
+- Run in `handle_build_scenes()` immediately after existing import/sync validators.
+- Re-run in `final_render` preflight as defense in depth.
+
+### Enforcement mode
+- Hard-fail immediately for runtime safety rules (`wait <= 0`, invalid `run_time`).
+- Warning-first for advisory checks if needed.
 
 ---
 
@@ -208,12 +215,44 @@ The best deterministic split is:
 
 ## Recommended Implementation Sequence
 
-1. **Timing validator** (`validate_timing.py`) + gate in `handle_build_scenes()`.
+1. **Scene runtime safety + timing validator** (`validate_scene_deterministic.py`) + gate in `handle_build_scenes()`.
 2. **Narration scaffold generator** (`scaffold_narration.py`) from `plan.json`.
 3. **Project contract validator** (`validate_project_contract.py`) across state/plan/narration.
 4. **Positioning linter** (`lint_positioning.py`) as warning-first.
 5. **Entrypoint preflight check** from `create_video.sh`.
 6. Optional state-helper refactor.
+
+---
+
+## One Change Per PR Rollout Protocol
+
+To reduce risk, each enhancement should ship in a separate PR with tight scope:
+
+1. **PR-1: Validator skeleton + hard rule for `wait <= 0` and invalid `run_time`**
+   - Add script + tests + `build_video.sh` integration.
+   - No narration, contract, or positioning changes.
+
+2. **PR-2: Timing budget checks (`tracker.duration * fraction`)**
+   - Extend validator only.
+
+3. **PR-3: Narration scaffolding from `plan.json`**
+   - Add `scaffold_narration.py` + phase integration.
+
+4. **PR-4: Cross-file project contract validator**
+   - Validate state/plan/narration consistency.
+
+5. **PR-5: Positioning linter (warning mode first)**
+   - Keep non-blocking until signal quality is proven.
+
+6. **PR-6: Entrypoint preflight checks**
+   - Environment and dependency checks before project/build.
+
+### PR Acceptance Checklist
+
+- Includes targeted tests for the new rule(s)
+- Includes one short docs update
+- Keeps unrelated behavior unchanged
+- Demonstrates pass/fail examples in CI or local test output
 
 ---
 
