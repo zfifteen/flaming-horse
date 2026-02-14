@@ -1,9 +1,9 @@
 import argparse
 import json
 import os
-import threading
 import subprocess
 import sys
+import threading
 from pathlib import Path
 
 
@@ -61,9 +61,71 @@ def build_cache_entry(
     }
 
 
+def _generate_silent_mp3(path: Path, duration: float = 3.0) -> None:
+    """Generate a silent MP3 file using ffmpeg."""
+    subprocess.run(
+        [
+            "ffmpeg", "-y",
+            "-f", "lavfi",
+            "-i", f"anullsrc=r=24000:cl=mono",
+            "-t", str(duration),
+            "-codec:a", "libmp3lame",
+            "-b:a", "192k",
+            str(path),
+        ],
+        check=True,
+        capture_output=True,
+    )
+
+
+def _mock_precache(project_dir: Path) -> int:
+    """Generate silent audio files and cache.json for mock mode."""
+    cfg = load_config(project_dir)
+    script = load_script(project_dir)
+    output_dir_rel = cfg.get("output_dir", "media/voiceovers/qwen")
+    cache_dir = (project_dir / output_dir_rel).resolve()
+    cache_dir.mkdir(parents=True, exist_ok=True)
+
+    import time
+
+    entries = []
+    for key, text in script.items():
+        audio_file = f"{key}.mp3"
+        audio_path = cache_dir / audio_file
+        if not audio_path.exists():
+            # Estimate ~1 second per 2.5 words of narration, minimum 2s
+            word_count = len(text.split())
+            duration = max(2.0, word_count / 2.5)
+            print(f"  → Generating silent audio: {audio_file} ({duration:.1f}s)")
+            _generate_silent_mp3(audio_path, duration)
+        else:
+            print(f"  ✓ Cache hit: {audio_file}")
+            duration = 3.0  # default
+
+        entries.append({
+            "narration_key": key,
+            "text": text,
+            "audio_file": audio_file,
+            "model_id": "mock",
+            "ref_audio": "mock",
+            "ref_text": "mock",
+            "duration_seconds": duration,
+            "created_at": time.time(),
+        })
+
+    cache_index = cache_dir / "cache.json"
+    cache_index.write_text(json.dumps(entries, indent=2), encoding="utf-8")
+    print(f"✓ Mock cache index: {cache_index} ({len(entries)} entries)")
+    return 0
+
+
 def main() -> int:
     args = parse_args()
     project_dir = Path(args.project_dir).resolve()
+
+    # Mock mode: generate silent audio files instead of calling Qwen
+    if os.environ.get("MOCK_QWEN") == "1":
+        return _mock_precache(project_dir)
 
     cfg = load_config(project_dir)
     script = load_script(project_dir)

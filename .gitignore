@@ -6,7 +6,6 @@
 
 .env
 *.mp4
-*.wav
 *.srt
 **partial**
 *.mp3
@@ -16,3 +15,7 @@
 *.log
 __pycache__/
 *.pyc
+
+# Ignore generated audio, except voice reference assets
+*.wav
+!assets/voice_ref/ref.wav

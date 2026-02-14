@@ -453,22 +453,30 @@ TOPIC REQUIREMENT:
 Begin execution now.
 EOF
   
-  # Invoke OpenCode with Grok - message must come after all options
-  opencode run --model "xai/grok-code-fast-1" \
-    --file "$prompt_file" \
-    --file "${SCRIPT_DIR}/../reference_docs/manim_content_pipeline.md" \
-    --file "${SCRIPT_DIR}/../reference_docs/manim_voiceover.md" \
-    --file "${SCRIPT_DIR}/../reference_docs/manim_template.py.txt" \
-    --file "${SCRIPT_DIR}/../reference_docs/manim_config_guide.md" \
-    --file "$STATE_FILE" \
-    -- \
-    "Read the first attached file (.agent_prompt_${phase}.md) which contains your complete instructions. Execute the ${phase} phase as described. All reference documentation and the current project state are also attached." \
-    2>&1 | tee -a "$LOG_FILE"
-  
+  # Check if opencode is available; fall back to deterministic generator if not.
+  if command -v opencode >/dev/null 2>&1; then
+    # Invoke OpenCode with Grok - message must come after all options
+    opencode run --model "xai/grok-code-fast-1" \
+      --file "$prompt_file" \
+      --file "${SCRIPT_DIR}/../reference_docs/manim_content_pipeline.md" \
+      --file "${SCRIPT_DIR}/../reference_docs/manim_voiceover.md" \
+      --file "${SCRIPT_DIR}/../reference_docs/manim_template.py.txt" \
+      --file "${SCRIPT_DIR}/../reference_docs/manim_config_guide.md" \
+      --file "$STATE_FILE" \
+      -- \
+      "Read the first attached file (.agent_prompt_${phase}.md) which contains your complete instructions. Execute the ${phase} phase as described. All reference documentation and the current project state are also attached." \
+      2>&1 | tee -a "$LOG_FILE"
+
+    local exit_code=${PIPESTATUS[0]}
+  else
+    echo "⚠ opencode not found; using fallback agent for phase: $phase" | tee -a "$LOG_FILE"
+    python3 "${SCRIPT_DIR}/fallback_agent.py" "$phase" "$PROJECT_DIR" "${SCRIPT_DIR}/scaffold_scene.py" \
+      2>&1 | tee -a "$LOG_FILE"
+    local exit_code=${PIPESTATUS[0]}
+  fi
+
   # Clean up prompt file
   rm -f "$prompt_file"
-  
-  local exit_code=${PIPESTATUS[0]}
   
   if [[ $exit_code -ne 0 ]]; then
     echo "❌ Agent invocation failed with exit code: $exit_code" | tee -a "$LOG_FILE"

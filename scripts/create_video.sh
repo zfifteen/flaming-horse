@@ -89,6 +89,22 @@ PROJECT_DIR="${PROJECTS_DIR%/}/${PROJECT_NAME}"
 
 "${SCRIPT_DIR}/new_project.sh" "${PROJECT_NAME}" --topic "${TOPIC}" --projects-dir "${PROJECTS_DIR}"
 
+# Auto-detect mock mode: if the Qwen python path from voice_clone_config.json
+# does not exist, enable MOCK_QWEN so the pipeline uses dummy audio instead
+# of failing on the missing model.
+if [[ -z "${MOCK_QWEN:-}" ]]; then
+  _qwen_py=$(python3 -c "
+import json, os, pathlib
+cfg = json.load(open('${PROJECT_DIR}/voice_clone_config.json'))
+p = cfg.get('qwen_python','')
+print(os.path.expanduser(p) if p else '')
+" 2>/dev/null || true)
+  if [[ -z "${_qwen_py}" ]] || [[ ! -x "${_qwen_py}" ]]; then
+    echo "⚠ Qwen python not found (${_qwen_py:-<unset>}); enabling MOCK_QWEN=1"
+    export MOCK_QWEN=1
+  fi
+fi
+
 echo ""
 echo "═══════════════════════════════════════════"
 echo "Warming up Qwen voice model (reliability)"

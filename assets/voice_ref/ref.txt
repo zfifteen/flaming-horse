@@ -1,0 +1,1 @@
+This is the reference text for voice cloning calibration.

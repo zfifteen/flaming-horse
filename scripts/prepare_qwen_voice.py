@@ -123,6 +123,24 @@ def main() -> int:
 
     cfg = load_json(cfg_path)
 
+    # Mock mode: skip actual model warmup and write a dummy stamp.
+    if os.environ.get("MOCK_QWEN") == "1":
+        output_dir_rel = cfg.get("output_dir", "media/voiceovers/qwen")
+        output_dir = (project_dir / str(output_dir_rel)).resolve()
+        output_dir.mkdir(parents=True, exist_ok=True)
+        ready_path = output_dir / "ready.json"
+        ready = {
+            "fingerprint": "mock",
+            "model_id": cfg.get("model_id", "mock"),
+            "model_source": "mock",
+            "device": "cpu",
+            "dtype": "float32",
+            "mock": True,
+        }
+        ready_path.write_text(json.dumps(ready, indent=2) + "\n", encoding="utf-8")
+        print(f"✓ Qwen voice prepared (MOCK_QWEN): {ready_path}")
+        return 0
+
     python_path_raw = cfg.get("qwen_python")
     if not python_path_raw or not isinstance(python_path_raw, str):
         print("ERROR: voice_clone_config.json must define qwen_python", file=sys.stderr)
