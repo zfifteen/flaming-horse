@@ -26,12 +26,20 @@ Notes:
   - For reliability, it also warms up the voice service once before building.
   - --build-args is parsed like a shell command line (quotes supported).
   - You can also provide the topic via VIDEO_TOPIC.
+  - PROJECTS_BASE_DIR sets the default for --projects-dir when omitted.
   - If the project already exists (has project_state.json), this script resumes it and does NOT reinitialize state.
   - Set FLAMING_HORSE_MOCK_VOICE=1 to use mock voice service globally.
 EOF
 }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(realpath "${SCRIPT_DIR}/..")"
+ENV_FILE="${REPO_ROOT}/.env"
+
+if [[ -f "${ENV_FILE}" ]]; then
+  # shellcheck disable=SC1090
+  source "${ENV_FILE}"
+fi
 
 PROJECT_NAME="${1:-}"
 if [[ -z "${PROJECT_NAME}" ]]; then
@@ -45,9 +53,10 @@ fi
 shift
 
 TOPIC=""
-PROJECTS_DIR="./projects"
+PROJECTS_DIR="${PROJECTS_BASE_DIR:-./projects}"
 BUILD_ARGS_STR=""
 USE_MOCK=0
+INITIAL_PWD="$(pwd)"
 
 while [[ ${#} -gt 0 ]]; do
   case "${1}" in
@@ -93,6 +102,13 @@ while [[ ${#} -gt 0 ]]; do
       ;;
   esac
 done
+
+if [[ "${PROJECTS_DIR}" = /* ]]; then
+  PROJECTS_DIR_RAW="${PROJECTS_DIR}"
+else
+  PROJECTS_DIR_RAW="${INITIAL_PWD}/${PROJECTS_DIR}"
+fi
+PROJECTS_DIR="$(python3 -c 'import os,sys; print(os.path.abspath(sys.argv[1]))' "${PROJECTS_DIR_RAW}")"
 
 PROJECT_DIR="${PROJECTS_DIR%/}/${PROJECT_NAME}"
 STATE_FILE="${PROJECT_DIR}/project_state.json"
