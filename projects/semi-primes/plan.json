@@ -1,0 +1,75 @@
+{
+  "title": "Factoring Semi-Primes: From Basics to RSA",
+  "topic_summary": "Semi-primes are products of two primes, central to cryptography. Video covers definition, factoring challenges, methods, and RSA application.",
+  "target_audience": "High school/college students, math enthusiasts, cryptography beginners",
+  "estimated_duration_seconds": 300,
+  "total_estimated_words": 750,
+  "scenes": [
+    {
+      "id": "scene_01_intro",
+      "title": "What are Semi-Primes?",
+      "narration_key": "intro",
+      "narration_summary": "Hook with RSA fun fact, define prime and semi-prime, simple examples.",
+      "estimated_words": 100,
+      "estimated_duration": "40s",
+      "animations": ["Title write", "Prime list fade-in", "Multiplication example"],
+      "complexity": "low",
+      "risk_flags": []
+    },
+    {
+      "id": "scene_02_examples",
+      "title": "Examples and Properties",
+      "narration_key": "examples",
+      "narration_summary": "Show small/large semi-primes, properties like even/odd, density.",
+      "estimated_words": 120,
+      "estimated_duration": "48s",
+      "animations": ["Number grids", "Factor trees", "Graph of density"],
+      "complexity": "low",
+      "risk_flags": []
+    },
+    {
+      "id": "scene_03_trial_division",
+      "title": "Basic Factoring: Trial Division",
+      "narration_key": "trial_division",
+      "narration_summary": "Demonstrate trial division algorithm, why inefficient for large numbers.",
+      "estimated_words": 130,
+      "estimated_duration": "52s",
+      "animations": ["Step-by-step division", "Square root optimization", "Time complexity graph"],
+      "complexity": "medium",
+      "risk_flags": ["Sync multiple steps"]
+    },
+    {
+      "id": "scene_04_advanced_methods",
+      "title": "Advanced Methods",
+      "narration_key": "advanced",
+      "narration_summary": "Overview Pollard's rho, Fermat, quadratic sieve; limits of classical computing.",
+      "estimated_words": 140,
+      "estimated_duration": "56s",
+      "animations": ["Rho cycle diagram", "Fermat collision", "Sieve matrix"],
+      "complexity": "medium",
+      "risk_flags": [">4 objects on screen"]
+    },
+    {
+      "id": "scene_05_rsa",
+      "title": "RSA Cryptography",
+      "narration_key": "rsa",
+      "narration_summary": "How RSA uses semi-prime hardness; public/private keys demo.",
+      "estimated_words": 130,
+      "estimated_duration": "52s",
+      "animations": ["Key generation", "Encryption/decryption flow", "Security levels"],
+      "complexity": "medium",
+      "risk_flags": []
+    },
+    {
+      "id": "scene_06_recap",
+      "title": "Recap and Challenges",
+      "narration_key": "recap",
+      "narration_summary": "Summarize key points, mention quantum threats, call to action.",
+      "estimated_words": 130,
+      "estimated_duration": "52s",
+      "animations": ["Key takeaways bullets", "Timeline of methods", "Fade out"],
+      "complexity": "low",
+      "risk_flags": []
+    }
+  ]
+}
