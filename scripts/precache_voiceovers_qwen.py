@@ -91,8 +91,23 @@ def generate_mock_cache(
     ref_text: str,
 ) -> list:
     """Generate mock cache entries with silent audio files."""
+    import struct
+    import wave
+    
     print("→ Generating mock cache entries (Qwen environment unavailable)")
     output_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Check if ffmpeg is available
+    ffmpeg_available = False
+    try:
+        result = subprocess.run(
+            ["ffmpeg", "-version"],
+            capture_output=True,
+            timeout=2,
+        )
+        ffmpeg_available = result.returncode == 0
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        pass
     
     entries = []
     for narration_key, text in script.items():
@@ -100,32 +115,52 @@ def generate_mock_cache(
         word_count = len(text.split())
         duration = max(0.5, word_count / 2.5)
         
-        audio_file = f"{narration_key}.mp3"
-        audio_path = output_dir / audio_file
+        # First create a WAV file using Python's wave module
+        sample_rate = 24000
+        num_samples = int(sample_rate * duration)
+        wav_path = output_dir / f"{narration_key}.wav"
         
-        # Generate silent audio using ffmpeg
         try:
-            subprocess.run(
-                [
-                    "ffmpeg",
-                    "-f", "lavfi",
-                    "-i", f"anullsrc=r=24000:cl=mono",
-                    "-t", str(duration),
-                    "-ac", "1",
-                    "-ar", "24000",
-                    "-b:a", "192k",
-                    "-y",
-                    str(audio_path),
-                ],
-                check=True,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
-            print(f"✓ Generated mock audio: {narration_key} ({duration:.2f}s)")
-        except (subprocess.CalledProcessError, FileNotFoundError) as e:
-            print(f"⚠ Warning: Failed to generate audio for {narration_key}: {e}")
-            # Create empty file as last resort
-            audio_path.touch()
+            with wave.open(str(wav_path), 'w') as wav_file:
+                wav_file.setnchannels(1)  # mono
+                wav_file.setsampwidth(2)  # 16-bit
+                wav_file.setframerate(sample_rate)
+                # Write silent samples
+                for _ in range(num_samples):
+                    wav_file.writeframes(struct.pack('<h', 0))
+        except Exception as e:
+            print(f"⚠ Warning: Failed to create WAV for {narration_key}: {e}")
+            continue
+        
+        # Try to convert to MP3 if ffmpeg is available
+        if ffmpeg_available:
+            audio_file = f"{narration_key}.mp3"
+            mp3_path = output_dir / audio_file
+            try:
+                subprocess.run(
+                    [
+                        "ffmpeg",
+                        "-i", str(wav_path),
+                        "-ac", "1",
+                        "-ar", "24000",
+                        "-b:a", "192k",
+                        "-y",
+                        str(mp3_path),
+                    ],
+                    check=True,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+                # Remove WAV file after successful conversion
+                wav_path.unlink()
+                print(f"✓ Generated mock audio: {narration_key} ({duration:.2f}s)")
+            except subprocess.CalledProcessError as e:
+                print(f"⚠ Warning: Failed to convert to MP3 for {narration_key}, using WAV")
+                audio_file = f"{narration_key}.wav"
+        else:
+            # Use WAV file directly
+            audio_file = f"{narration_key}.wav"
+            print(f"✓ Generated mock audio (WAV): {narration_key} ({duration:.2f}s)")
         
         entry = build_cache_entry(
             narration_key,
