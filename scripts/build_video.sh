@@ -272,13 +272,48 @@ if state_path.exists():
         state_error = f"(failed to parse state error: {exc})"
 
 log_excerpt = []
+trace_blocks = []
 if log_path.exists():
-    lines = log_path.read_text(encoding="utf-8", errors="replace").splitlines()
-    for line in lines[-140:]:
-        if any(k in line for k in ["Syntax", "Traceback", "ERROR", "failed", "validation", "Exception"]):
-            log_excerpt.append(line)
+  lines = log_path.read_text(encoding="utf-8", errors="replace").splitlines()
+
+  # Prefer full traceback blocks over keyword-only snippets.
+  starts = [
+    i for i, ln in enumerate(lines)
+    if "Traceback (most recent call last)" in ln or "╭───────────────────── Traceback" in ln
+  ]
+
+  for start in starts[-2:]:
+    hard_limit = min(len(lines), start + 280)
+    end = hard_limit - 1
+    for j in range(start + 1, hard_limit):
+      stripped = lines[j].strip()
+      # Rich traceback box end marker.
+      if lines[j].startswith("╰"):
+        end = j
+        if j + 1 < len(lines) and lines[j + 1].strip():
+          end = j + 1
+        break
+      # Plain traceback exception line.
+      if stripped.startswith(("SyntaxError:", "TypeError:", "NameError:", "ImportError:",
+                  "ModuleNotFoundError:", "FileNotFoundError:", "ValueError:",
+                  "RuntimeError:", "Exception:")):
+        end = j
+        break
+
+    block = lines[start:end + 1]
+    if block:
+      trace_blocks.append(block)
+
+  if trace_blocks:
+    for idx, block in enumerate(trace_blocks, start=1):
+      log_excerpt.append(f"--- traceback {idx} ---")
+      log_excerpt.extend(block)
+  else:
+    for line in lines[-220:]:
+      if any(k in line for k in ["Syntax", "Traceback", "ERROR", "failed", "validation", "Exception"]):
+        log_excerpt.append(line)
     if not log_excerpt:
-        log_excerpt = lines[-40:]
+      log_excerpt = lines[-80:]
 
 print(f"Retry context for phase '{phase}'")
 print(f"Attempt: {attempt}/{limit}")
@@ -291,7 +326,7 @@ print("Most recent state error:")
 print(state_error)
 print()
 print("Recent build.log excerpt:")
-for ln in log_excerpt[-80:]:
+for ln in log_excerpt[-220:]:
     print(ln)
 PY
 }
@@ -670,6 +705,7 @@ extract_recent_error_excerpt() {
   local scene_file="$1"
   python3 - <<PY
 from pathlib import Path
+import re
 
 log_path = Path("${LOG_FILE}")
 if not log_path.exists():
@@ -677,10 +713,35 @@ if not log_path.exists():
     raise SystemExit(0)
 
 lines = log_path.read_text(encoding="utf-8", errors="replace").splitlines()
-window = lines[-220:]
+window = lines[-420:]
+
+# Return the most recent traceback block if available.
+starts = [
+  i for i, ln in enumerate(window)
+  if "Traceback (most recent call last)" in ln or "╭───────────────────── Traceback" in ln
+]
+
+if starts:
+  start = starts[-1]
+  hard_limit = min(len(window), start + 300)
+  end = hard_limit - 1
+  for j in range(start + 1, hard_limit):
+    stripped = window[j].strip()
+    if window[j].startswith("╰"):
+      end = j
+      if j + 1 < len(window) and window[j + 1].strip():
+        end = j + 1
+      break
+    if re.match(r"^(SyntaxError|TypeError|NameError|ImportError|ModuleNotFoundError|FileNotFoundError|ValueError|RuntimeError|Exception):", stripped):
+      end = j
+      break
+  snippet = window[start:end + 1]
+  print("\n".join(snippet))
+  raise SystemExit(0)
+
 keywords = ["Traceback", "Error", "Exception", "failed", "Syntax", "Indentation"]
 filtered = [ln for ln in window if ("${scene_file}" in ln) or any(k in ln for k in keywords)]
-snippet = filtered[-80:] if filtered else window[-40:]
+snippet = filtered[-180:] if filtered else window[-80:]
 print("\n".join(snippet))
 PY
 }

@@ -1,0 +1,75 @@
+{
+  "title": "Mastering Long Division: A Step-by-Step Visual Guide",
+  "topic_summary": "Explains the long division algorithm, key concepts, and a complete worked example for beginners.",
+  "target_audience": "Middle school students learning basic division",
+  "estimated_duration_seconds": 300,
+  "total_estimated_words": 750,
+  "scenes": [
+    {
+      "id": "scene_01",
+      "title": "Introduction to Long Division",
+      "narration_key": "intro",
+      "narration_summary": "Hook with everyday example, introduce long division as efficient method for large numbers.",
+      "estimated_words": 80,
+      "estimated_duration": "32s",
+      "animations": ["Title fade-in", "Simple division graphic"],
+      "complexity": "low",
+      "risk_flags": []
+    },
+    {
+      "id": "scene_02",
+      "title": "Key Components",
+      "narration_key": "components",
+      "narration_summary": "Define dividend, divisor, quotient, remainder; show visual setup.",
+      "estimated_words": 90,
+      "estimated_duration": "36s",
+      "animations": ["Label dividend/divisor", "Draw division bracket"],
+      "complexity": "low",
+      "risk_flags": []
+    },
+    {
+      "id": "scene_03",
+      "title": "Step 1: First Division",
+      "narration_key": "step1",
+      "narration_summary": "How many times divisor fits into first digits of dividend; place first quotient digit.",
+      "estimated_words": 100,
+      "estimated_duration": "40s",
+      "animations": ["Highlight partial dividend", "Animate multiplication/subtraction"],
+      "complexity": "medium",
+      "risk_flags": []
+    },
+    {
+      "id": "scene_04",
+      "title": "Continuing the Process",
+      "narration_key": "step2",
+      "narration_summary": "Bring down next digit, repeat division, multiply, subtract.",
+      "estimated_words": 120,
+      "estimated_duration": "48s",
+      "animations": ["Bring down digit", "Repeat steps with animation"],
+      "complexity": "medium",
+      "risk_flags": []
+    },
+    {
+      "id": "scene_05",
+      "title": "Complete Example",
+      "narration_key": "example",
+      "narration_summary": "Full walkthrough: 12345 ÷ 23, verify quotient 536 and remainder.",
+      "estimated_words": 150,
+      "estimated_duration": "60s",
+      "animations": ["Build full division tableau", "Step-by-step highlighting"],
+      "complexity": "high",
+      "risk_flags": []
+    },
+    {
+      "id": "scene_06",
+      "title": "Recap and Tips",
+      "narration_key": "recap",
+      "narration_summary": "Summarize steps, common pitfalls, practice encouragement.",
+      "estimated_words": 110,
+      "estimated_duration": "44s",
+      "animations": ["Summary checklist", "Fade out with call to action"],
+      "complexity": "low",
+      "risk_flags": []
+    }
+  ]
+}
