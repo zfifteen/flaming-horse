@@ -505,7 +505,14 @@ PY
 
   local phase_specific_instruction=""
   if [[ "$phase" == "build_scenes" ]]; then
-    phase_specific_instruction="- Read AGENTS.md CAREFULLY before writing or editing any scene code."
+    phase_specific_instruction="- Read AGENTS.md CAREFULLY before writing or editing any scene code.
+MANDATORY: ALWAYS follow the scene examples syntax from attached manim_template.py.txt EXACTLY.
+- Use Create for mobjects/lines/curves (e.g., Create(curve, rate_func=smooth)).
+- Use Write for text (cap at 1.5s) and FadeIn for reveals.
+- NEVER invent animations like ShowCreation (causes NameError).
+- ALWAYS use the Write tool to create scene_XX.py. Do NOT print code blocks; confirm tool use.
+- Mentally validate: does the code import manim correctly and run without NameError?
+- Layout contract: Title at UP * 3.8, subtitle directly below, graphs/diagrams moved DOWN * 0.6 to 1.2, no .to_edge(...) for titles/labels, safe_layout for 2+ siblings, safe_position after .next_to()."
   fi
 
   local retry_context_file
@@ -519,10 +526,10 @@ PY
   
   # Create a temporary prompt file
   local prompt_file=".agent_prompt_${phase}.md"
-  cat > "$prompt_file" <<EOF
+cat > "$prompt_file" <<EOF
 $(cat "${SCRIPT_DIR}/../AGENTS.md")
 
-───────────────────────────────────────────────────────────────
+────────────────────────────────────────────────────────────────
 
 CURRENT TASK:
 
@@ -549,10 +556,11 @@ The current project_state.json has also been attached.
 INSTRUCTIONS:
 1. Read project_state.json to understand the current state
 2. Execute ONLY the ${phase} phase tasks as defined in the system prompt above
-3. Generate any required files in the current directory
-4. Do NOT edit project_state.json. The build pipeline owns state updates.
+3. For the plan phase: Generate plan.json exactly as specified in reference_docs/phase_plan.md. Use the Write tool to create the file at ./plan.json with the JSON content. Ensure it has keys like "title", "topic_summary", and a "scenes" array with required fields (id, title, narration_key, etc.).
+4. For other phases, use the Write or Edit tools to generate required files (e.g., narration_script.py, scene_*.py).
+5. Do NOT edit project_state.json. The build pipeline owns state updates.
    Only generate the required artifacts for the phase (plan.json, narration_script.py, scene_*.py).
-5. If errors occur, do NOT edit state; instead, explain what failed in plain text.
+6. If errors occur, do NOT edit state; instead, explain what failed in plain text.
 
 IMPORTANT PATH NOTE:
 - Your working directory is the project directory, which does NOT contain a ./scripts folder.
@@ -572,7 +580,7 @@ EOF
   
   # Invoke OpenCode - message must come after all options
   # TODO Replace this with an option to select from available models configured in OpenCode
-  opencode run --model "${AGENT_MODEL}" \
+  opencode run --agent manim-ce-scripting-expert --model "${AGENT_MODEL}" \
     --file "$prompt_file" \
     --file "${SCRIPT_DIR}/../reference_docs/manim_content_pipeline.md" \
     --file "${SCRIPT_DIR}/../reference_docs/manim_voiceover.md" \
@@ -606,6 +614,55 @@ path = pathlib.Path("${scene_file}")
 if not path.exists():
     raise SystemExit(1)
 compile(path.read_text(encoding="utf-8"), "${scene_file}", "exec")
+PY
+}
+
+infer_scene_class_name() {
+  local scene_file="$1"
+  python3 - <<PY
+import re
+from pathlib import Path
+
+path = Path("${scene_file}")
+if not path.exists():
+    print("")
+    raise SystemExit(0)
+
+try:
+    txt = path.read_text(encoding="utf-8")
+except Exception:
+    print("")
+    raise SystemExit(0)
+
+m = re.search(r"^class\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(\s*VoiceoverScene\s*\)\s*:\s*$", txt, re.M)
+if m:
+    print(m.group(1))
+    raise SystemExit(0)
+
+m = re.search(r"^class\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(.*\)\s*:\s*$", txt, re.M)
+if m:
+    print(m.group(1))
+else:
+    print("")
+PY
+}
+
+get_current_scene_id() {
+  python3 - <<PY
+import json
+
+try:
+    state = json.load(open("${STATE_FILE}", "r"))
+except Exception:
+    state = {}
+
+idx = state.get("current_scene_index", 0)
+scenes = state.get("scenes", [])
+scene_id = ""
+if isinstance(scenes, list) and len(scenes) > idx:
+    scene_id = scenes[idx].get("id") or ""
+
+print(scene_id)
 PY
 }
 
@@ -665,7 +722,7 @@ INSTRUCTIONS:
 When done, stop.
 EOF
 
-  opencode run --model "${AGENT_MODEL}" \
+  opencode --agent manim-ce-scripting-expert run --model "${AGENT_MODEL}" \
     --file "$prompt_file" \
     --file "${SCRIPT_DIR}/../reference_docs/manim_content_pipeline.md" \
     --file "${SCRIPT_DIR}/../reference_docs/manim_voiceover.md" \
@@ -742,6 +799,7 @@ handle_plan() {
     python3 - <<'PY' 2>&1 | tee -a "$LOG_FILE"
 import json
 from pathlib import Path
+import re
 
 log_path = Path('build.log')
 if not log_path.exists():
@@ -753,28 +811,48 @@ decoder = json.JSONDecoder()
 best = None
 best_pos = -1
 
-for i, ch in enumerate(raw):
-    if ch != '{':
-        continue
-    try:
-        obj, end = decoder.raw_decode(raw[i:])
-    except json.JSONDecodeError:
-        continue
-    if not isinstance(obj, dict):
-        continue
-    if not isinstance(obj.get('scenes'), list) or not obj.get('scenes'):
-        continue
-    # Minimal required keys
-    if not obj.get('title') or not obj.get('topic_summary'):
-        continue
-    best = obj
-    best_pos = i
+# Look for JSON blocks, possibly wrapped in ```json
+json_blocks = re.findall(r'```json\s*(.*?)\s*```', raw, re.DOTALL)
+if not json_blocks:
+    json_blocks = [raw]  # Fallback to whole log if no markdown blocks
+
+for block in json_blocks:
+    for i, ch in enumerate(block):
+        if ch != '{':
+            continue
+        try:
+            obj, end = decoder.raw_decode(block[i:])
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(obj, dict):
+            continue
+        scenes = obj.get('scenes')
+        if not isinstance(scenes, list) or not scenes:
+            continue
+        # Flexible title/topic_summary: accept 'title', 'video_title', or add if missing
+        title = obj.get('title') or obj.get('video_title') or obj.get('project_name') or 'Untitled Video'
+        topic_summary = obj.get('topic_summary') or obj.get('core_insight') or 'Summary based on provided topic'
+        obj['title'] = title
+        obj['topic_summary'] = topic_summary
+        # Ensure scenes have required fields if possible
+        for scene in scenes:
+            if not scene.get('id'):
+                scene['id'] = f"scene_{len(scenes) - scenes.index(scene) + 1:02d}"
+            if not scene.get('title'):
+                scene['title'] = f"Scene {scene.get('id', 'Unknown')}"
+            if not scene.get('narration_key'):
+                scene['narration_key'] = f"{scene.get('id', 'unknown')}"
+        best = obj
+        best_pos = i
+        break  # Take the first valid one
+    if best:
+        break
 
 if not best:
     raise SystemExit('plan.json missing and no valid plan JSON object found in build.log')
 
 Path('plan.json').write_text(json.dumps(best, indent=2) + '\n', encoding='utf-8')
-print('✓ Recovered plan.json from build.log')
+print('✓ Recovered and normalized plan.json from build.log')
 PY
   fi
   
@@ -992,6 +1070,41 @@ handle_build_scenes() {
   fi
   
   echo "→ Detected scene file: $new_scene" | tee -a "$LOG_FILE"
+
+  local manim_bin
+  manim_bin=$(command -v manim)
+  if [[ -z "$manim_bin" ]]; then
+    echo "❌ manim not found in PATH" | tee -a "$LOG_FILE" >&2
+    return 1
+  fi
+
+  # Syntax validation (Python) with self-heal on failure.
+  if ! python3 -m py_compile "$new_scene" 2>&1 | tee -a "$LOG_FILE"; then
+    echo "✗ Syntax check failed for $new_scene. Attempting self-heal..." | tee -a "$LOG_FILE"
+    local syntax_reason
+    syntax_reason=$(extract_recent_error_excerpt "$new_scene")
+    if ! repair_scene_until_valid "$(get_current_scene_id)" "$new_scene" "$(infer_scene_class_name "$new_scene")" "$syntax_reason"; then
+      echo "✗ Self-heal failed after syntax error in $new_scene" | tee -a "$LOG_FILE" >&2
+      return 1
+    fi
+  fi
+
+  # Manim dry-run validation (semantic/runtime) with self-heal on failure.
+  local class_name
+  class_name="$(infer_scene_class_name "$new_scene")"
+  if [[ -n "$class_name" ]]; then
+    if ! "$manim_bin" render "$new_scene" "$class_name" --dry_run 2>&1 | tee -a "$LOG_FILE"; then
+      echo "✗ Manim dry-run failed for $new_scene. Attempting self-heal..." | tee -a "$LOG_FILE"
+      local dry_run_reason
+      dry_run_reason=$(extract_recent_error_excerpt "$new_scene")
+      if ! repair_scene_until_valid "$(get_current_scene_id)" "$new_scene" "$class_name" "$dry_run_reason"; then
+        echo "✗ Self-heal failed after dry-run error in $new_scene" | tee -a "$LOG_FILE" >&2
+        return 1
+      fi
+    fi
+  else
+    echo "⚠ WARNING: Could not infer class name for $new_scene; skipping dry-run validation" | tee -a "$LOG_FILE"
+  fi
   
   # VALIDATION GATE 1: Check imports
   if ! validate_scene_imports "$new_scene"; then
@@ -1071,7 +1184,7 @@ Attached files include:
 Begin now.
 EOF
 
-  opencode run --model "${AGENT_MODEL}" \
+  opencode --agent manim-ce-scripting-expert run --model "${AGENT_MODEL}" \
     --file "$prompt_file" \
     --file "${SCRIPT_DIR}/../AGENTS.md" \
     --file "$SCENE_QC_PROMPT_DOC" \
@@ -1086,7 +1199,7 @@ EOF
     # Fallback to the user's default configured model for this QC pass.
     if tail -n 120 "$LOG_FILE" | grep -q "ProviderModelNotFoundError"; then
       echo "⚠ Requested model unavailable for scene_qc; retrying with default model..." | tee -a "$LOG_FILE"
-      opencode run \
+      opencode --agent manim-ce-scripting-expert run \
         --file "$prompt_file" \
         --file "${SCRIPT_DIR}/../AGENTS.md" \
         --file "$SCENE_QC_PROMPT_DOC" \
@@ -1417,6 +1530,31 @@ PY
       fi
     fi
 
+    # Pre-render guardrail: catch known invalid animations (e.g., ShowCreation).
+    if grep -q "ShowCreation" "$scene_file"; then
+      echo "⚠ Invalid animation detected (ShowCreation) in ${scene_file}. Starting self-heal..." | tee -a "$LOG_FILE"
+      local invalid_reason
+      invalid_reason="Invalid animation 'ShowCreation' detected. Use Create(...) for mobjects/curves." 
+      if ! repair_scene_until_valid "$scene_id" "$scene_file" "$scene_class" "$invalid_reason"; then
+        echo "❌ Could not repair ${scene_file} after ${PHASE_RETRY_LIMIT} attempts" | tee -a "$LOG_FILE" >&2
+        python3 - <<PY
+import json
+from datetime import datetime
+
+with open("${STATE_FILE}", "r") as f:
+    state = json.load(f)
+
+state.setdefault("errors", []).append("final_render failed: invalid animation in scene ${scene_id} (ShowCreation)")
+state.setdefault("flags", {})["needs_human_review"] = True
+state["updated_at"] = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+
+with open("${STATE_FILE}", "w") as f:
+    json.dump(state, f, indent=2)
+PY
+        exit 1
+      fi
+    fi
+
     # If the output already exists and verifies, don't re-render.
     if verify_scene_video "$scene_id" "$scene_class"; then
       update_state_rendered "$scene_id" "$scene_class" "$est_duration"
@@ -1440,9 +1578,10 @@ PY
     echo "" | tee -a "$LOG_FILE"
     echo "$ manim render $scene_file $scene_class -qh" | tee -a "$LOG_FILE"
 
-    # Scene-level retry + self-heal loop.
+    # Scene-level retry + self-heal loop with error feedback.
     local attempt=0
     local ok=0
+    local failure_reason=""
     while [[ $attempt -lt $PHASE_RETRY_LIMIT ]]; do
       attempt=$((attempt + 1))
 
@@ -1450,10 +1589,11 @@ PY
       local transient_max_attempts=5
       local backoff=10
       local render_ok=0
+      local render_log="${PROJECT_DIR}/render_log_${scene_id}.tmp"
       while [[ $transient_attempt -lt $transient_max_attempts ]]; do
         transient_attempt=$((transient_attempt + 1))
 
-        if "$manim_bin" render "$scene_file" "$scene_class" -qh 2>&1 | tee -a "$LOG_FILE"; then
+        if "$manim_bin" render "$scene_file" "$scene_class" -qh 2>&1 | tee -a "$LOG_FILE" > "$render_log"; then
           render_ok=1
           break
         fi
@@ -1471,7 +1611,13 @@ PY
 
       if [[ $render_ok -eq 1 ]]; then
         ok=1
+        rm -f "$render_log"
         break
+      fi
+
+      failure_reason=$(tail -n 80 "$render_log" 2>/dev/null | grep -A8 -B4 -E "Traceback|NameError|ImportError|SyntaxError|Exception" || true)
+      if [[ -z "$failure_reason" ]]; then
+        failure_reason="Render failed for ${scene_id}; see build.log for details."
       fi
 
       if [[ $attempt -ge $PHASE_RETRY_LIMIT ]]; then
@@ -1479,8 +1625,6 @@ PY
       fi
 
       echo "⚠ Render failed for ${scene_id}; attempting self-heal (${attempt}/${PHASE_RETRY_LIMIT})" | tee -a "$LOG_FILE"
-      local failure_reason
-      failure_reason=$(extract_recent_error_excerpt "$scene_file")
       if ! repair_scene_until_valid "$scene_id" "$scene_file" "$scene_class" "$failure_reason"; then
         break
       fi
@@ -1493,18 +1637,35 @@ import json
 from datetime import datetime
 
 scene_id = "${scene_id}"
+failure_reason = """${failure_reason}"""
 
 with open("${STATE_FILE}", "r") as f:
     state = json.load(f)
 
-state["errors"].append(f"final_render failed for {scene_id}: see build.log")
-state["flags"]["needs_human_review"] = True
+state.setdefault("errors", []).append(f"final_render failed for {scene_id}: {failure_reason}")
+state.setdefault("flags", {})["needs_human_review"] = False
+state["phase"] = "build_scenes"
 state["updated_at"] = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+
+for i, s in enumerate(state.get("scenes", [])):
+    if s.get("id") == scene_id:
+        state["current_scene_index"] = i
+        s["status"] = "pending"
+        break
+
+state.setdefault("history", []).append({
+    "timestamp": datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ'),
+    "phase": "final_render",
+    "scene": scene_id,
+    "action": "revert_to_build_scenes",
+    "reason": failure_reason,
+})
 
 with open("${STATE_FILE}", "w") as f:
     json.dump(state, f, indent=2)
 PY
-      exit 1
+      rm -f "${PROJECT_DIR}/render_log_${scene_id}.tmp"
+      return 1
     fi
 
     if ! verify_scene_video "$scene_id" "$scene_class"; then

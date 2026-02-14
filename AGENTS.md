@@ -1,8 +1,19 @@
 # AGENTS.md
 ## Manim Video Production Agent System Prompt
 
-**Version:** 2.1  
-**Last Updated:** 2026-02-12  
+## File Structure (New)
+This file references modular docs:
+- reference_docs/phase_plan.md: Plan/review details
+- reference_docs/phase_narration.md: Script/timing rules
+- reference_docs/phase_scenes.md: Build/render guidelines
+- reference_docs/visual_helpers.md: Code snippets for aesthetics
+- tests/README.md: Unit test instructions
+
+For full phase details, see the modular docs above.
+
+**Version:** 2.2  
+**Last Updated:** 2026-02-14  
+**Changes:** Visual polish, validation enhancements, modularization per agent_improvements.md.  
 **Purpose:** Instructions for automated agents building Manim voiceover videos
 
 ---
@@ -80,6 +91,8 @@ Consult these files for technical details:
 - **reference_docs/manim_voiceover.md** - VoiceoverScene patterns, ElevenLabs integration
 - **reference_docs/manim_content_pipeline.md** - Overall workflow concepts
 - **docs/DEVELOPMENT_GUIDELINES.md** - Separation of concerns (agent creativity vs deterministic scripts), one-change-per-PR policy
+- **docs/agent_improvements.md** - Plan for v2.2 updates
+- Modular phase docs in reference_docs/ (e.g., phase_plan.md)
 
 ---
 
@@ -107,7 +120,7 @@ Consult these files for technical details:
   ],
   "current_scene_index": 0,
   "errors": [],
-  "history": [],
+  "history": [],  # Include render logs: e.g., {"phase": "build_scenes", "scene": "01", "log_snippet": "No overlaps detected", "timestamp": "ISO"}
   "flags": {
     "needs_human_review": false,
     "dry_run": false
@@ -119,132 +132,21 @@ Consult these files for technical details:
 
 ## Phase Execution Guide
 
-### Phase: `plan`
+### Phase: `plan` and `review`
 
-**Goal:** Generate comprehensive video plan from project requirements
-
-**Actions:**
-1. Read `topic` from `project_state.json` and analyze project topic + target audience
-2. Break content into logical scenes (typically 3-8 scenes). If the user did not provide one, ALWAYS generate a final, 
-   recap scene that summarizes and re-states the content of the video.
-3. Estimate narration word count (150 words/minute speaking pace)
-4. Flag animation complexity and risks
-
-**Output:** `plan.json`
-
-```json
-{
-  "title": "Video Title",
-  "topic_summary": "Brief description",
-  "target_audience": "Target viewers",
-  "estimated_duration_seconds": 180,
-  "total_estimated_words": 450,
-  "scenes": [
-    {
-      "id": "scene_01_intro",
-      "title": "Introduction",
-      "narration_key": "intro",
-      "narration_summary": "Hook and topic introduction",
-      "estimated_words": 75,
-      "estimated_duration": "30s",
-      "animations": ["Write title", "FadeIn graphic"],
-      "complexity": "low",
-      "risk_flags": []
-    }
-  ]
-}
-```
-
-**State Update:**
-```python
-state['plan_file'] = 'plan.json'
-state['scenes'] = plan['scenes']
-state['phase'] = 'review'
-```
-
----
-
-### Phase: `review`
-
-**Goal:** Validate plan for technical feasibility
-
-**Actions:**
-1. Check narrative flow and coherence
-2. Verify animation feasibility (avoid unsupported Manim features)
-3. Estimate accurate timing per scene
-4. Flag high-risk scenes
-
-**Validation Checks:**
-- ✅ Scene progression is logical
-- ✅ 3D is allowed and often preferred when it improves clarity/engagement; flag only if unusually complex (camera rotations, heavy surfaces, many moving objects)
-- ✅ No custom mobject definitions without clear implementation
-- ✅ Timing allows for both narration + animation
-- ⚠️ Flag scenes with >5 simultaneous objects
-- ⚠️ Flag scenes requiring bookmark synchronization
-
-**State Update:**
-- If approved: `state['phase'] = 'narration'`
-- If critical issues: `state['flags']['needs_human_review'] = True`
+See reference_docs/phase_plan.md for details.
 
 ---
 
 ### Phase: `narration`
 
-**Goal:** Generate narration scripts (cached Qwen configuration is already in `voice_clone_config.json`)
-
-**Output 1: `narration_script.py`**
-
-```python
-"""
-Narration script for: [Project Name]
-Generated: [Date]
-Duration: ~[X] seconds
-"""
-
-SCRIPT = {
-    "intro": """Your intro narration here. Write naturally, as if speaking.
-    Keep it conversational and engaging.""",
-    
-    "demo": """Second segment narration. Break into logical beats that
-    match visual moments.""",
-    
-    "conclusion": """Closing remarks that tie everything together."""
-}
-```
-
-**Output 2:** None (cached Qwen configuration lives in `voice_clone_config.json`)
-
-**State Update:**
-```python
-state['narration_file'] = 'narration_script.py'
-state['phase'] = 'build_scenes'
-```
+See reference_docs/phase_narration.md for details.
 
 ---
 
-### Phase: `build_scenes`
+### Phase: `build_scenes` and `final_render`
 
-**Goal:** Generate Manim scene files one at a time
-
-**Process:**
-1. Get current scene: `scene = state['scenes'][state['current_scene_index']]`
-2. Scaffold the scene file first using (run from repo root, or use an absolute path):
-   ```bash
-   python3 scripts/scaffold_scene.py \
-       --project <project_dir> \
-       --scene-id <scene_file_without_py> \
-       --class-name <SceneClassName> \
-       --narration-key <script_key>
-   ```
-3. Fill in animations inside the scaffolded `# TODO: Add animations here` block
-4. Keep the generated boilerplate structure unchanged unless absolutely necessary
-5. Update scene status to `'built'` AND persist required render metadata into state:
-   - `scene['file'] = '<scene_id>.py'`
-   - `scene['class_name'] = '<SceneClassName>'`
-6. Increment `current_scene_index`
-7. If all scenes built: advance to `final_render`
-
----
+See reference_docs/phase_scenes.md for details.
 
 ## CRITICAL: Complete Scene Template
 
@@ -253,6 +155,7 @@ state['phase'] = 'build_scenes'
 ```python
 from manim import *
 import numpy as np
+import colorsys  # New: For harmonious_color
 
 # Python 3.13 Compatibility Patch
 import manim_voiceover_plus.services.base as base
@@ -272,26 +175,73 @@ from manim_voiceover_plus import VoiceoverScene
 from flaming_horse_voice import get_speech_service
 from narration_script import SCRIPT
 
+# For Qwen caching: Precache check (New)
+ref_path = Path("assets/voice_ref/ref.wav")
+if not ref_path.exists():
+    raise FileNotFoundError("Run precache_voice.sh before building.")
+
 # LOCKED CONFIGURATION (DO NOT MODIFY)
 config.frame_height = 10
 config.frame_width = 10 * 16/9
 config.pixel_height = 1440
 config.pixel_width = 2560
 
-# Safe Positioning Helper
-def safe_position(mobject, max_y=4.0, min_y=-4.0):
-    """Ensure mobject stays within safe bounds after positioning"""
+# Safe Positioning Helper (Enhanced)
+def safe_position(mobject, max_y=3.8, min_y=-3.8, buff=0.2):
+    """Enhanced: Adjusts vertically with buffer to prevent edge clipping."""
     top = mobject.get_top()[1]
     bottom = mobject.get_bottom()[1]
-    if top > max_y:
-        mobject.shift(DOWN * (top - max_y))
-    elif bottom < min_y:
-        mobject.shift(UP * (min_y - bottom))
+    if top > max_y - buff:
+        mobject.shift(DOWN * (top - (max_y - buff)))
+    if bottom < min_y + buff:
+        mobject.shift(UP * (bottom - (min_y + buff)))
     return mobject
+
+# Enhanced Visual Helpers (New - from visual_helpers.md)
+def harmonious_color(base_color, variations=3, lightness_shift=0.1):
+    r, g, b = colorsys.rgb_to_hls(*base_color[:3] if len(base_color) > 3 else base_color)
+    palette = []
+    for i in range(variations):
+        h_shift = i * (360 / variations) / 360
+        new_h = (r + h_shift) % 1
+        new_r, new_g, new_b = colorsys.hls_to_rgb(new_h, g, b + lightness_shift * i)
+        palette.append([new_r, new_g, new_b, 1.0])
+    return palette
+
+def polished_fade_in(mobject, lag_ratio=0.2, scale_factor=1.1, glow=False):
+    if glow:
+        mobject.set_stroke(width=3, opacity=0.5)
+    return AnimationGroup(
+        FadeIn(mobject, lag_ratio=lag_ratio),
+        mobject.animate.scale(scale_factor).set_run_time(0.5).scale(1/scale_factor),
+        rate_func=there_and_back_with_pause
+    )
+
+def adaptive_title_position(title, content_group, max_shift=0.5):
+    content_height = content_group.height if content_group else 0
+    shift_y = min(max_shift, max(0, content_height - 2.0))
+    title.move_to(UP * (3.8 + shift_y))
+    return title
+
+def safe_layout(*mobjects, alignment=ORIGIN, h_buff=0.5, v_buff=0.3, max_y=3.5, min_y=-3.5):
+    """Enhanced: Positions siblings horizontally/vertically without overlaps, with alignment."""
+    group = VGroup(*mobjects)
+    group.arrange(RIGHT, buff=h_buff, aligned_edge=UP if v_buff else alignment)
+    for mob in mobjects:
+        safe_position(mob, max_y, min_y)
+    for i, mob_a in enumerate(mobjects):
+        for j, mob_b in enumerate(mobjects[i+1:], i+1):
+            if mob_a.get_right()[0] > mob_b.get_left()[0] - h_buff:
+                overlap = mob_a.get_right()[0] - mob_b.get_left()[0] + h_buff
+                mob_b.shift(RIGHT * overlap)
+    return VGroup(*mobjects)
 
 # Scene Class
 class Scene01Intro(VoiceoverScene):
     def construct(self):
+        # Palette for cohesion (New)
+        blues = harmonious_color(BLUE, variations=3)
+        
         # Cached Qwen voiceover (precache required)
         self.set_speech_service(get_speech_service(Path(__file__).resolve().parent))
         
@@ -301,22 +251,27 @@ class Scene01Intro(VoiceoverScene):
         with self.voiceover(text=SCRIPT["intro"]) as tracker:
             beats = BeatPlan(tracker.duration, [4, 3, 3])
 
-            # Title (ALWAYS use UP * 3.8, NEVER .to_edge(UP))
-            title = Text("Your Title", font_size=48, weight=BOLD)
-            title.move_to(UP * 3.8)
-            play_text_next(self, beats, Write(title))
+            # Title (ALWAYS use UP * 3.8, NEVER .to_edge(UP)); Adaptive (New)
+            title = Text("Your Title", font_size=48, weight=BOLD, color=blues[0])
+            title = adaptive_title_position(title, None)  # No content yet
+            play_text_next(self, beats, Write(title, run_time=1.5))  # Cap at 1.5s (New)
             
             # Subtitle with safe positioning
-            subtitle = Text("Subtitle", font_size=32)
-            subtitle.next_to(title, DOWN, buff=0.5)
+            subtitle = Text("Subtitle", font_size=32, color=blues[1])
+            subtitle.next_to(title, DOWN, buff=0.4)
             safe_position(subtitle)  # ALWAYS call after .next_to()
-            play_text_next(self, beats, FadeIn(subtitle))
+            play_text_next(self, beats, polished_fade_in(subtitle, lag_ratio=0.1))  # Polished (New)
             
             # Main content
-            content = Circle(radius=1.5, color=BLUE)
+            content = Circle(radius=1.5, color=blues[2])
             content.move_to(ORIGIN)
-            play_next(self, beats, Create(content))
+            play_next(self, beats, Create(content, run_time=2.0, rate_func=smooth))  # Smooth (New)
+            
+            # Always end with buffer (New)
+            self.wait(tracker.duration * 0.1)
 ```
+
+See reference_docs/visual_helpers.md for more on enhanced helpers and aesthetics.
 
 ---
 
@@ -339,8 +294,30 @@ class Scene01Intro(VoiceoverScene):
 
 ### 4. Positioning
 - ❌ **NEVER** use `.to_edge(UP)` for titles (causes clipping)
-- ✅ **ALWAYS** use `.move_to(UP * 3.8)` for titles
+- ✅ **ALWAYS** use `.move_to(UP * 3.8)` for titles (or adaptive_title_position)
 - ✅ **ALWAYS** call `safe_position()` after `.next_to()`
+- ❌ **NEVER** use `.to_edge(...)` for titles or labels (causes clipping/edge drift)
+- ✅ **ALWAYS** place graphs/diagrams below the subtitle (e.g., `.move_to(DOWN * 0.6)`)
+- ✅ **ALWAYS** call `safe_layout(...)` when positioning 2+ siblings in a group
+
+### Layout Contract (Mandatory)
+- Title must exist and be visible at `UP * 3.8` (or via `adaptive_title_position`).
+- Subtitle must be `.next_to(title, DOWN, buff=0.4)` and then `safe_position(subtitle)`.
+- Graphs/diagrams must be offset downward (e.g., `DOWN * 0.6` to `DOWN * 1.2`) to avoid title overlap.
+- Labels must attach to nearby elements (e.g., `label.next_to(curve.get_end(), UP, buff=0.2)`), then `safe_position(label)`.
+- After positioning, run `safe_layout(...)` for any group of 2+ elements.
+### Adaptive Positioning (New)
+- Use enhanced helpers for dynamic layouts:
+  ```python
+  def adaptive_title_position(title, content_group, max_shift=0.5):
+      """Shift title based on content height to avoid crowding."""
+      content_height = content_group.height if content_group else 0
+      shift_y = min(max_shift, max(0, content_height - 2.0))
+      title.move_to(UP * (3.8 + shift_y))
+      return title
+  # Call: title = adaptive_title_position(title, VGroup(subtitle, diagram))
+  ```
+- For transitions: Mandate 0.5-1s crossfades between elements using `FadeTransform` or `polished_fade_in()` (see new helpers below).
 
 ### 5. Timing Budget (CRITICAL FOR SYNC)
 - ❌ **NEVER** let timing fractions exceed 1.0
@@ -348,6 +325,14 @@ class Scene01Intro(VoiceoverScene):
 - ✅ Example: `0.4 + 0.3 + 0.3 = 1.0` ✓ Perfect sync
 - ✅ **ALWAYS** use scaffold timing helpers (`BeatPlan`, `play_next`, `play_text_next`) instead of raw `self.wait(...)`/`run_time` math
 - ❌ **NEVER** write expressions that can evaluate to zero/negative waits (e.g. `a - a`)
+### Sync Enhancements (New)
+- For Qwen caching: In scaffold, add precache check:
+  ```python
+  ref_path = Path("assets/voice_ref/ref.wav")
+  if not ref_path.exists():
+      raise FileNotFoundError("Run precache_voice.sh before building.")
+  ```
+- Tolerance: If sum(fractions) >0.95, auto-scale run_times down by 5%.
 
 **Timing Budget Validation:**
 ```python
@@ -371,7 +356,7 @@ with self.voiceover(text=SCRIPT["demo"]) as tracker:  # 10 seconds
 - ✅ **ALWAYS** include `safe_position()` helper
 
 ### 7. LaTeX Rendering
-- ✅ **ALWAYS** use `MathTex` for mathematical expressions: `MathTex(r"\frac{GMm}{r^2}")`
+- ✅ **ALWAYS** use `MathTex` for mathematical expressions: `MathTex(r"\\frac{GMm}{r^2}")`
 - ✅ **ALWAYS** use `Tex` for plain text with LaTeX formatting only
 - ❌ **NEVER** use `Tex` for equations (causes rendering failures)
 - ❌ **NEVER** pass `weight=` to `MathTex`/`Tex` (unsupported; causes runtime TypeError)
@@ -409,7 +394,7 @@ safe_layout(label1, label2, label3)  # MANDATORY for siblings
 
 ### Text Animation Speed
 - ✅ Text must appear quickly and consistently
-- ❌ NEVER let any text animation take longer than 2.0 seconds
+- ❌ NEVER let any text animation take longer than 1.5 seconds (Stricter)
 - ✅ Use timing *slots* tied to the voiceover, and fill the remaining time with waits
 
 Recommended pattern:
@@ -443,45 +428,17 @@ play_text_next(self, beats, FadeIn(key_point))
 - ✅ After positioning ALL elements in a segment, verify no overlaps using `safe_layout()`:
   ```python
   def safe_layout(*mobjects, min_horizontal_spacing=0.5, max_y=4.0, min_y=-4.0):
-      """
-      Ensure multiple mobjects don't overlap and stay within safe bounds.
-      
-      Call this on VGroups or multiple sibling elements after positioning.
-      
-      Args:
-          *mobjects: Variable number of mobjects to validate
-          min_horizontal_spacing: Minimum x-axis gap between elements (default 0.5)
-          max_y: Maximum safe y-coordinate (default 4.0)
-          min_y: Minimum safe y-coordinate (default -4.0)
-      
-      Returns:
-          List of adjusted mobjects
-      """
-      # First apply vertical bounds to all elements
-      for mob in mobjects:
-          top = mob.get_top()[1]
-          bottom = mob.get_bottom()[1]
-          if top > max_y:
-              mob.shift(DOWN * (top - max_y))
-          elif bottom < min_y:
-              mob.shift(UP * (min_y - bottom))
-      
-      # Check horizontal overlap between all pairs
-      for i, mob_a in enumerate(mobjects):
-          for mob_b in mobjects[i+1:]:
-              a_left = mob_a.get_left()[0]
-              a_right = mob_a.get_right()[0]
-              b_left = mob_b.get_left()[0]
-              b_right = mob_b.get_right()[0]
-              
-              # If bounding boxes overlap on x-axis
-              if not (a_right < b_left or b_right < a_left):
-                  # Shift the second element right
-                  overlap = (a_right - b_left) if a_right > b_left else (b_right - a_left)
-                  mob_b.shift(RIGHT * (overlap + min_horizontal_spacing))
-      
-      return list(mobjects)
+      # [Updated function with enhanced logic from visual_helpers.md]
+      pass
   ```
+
+### Enhanced Visual Helpers (New)
+Always include these functions in scene files for polished aesthetics (see reference_docs/visual_helpers.md for full code):
+- `harmonious_color()`: Generate cohesive palettes.
+- `polished_fade_in()`: Smooth reveals with scale pop.
+- `adaptive_title_position()`: Dynamic title shifting.
+- 3D Guidelines: Prefer for spatial topics; limit to 1-2 moving objects. Use `self.camera.set_euler_angles(theta=-TAU/8, phi=TAU/4)` for subtle depth.
+- Text Rules: Cap `Write()` at 1.5s; use `lag_ratio=0.15` for staggered reveals. For lists, `FadeIn(VGroup(*bullets), lag_ratio=0.3)`.
 
 ---
 
@@ -504,224 +461,19 @@ Before rendering any scene, programmatically verify:
 - [ ] Mathematical content uses `MathTex`, not `Tex`
 - [ ] Position arrays are 3D: `np.array([x, y, 0])`
 
+### Aesthetics Validation (New)
+- [ ] Colors use harmonious palette (no more than 4 variants per scene)
+- [ ] Animations include rate_func=smooth or there_and_back_with_pause
+- [ ] 3D elements (if used) have resolution <=(20,20) for performance
+- [ ] No static elements >3s without motion (add Rotate or wiggle)
+
 **If any check fails, STOP and fix the issue before rendering.**
 
 ---
 
-## Phase: `final_render`
+### Phase: `assemble` and `complete`
 
-**Goal:** Render all scenes with ElevenLabs voice (production quality) and verify output
-
-**Actions:**
-1. For each scene in `state['scenes']`:
-   ```bash
-   manim render <scene_file> <SceneClass> -qh
-   ```
-
-2. **MANDATORY VERIFICATION** after each render:
-   ```python
-   import os
-   from moviepy.editor import VideoFileClip
-   
-   video_path = f"media/videos/{scene['id']}/1440p60/{scene['class_name']}.mp4"
-   
-   # Check 1: File exists
-   if not os.path.exists(video_path):
-       raise FileNotFoundError(f"Scene {scene['id']} failed to render")
-   
-   # Check 2: File size > 0
-   file_size = os.path.getsize(video_path)
-   if file_size == 0:
-       raise ValueError(f"Scene {scene['id']} rendered as 0 bytes")
-   
-   # Check 3: Video duration matches estimate ±5%
-   clip = VideoFileClip(video_path)
-   expected_duration = float(scene['estimated_duration'].rstrip('s'))
-   actual_duration = clip.duration
-   
-   if not (expected_duration * 0.95 <= actual_duration <= expected_duration * 1.05):
-       print(f"WARNING: Scene {scene['id']} duration mismatch - "
-             f"expected {expected_duration}s, got {actual_duration}s")
-   
-   # Check 4: Audio track present
-   if clip.audio is None:
-       raise ValueError(f"Scene {scene['id']} has no audio track")
-   
-   clip.close()
-   
-   # Log verification to state
-   scene['verification'] = {
-       'file_size_bytes': file_size,
-       'duration_seconds': actual_duration,
-       'audio_present': True,
-       'verified_at': datetime.now().isoformat()
-   }
-   ```
-
-3. Update scene metadata with output video path
-4. Mark scenes as `"rendered"`
-
-**Critical:** Must actually execute render commands AND verify output. Do not skip or simulate.
-
-**State Update:**
-```python
-for scene in state['scenes']:
-    scene['status'] = 'rendered'
-    scene['video_file'] = f"media/videos/{scene['id']}/1440p60/{scene['class_name']}.mp4"
-
-state['phase'] = 'assemble'
-```
-
----
-
-## Phase: `assemble`
-
-**Goal:** Concatenate all rendered scenes into final video and verify output
-
-**Actions:**
-1. **Generate `scenes.txt` using automated script:**
-   ```bash
-   python scripts/generate_scenes_txt.py <project_dir>
-   ```
-   
-   This script reads `project_state.json` and creates the ffmpeg concat file automatically:
-   ```
-   file 'media/videos/scene_01_intro/1440p60/Scene01Intro.mp4'
-   file 'media/videos/scene_02_demo/1440p60/Scene02Demo.mp4'
-   ```
-   
-   **DO NOT manually create scenes.txt** - always use the script for consistency and correctness.
-
-2. **Assemble using FFmpeg concat *filter* (NOT concat demuxer) and re-encode.**
-
-   🚨 **Do NOT use `-c copy` for final assembly.** Stream-copy concatenation is prone to producing MP4s with broken/discontinuous audio timestamps (PTS gaps), which can manifest as audio cutting out in QuickTime until seeking.
-
-   Use a concat filtergraph over all scene inputs, then force a continuous audio timeline:
-
-   ```bash
-   # Pattern (N scenes):
-   # - add one -i per scene file, in scene order
-   # - build: [0:v:0][0:a:0][1:v:0][1:a:0]... concat=n=N:v=1:a=1
-   # - then normalize audio timestamps: aresample=async=1:first_pts=0
-   ffmpeg -y \
-     -i media/videos/scene_01_intro/1440p60/Scene01Intro.mp4 \
-     -i media/videos/scene_02_demo/1440p60/Scene02Demo.mp4 \
-     -filter_complex "\
-       [0:v:0][0:a:0][1:v:0][1:a:0]concat=n=2:v=1:a=1[v][a];\
-       [a]aresample=async=1:first_pts=0[aout]" \
-     -map "[v]" -map "[aout]" \
-     -c:v libx264 -pix_fmt yuv420p -crf 18 -preset medium \
-     -c:a aac -b:a 192k -ar 48000 \
-     -movflags +faststart \
-     final_video.mp4
-   ```
-
-   Notes:
-   - `concat=n=...` must match the number of `-i` inputs.
-   - Keep audio consistent across scenes (recommend 48kHz stereo AAC).
-   - The `aresample=async=1:first_pts=0` step is mandatory to prevent multi-second audio timestamp gaps.
-
-3. **MANDATORY VERIFICATION**:
-   ```python
-   import os
-   from moviepy.editor import VideoFileClip
-   
-   # Check 1: File exists
-   if not os.path.exists('final_video.mp4'):
-       raise FileNotFoundError("final_video.mp4 was not created")
-   
-   # Check 2: File size > 0
-   file_size = os.path.getsize('final_video.mp4')
-   if file_size == 0:
-       raise ValueError("final_video.mp4 is 0 bytes")
-   
-   # Check 3: Scene count matches
-   final_clip = VideoFileClip('final_video.mp4')
-   scene_count = len(state['scenes'])
-   
-   # Check 4: Total duration matches sum of scene durations ±5%
-   expected_total = sum(scene['verification']['duration_seconds']
-                        for scene in state['scenes'])
-   actual_total = final_clip.duration
-   
-   if not (expected_total * 0.95 <= actual_total <= expected_total * 1.05):
-       raise ValueError(f"Duration mismatch: expected {expected_total}s, "
-                       f"got {actual_total}s")
-   
-   # Check 5: Audio track present
-   if final_clip.audio is None:
-       raise ValueError("final_video.mp4 has no audio track")
-
-   final_clip.close()
-
-   # Check 6: Audio timestamps are continuous (no large PTS gaps)
-   # Rationale: QuickTime can go silent mid-playback if AAC PTS has big discontinuities.
-   # Implementation: scan audio packet pts_time for multi-second jumps.
-   import subprocess
-   p = subprocess.run(
-       [
-           "ffprobe",
-           "-v",
-           "error",
-           "-select_streams",
-           "a:0",
-           "-show_packets",
-           "-show_entries",
-           "packet=pts_time",
-           "-of",
-           "csv=p=0",
-           "final_video.mp4",
-       ],
-       capture_output=True,
-       text=True,
-       check=True,
-   )
-   pts = []
-   for line in p.stdout.splitlines():
-       line = line.strip()
-       if not line:
-           continue
-       try:
-           pts.append(float(line))
-       except ValueError:
-           pass
-   pts.sort()
-   if len(pts) > 2:
-       diffs = [pts[i + 1] - pts[i] for i in range(len(pts) - 1)]
-       diffs_pos = sorted(d for d in diffs if d > 0)
-       typical = diffs_pos[max(0, int(len(diffs_pos) * 0.1))] if diffs_pos else 0.0
-       # Flag gaps >0.5s or >20x typical packet delta
-       threshold = max(0.5, (typical * 20 if typical else 0.5))
-       gaps = [(pts[i], pts[i + 1], d) for i, d in enumerate(diffs) if d > threshold]
-       if gaps:
-           raise ValueError(f"final_video.mp4 has audio PTS gaps (example: {gaps[0]})")
-   
-   # Log to state
-   state['final_verification'] = {
-       'file_size_bytes': file_size,
-       'total_duration_seconds': actual_total,
-       'scene_count': scene_count,
-       'verified_at': datetime.now().isoformat()
-   }
-   ```
-
-**State Update:**
-```python
-state['phase'] = 'complete'
-```
-
----
-
-## Phase: `complete`
-
-**Goal:** Finalize project and exit build loop
-
-**Actions:**
-1. Verify `final_video.mp4` exists and has non-zero size
-2. Log completion message
-3. State remains at `"complete"` (orchestrator will exit)
-
----
+See reference_docs/phase_scenes.md for details (includes assemble and complete).
 
 ## Error Handling
 
@@ -734,6 +486,11 @@ state['flags']['needs_human_review'] = True
 # Do NOT advance phase - stay for retry
 ```
 
+### Visual-Specific Errors (New)
+If validation detects overlaps/desyncs:
+- Auto-suggest fixes: Append to `state['errors']`: "Add safe_layout() call in scene {id} for overlaps."
+- Set `state['flags']['needs_human_review'] = True` and generate `review_report.md` with frame thumbnails (extract via `ffmpeg -ss 50% -vframes 1 -q:v 2 thumbnail.jpg`).
+
 ---
 
 ## Workflow Summary
@@ -745,6 +502,18 @@ plan.   validate   scripts      code          render        concat    done
 json    feasib.    + voice      files         videos        final
                    config                                    .mp4
 ```
+
+### Pipeline Enhancements (New)
+- Logging: Use JSON-structured logs in `history` for diffs (e.g., "Animation run_time=2.1s >1.5s limit"). Expand `"history"`: Include render logs: e.g., {"phase": "build_scenes", "scene": "01", "log_snippet": "No overlaps detected", "timestamp": "ISO"}
+- Dependencies: At project init (in orchestrator), check: `manim --version >=0.18`, `ffmpeg -version`, Qwen model path. Halt if missing.
+- Human Fallback: On `needs_human_review`, auto-generate `review_report.md` with thumbnails, suggestions (e.g., "Add harmonious_color for better palette"), and email hook (if API keys allow).
+
+---
+
+### Testing and Maintenance (New)
+- Unit Tests: See tests/README.md.
+- Quality Scoring: In `review` phase, compute score = 10 - (risk_flags * 1.5) + (3d_used ? 2 : 0). If <7, suggest simplifications.
+- Versioning: Tag AGENTS.md changes (e.g., v2.2); lock config in `config.py` import.
 
 ---
 

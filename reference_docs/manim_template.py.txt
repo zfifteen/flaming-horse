@@ -157,21 +157,24 @@ class YourSceneName(VoiceoverScene):  # Replace with your scene name
         # ── Configure cached Qwen TTS ───────────────────────────────
         self.set_speech_service(get_speech_service(Path(__file__).resolve().parent))
 
-        # ── Title Sequence ─────────────────────────────────────────
-        # Timing budget: Calculate BEFORE writing animations
-        # Example: 0.4 + 0.3 + 0.3 = 1.0 ✓
+# ── Title Sequence ─────────────────────────────────────────
+# Timing budget: Calculate BEFORE writing animations
+# Example: 0.4 + 0.3 + 0.3 = 1.0 ✓
 
-        with self.voiceover(text=SCRIPT["intro"]) as tracker:
-            # Title (ALWAYS use UP * 3.8, NEVER .to_edge(UP))
-            title = Text("Your Scene Title", font_size=48, weight=BOLD)
-            title.move_to(UP * 3.8)
-            play_text_in_slot(self, Write(title), tracker.duration * 0.4)
+with self.voiceover(text=SCRIPT["intro"]) as tracker:
+    # Title (ALWAYS use UP * 3.8, NEVER .to_edge(UP))
+    title = Text("Your Scene Title", font_size=48, weight=BOLD)
+    title.move_to(UP * 3.8)
+    play_text_in_slot(self, Write(title), tracker.duration * 0.4)
 
             # Subtitle with safe positioning
-            subtitle = Text("Your Subtitle Here", font_size=32, color=BLUE)
-            subtitle.next_to(title, DOWN, buff=0.3)
-            safe_position(subtitle)  # CRITICAL: Validate after .next_to()
-            play_text_in_slot(self, FadeIn(subtitle), tracker.duration * 0.3)
+    subtitle = Text("Your Subtitle Here", font_size=32, color=BLUE)
+    subtitle.next_to(title, DOWN, buff=0.3)
+    safe_position(subtitle)  # CRITICAL: Validate after .next_to()
+    play_text_in_slot(self, FadeIn(subtitle), tracker.duration * 0.3)
+
+    # Layout contract (MANDATORY): place graphs below subtitle
+    # NEVER use .to_edge(...) for titles/labels
 
             # Title group animation
             title_group = VGroup(title, subtitle)
@@ -179,18 +182,18 @@ class YourSceneName(VoiceoverScene):  # Replace with your scene name
             title_group.target.scale(0.6).move_to(UP * 3.8)
             play_in_slot(self, MoveToTarget(title_group), tracker.duration * 0.3)
 
-        # ── Main Content ───────────────────────────────────────────
-        with self.voiceover(text=SCRIPT["main"]) as tracker:
-            # Section title with validation
-            section_title = Text("Section Title", font_size=36, color=YELLOW)
-            section_title.next_to(title_group, DOWN, buff=0.5)
-            safe_position(section_title)  # CRITICAL
-            play_text_in_slot(self, Write(section_title), tracker.duration * 0.2)
+# ── Main Content ───────────────────────────────────────────
+with self.voiceover(text=SCRIPT["main"]) as tracker:
+    # Section title with validation
+    section_title = Text("Section Title", font_size=36, color=YELLOW)
+    section_title.next_to(title_group, DOWN, buff=0.5)
+    safe_position(section_title)  # CRITICAL
+    play_text_in_slot(self, Write(section_title), tracker.duration * 0.2)
 
-            # Shape example with explicit positioning (SAFE METHOD)
-            box = Rectangle(width=4, height=3, color=GREEN, fill_opacity=0.2)
-            box.move_to(ORIGIN)
-            play_in_slot(self, Create(box), tracker.duration * 0.4)
+    # Shape example with explicit positioning (SAFE METHOD)
+    box = Rectangle(width=4, height=3, color=GREEN, fill_opacity=0.2)
+    box.move_to(ORIGIN)
+    play_in_slot(self, Create(box), tracker.duration * 0.4)
 
             # Math example (use MathTex for equations)
             formula = MathTex(r"E = mc^2", font_size=48, color=GOLD)
@@ -224,6 +227,11 @@ class SafePositioningExample(VoiceoverScene):
             elements.add(label)
 
         safe_position(elements)  # Validate entire group
+
+        # Graph/diagram placement rule
+        diagram = Rectangle(width=6, height=3, color=BLUE).move_to(DOWN * 0.8)
+        safe_position(diagram)
+        safe_layout(title, elements, diagram)
 
         narration = """Here we demonstrate safe positioning with multiple elements
                 that won't overlap or clip at the edges."""
