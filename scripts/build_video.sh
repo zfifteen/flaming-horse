@@ -572,7 +572,7 @@ EOF
   
   # Invoke OpenCode - message must come after all options
   # TODO Replace this with an option to select from available models configured in OpenCode
-  opencode run --model "${AGENT_MODEL}" \
+  opencode run --agent manim-ce-scripting-expert --model "${AGENT_MODEL}" \
     --file "$prompt_file" \
     --file "${SCRIPT_DIR}/../reference_docs/manim_content_pipeline.md" \
     --file "${SCRIPT_DIR}/../reference_docs/manim_voiceover.md" \
@@ -665,7 +665,7 @@ INSTRUCTIONS:
 When done, stop.
 EOF
 
-  opencode run --model "${AGENT_MODEL}" \
+  opencode --agent manim-ce-scripting-expert run --model "${AGENT_MODEL}" \
     --file "$prompt_file" \
     --file "${SCRIPT_DIR}/../reference_docs/manim_content_pipeline.md" \
     --file "${SCRIPT_DIR}/../reference_docs/manim_voiceover.md" \
@@ -1071,7 +1071,7 @@ Attached files include:
 Begin now.
 EOF
 
-  opencode run --model "${AGENT_MODEL}" \
+  opencode --agent manim-ce-scripting-expert run --model "${AGENT_MODEL}" \
     --file "$prompt_file" \
     --file "${SCRIPT_DIR}/../AGENTS.md" \
     --file "$SCENE_QC_PROMPT_DOC" \
@@ -1086,7 +1086,7 @@ EOF
     # Fallback to the user's default configured model for this QC pass.
     if tail -n 120 "$LOG_FILE" | grep -q "ProviderModelNotFoundError"; then
       echo "⚠ Requested model unavailable for scene_qc; retrying with default model..." | tee -a "$LOG_FILE"
-      opencode run \
+      opencode --agent manim-ce-scripting-expert run \
         --file "$prompt_file" \
         --file "${SCRIPT_DIR}/../AGENTS.md" \
         --file "$SCENE_QC_PROMPT_DOC" \
