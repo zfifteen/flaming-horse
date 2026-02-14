@@ -50,7 +50,11 @@ while [[ ${#} -gt 0 ]]; do
 done
 
 INITIAL_PWD="$(pwd)"
-PROJECT_DIR="$(realpath "${INITIAL_PWD}/${PROJECT_DIR_INPUT}")" # Absolute path to project directory
+if [[ "${PROJECT_DIR_INPUT}" == /* ]]; then
+  PROJECT_DIR="$(realpath "${PROJECT_DIR_INPUT}")"
+else
+  PROJECT_DIR="$(realpath "${INITIAL_PWD}/${PROJECT_DIR_INPUT}")"
+fi
 
 STATE_FILE="${PROJECT_DIR}/project_state.json"
 STATE_BACKUP="${PROJECT_DIR}/.state_backup.json"
