@@ -1,3 +1,0 @@
-file 'media/videos/scene_01_intro/1440p60/Scene01Intro.mp4'
-file 'media/videos/scene_02_demo/1440p60/Scene02Demo.mp4'
-file 'media/videos/scene_03_recap/1440p60/Scene03Recap.mp4'

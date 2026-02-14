@@ -1,1 +1,0 @@
-Welcome to this video on matrix multiplication. Matrices are powerful mathematical tools that appear everywhere from computer graphics to machine learning. But multiplying them isn't as simple as multiplying regular numbers. In this video, we'll explore what matrix multiplication really means and why it's so important.
