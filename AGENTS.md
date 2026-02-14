@@ -79,6 +79,7 @@ Consult these files for technical details:
 - **reference_docs/manim_config_guide.md** - Positioning rules, safe zones, sizing guidelines
 - **reference_docs/manim_voiceover.md** - VoiceoverScene patterns, ElevenLabs integration
 - **reference_docs/manim_content_pipeline.md** - Overall workflow concepts
+- **docs/DEVELOPMENT_GUIDELINES.md** - Separation of concerns (agent creativity vs deterministic scripts), one-change-per-PR policy
 
 ---
 
@@ -295,30 +296,26 @@ class Scene01Intro(VoiceoverScene):
         self.set_speech_service(get_speech_service(Path(__file__).resolve().parent))
         
         # Animation Sequence
-        # Timing budget: Calculate BEFORE writing animations
-        # Example: 0.4 + 0.3 + 0.3 = 1.0 ✓
+        # Timing is deterministic via BeatPlan helper slots.
         
         with self.voiceover(text=SCRIPT["intro"]) as tracker:
+            beats = BeatPlan(tracker.duration, [4, 3, 3])
+
             # Title (ALWAYS use UP * 3.8, NEVER .to_edge(UP))
             title = Text("Your Title", font_size=48, weight=BOLD)
             title.move_to(UP * 3.8)
-            # Text must never take longer than 2 seconds to display.
-            slot = tracker.duration * 0.4
-            self.play(Write(title), run_time=min(2.0, max(0.3, slot)))
-            self.wait(max(0.0, slot - min(2.0, max(0.3, slot))))
+            play_text_next(self, beats, Write(title))
             
             # Subtitle with safe positioning
             subtitle = Text("Subtitle", font_size=32)
             subtitle.next_to(title, DOWN, buff=0.5)
             safe_position(subtitle)  # ALWAYS call after .next_to()
-            slot = tracker.duration * 0.3
-            self.play(FadeIn(subtitle), run_time=min(2.0, max(0.3, slot)))
-            self.wait(max(0.0, slot - min(2.0, max(0.3, slot))))
+            play_text_next(self, beats, FadeIn(subtitle))
             
             # Main content
             content = Circle(radius=1.5, color=BLUE)
             content.move_to(ORIGIN)
-            self.play(Create(content), run_time=tracker.duration * 0.3)
+            play_next(self, beats, Create(content))
 ```
 
 ---
@@ -349,6 +346,8 @@ class Scene01Intro(VoiceoverScene):
 - ❌ **NEVER** let timing fractions exceed 1.0
 - ✅ **ALWAYS** calculate timing budget before writing animations
 - ✅ Example: `0.4 + 0.3 + 0.3 = 1.0` ✓ Perfect sync
+- ✅ **ALWAYS** use scaffold timing helpers (`BeatPlan`, `play_next`, `play_text_next`) instead of raw `self.wait(...)`/`run_time` math
+- ❌ **NEVER** write expressions that can evaluate to zero/negative waits (e.g. `a - a`)
 
 **Timing Budget Validation:**
 ```python
@@ -375,6 +374,8 @@ with self.voiceover(text=SCRIPT["demo"]) as tracker:  # 10 seconds
 - ✅ **ALWAYS** use `MathTex` for mathematical expressions: `MathTex(r"\frac{GMm}{r^2}")`
 - ✅ **ALWAYS** use `Tex` for plain text with LaTeX formatting only
 - ❌ **NEVER** use `Tex` for equations (causes rendering failures)
+- ❌ **NEVER** pass `weight=` to `MathTex`/`Tex` (unsupported; causes runtime TypeError)
+- ✅ Use `weight=` only with `Text(...)`, or emphasize math with color/scale/animation instead
 
 ### 8. Positioning and Overlap Prevention
 - ❌ **NEVER** place multiple elements at ORIGIN without explicit offsets
@@ -414,9 +415,10 @@ safe_layout(label1, label2, label3)  # MANDATORY for siblings
 Recommended pattern:
 
 ```python
-slot = tracker.duration * 0.3
-play_text_in_slot(self, Write(title), slot, max_text_seconds=2.0)
-# Next beat stays voiceover-cued by using its own slot (or waiting the remainder)
+beats = BeatPlan(tracker.duration, [3, 2, 5])
+play_text_next(self, beats, Write(title))
+play_next(self, beats, Create(diagram))
+play_text_next(self, beats, FadeIn(key_point))
 ```
 
 - ✅ For bullet lists, prefer `FadeIn(..., lag_ratio=...)` over `Write`

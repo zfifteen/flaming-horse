@@ -1,17 +1,11 @@
-#!/usr/bin/env python3
-"""Generate a new Manim scene file scaffold."""
-
-import argparse
-from pathlib import Path
-import sys
-
-
-TEMPLATE = """from manim import *
+from manim import *
 import numpy as np
 
 # Python 3.13 Compatibility Patch
 import manim_voiceover_plus.services.base as base
+
 original_set_transcription = base.SpeechService.set_transcription
+
 
 def patched_set_transcription(self, model=None, kwargs=None):
     if model is None:
@@ -19,6 +13,7 @@ def patched_set_transcription(self, model=None, kwargs=None):
         self.whisper_model = None
         return
     original_set_transcription(self, model=model, kwargs=kwargs)
+
 
 base.SpeechService.set_transcription = patched_set_transcription
 
@@ -30,13 +25,14 @@ from narration_script import SCRIPT
 
 # LOCKED CONFIGURATION (DO NOT MODIFY)
 config.frame_height = 10
-config.frame_width = 10 * 16/9
+config.frame_width = 10 * 16 / 9
 config.pixel_height = 1440
 config.pixel_width = 2560
 
+
 # Safe Positioning Helper
 def safe_position(mobject, max_y=4.0, min_y=-4.0):
-    \"\"\"Ensure mobject stays within safe bounds after positioning\"\"\"
+    """Ensure mobject stays within safe bounds after positioning"""
     top = mobject.get_top()[1]
     bottom = mobject.get_bottom()[1]
     if top > max_y:
@@ -45,8 +41,9 @@ def safe_position(mobject, max_y=4.0, min_y=-4.0):
         mobject.shift(UP * (min_y - bottom))
     return mobject
 
+
 def safe_layout(*mobjects, min_horizontal_spacing=0.5, max_y=4.0, min_y=-4.0):
-    \"\"\"Ensure multiple mobjects don't overlap and stay within safe bounds.\"\"\"
+    """Ensure multiple mobjects don't overlap and stay within safe bounds."""
     for mob in mobjects:
         top = mob.get_top()[1]
         bottom = mob.get_bottom()[1]
@@ -56,7 +53,7 @@ def safe_layout(*mobjects, min_horizontal_spacing=0.5, max_y=4.0, min_y=-4.0):
             mob.shift(UP * (min_y - bottom))
 
     for i, mob_a in enumerate(mobjects):
-        for mob_b in mobjects[i + 1:]:
+        for mob_b in mobjects[i + 1 :]:
             a_left = mob_a.get_left()[0]
             a_right = mob_a.get_right()[0]
             b_left = mob_b.get_left()[0]
@@ -67,13 +64,14 @@ def safe_layout(*mobjects, min_horizontal_spacing=0.5, max_y=4.0, min_y=-4.0):
 
     return list(mobjects)
 
+
 # Timing Helpers
 class BeatPlan:
-    '''Deterministic timing allocator for one voiceover block.
+    """Deterministic timing allocator for one voiceover block.
 
     Use integer-ish weights for each visual beat and consume slots in order.
     Agents should avoid manual wait/run_time math and use this plan instead.
-    '''
+    """
 
     def __init__(self, total_duration, weights):
         self.total_duration = max(0.0, float(total_duration))
@@ -105,8 +103,10 @@ class BeatPlan:
         return slot
 
 
-def play_in_slot(scene, slot, *animations, max_run_time=None, min_run_time=0.3, **play_kwargs):
-    '''Play one or more animations in a fixed slot and fill remainder with wait.'''
+def play_in_slot(
+    scene, slot, *animations, max_run_time=None, min_run_time=0.3, **play_kwargs
+):
+    """Play one or more animations in a fixed slot and fill remainder with wait."""
     if not animations:
         return
 
@@ -133,8 +133,10 @@ def play_in_slot(scene, slot, *animations, max_run_time=None, min_run_time=0.3, 
         scene.wait(remaining)
 
 
-def play_text_in_slot(scene, slot, *animations, max_text_seconds=2.0, min_run_time=0.3, **play_kwargs):
-    '''Text animations must complete quickly; fill the rest with waits.'''
+def play_text_in_slot(
+    scene, slot, *animations, max_text_seconds=2.0, min_run_time=0.3, **play_kwargs
+):
+    """Text animations must complete quickly; fill the rest with waits."""
     return play_in_slot(
         scene,
         slot,
@@ -145,8 +147,10 @@ def play_text_in_slot(scene, slot, *animations, max_text_seconds=2.0, min_run_ti
     )
 
 
-def play_next(scene, beats, *animations, max_run_time=None, min_run_time=0.3, **play_kwargs):
-    '''Play next deterministic beat slot from BeatPlan.'''
+def play_next(
+    scene, beats, *animations, max_run_time=None, min_run_time=0.3, **play_kwargs
+):
+    """Play next deterministic beat slot from BeatPlan."""
     return play_in_slot(
         scene,
         beats.next_slot(),
@@ -157,8 +161,10 @@ def play_next(scene, beats, *animations, max_run_time=None, min_run_time=0.3, **
     )
 
 
-def play_text_next(scene, beats, *animations, max_text_seconds=2.0, min_run_time=0.3, **play_kwargs):
-    '''Play next beat slot with text reveal cap.'''
+def play_text_next(
+    scene, beats, *animations, max_text_seconds=2.0, min_run_time=0.3, **play_kwargs
+):
+    """Play next beat slot with text reveal cap."""
     return play_text_in_slot(
         scene,
         beats.next_slot(),
@@ -168,78 +174,82 @@ def play_text_next(scene, beats, *animations, max_text_seconds=2.0, min_run_time
         **play_kwargs,
     )
 
+
 # Scene Class
-class {class_name}(VoiceoverScene):
+class Scene04Proof(VoiceoverScene):
     def construct(self):
         # Qwen cached voiceover (precache required)
         self.set_speech_service(get_speech_service(Path(__file__).resolve().parent))
 
         # Animation Sequence
         # Timing is deterministic: define beat weights, then consume slots in order.
-        with self.voiceover(text=SCRIPT["{narration_key}"]) as tracker:
-            # TODO: Add animations here
-            # IMPORTANT: Do not write raw wait/run_time timing math.
-            # Use BeatPlan + play_next/play_text_next only.
-            #
-            # Example pattern (weights 3,2,5 consume full tracker.duration):
-            # beats = BeatPlan(tracker.duration, [3, 2, 5])
-            #
-            # title = Text("Title", font_size=48, weight=BOLD)
-            # title.move_to(UP * 3.8)
-            # play_text_next(self, beats, Write(title))
-            #
-            # box = Rectangle(width=4, height=2.2, color=BLUE)
-            # box.move_to(ORIGIN)
-            # play_next(self, beats, Create(box))
-            #
-            # footer = Text("Key idea", font_size=30)
-            # footer.next_to(box, DOWN, buff=0.4)
-            # safe_position(footer)
-            # play_text_next(self, beats, FadeIn(footer))
-            self.wait(tracker.duration)
-"""
+        with self.voiceover(text=SCRIPT["proof"]) as tracker:
+            beats = BeatPlan(tracker.duration, [3, 2, 3, 2, 3, 2, 3, 2, 3, 3])
 
+            # Title
+            title = Text("Proof by Contradiction", font_size=48, weight=BOLD)
+            title.move_to(UP * 3.8)
+            play_text_next(self, beats, Write(title))
 
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Scaffold a Manim scene file.")
-    parser.add_argument("--project", required=True, help="Project directory path")
-    parser.add_argument(
-        "--scene-id", required=True, help="Scene id (file name without .py)"
-    )
-    parser.add_argument("--class-name", required=True, help="Scene class name")
-    parser.add_argument(
-        "--narration-key", required=True, help="SCRIPT key for narration"
-    )
-    parser.add_argument(
-        "--force", action="store_true", help="Overwrite existing scene file"
-    )
-    return parser.parse_args()
+            # Assume sqrt(2) = p/q
+            assume = MathTex(r"\sqrt{2} = \frac{p}{q}", font_size=36)
+            assume.next_to(title, DOWN, buff=0.5)
+            safe_position(assume)
+            play_text_next(self, beats, Write(assume))
 
+            # Square both sides: 2 = p^2 / q^2
+            step1 = MathTex(r"2 = \frac{p^{2}}{q^{2}}", font_size=36)
+            step1.next_to(assume, DOWN, buff=0.5)
+            safe_position(step1)
+            play_text_next(self, beats, Write(step1))
 
-def main() -> int:
-    args = parse_args()
-    project_dir = Path(args.project)
-    scene_filename = (
-        args.scene_id if args.scene_id.endswith(".py") else f"{args.scene_id}.py"
-    )
-    output_file = project_dir / scene_filename
+            # 2 q^2 = p^2
+            step2 = MathTex(r"2 q^{2} = p^{2}", font_size=36)
+            step2.next_to(step1, DOWN, buff=0.5)
+            safe_position(step2)
+            play_text_next(self, beats, Write(step2))
 
-    if not project_dir.exists():
-        print(f"Error: project directory not found: {project_dir}", file=sys.stderr)
-        return 1
-    if output_file.exists() and not args.force:
-        print(f"Error: scene file already exists: {output_file}", file=sys.stderr)
-        print("Use --force to overwrite.", file=sys.stderr)
-        return 1
+            # p^2 even => p even
+            even_note = Text("p² is even, so p is even", font_size=28, color=BLUE)
+            even_note.next_to(step2, DOWN, buff=0.5)
+            safe_position(even_note)
+            play_text_next(self, beats, Write(even_note))
 
-    content = TEMPLATE.format(
-        class_name=args.class_name,
-        narration_key=args.narration_key,
-    )
-    output_file.write_text(content, encoding="utf-8")
-    print(f"✅ Created scene scaffold: {output_file}")
-    return 0
+            # p = 2r
+            sub = MathTex(r"p = 2r", font_size=36)
+            sub.next_to(even_note, DOWN, buff=0.5)
+            safe_position(sub)
+            play_text_next(self, beats, Write(sub))
 
+            # Substitute: q^2 = 2 r^2
+            step3 = MathTex(r"q^{2} = 2 r^{2}", font_size=36)
+            step3.next_to(sub, DOWN, buff=0.5)
+            safe_position(step3)
+            play_text_next(self, beats, Write(step3))
 
-if __name__ == "__main__":
-    raise SystemExit(main())
+            # q^2 even => q even
+            even_q = Text("q² is even, so q is even", font_size=28, color=BLUE)
+            even_q.next_to(step3, DOWN, buff=0.5)
+            safe_position(even_q)
+            play_text_next(self, beats, Write(even_q))
+
+            # Contradiction
+            contradiction = Text(
+                "Contradiction: both p and q are even!", font_size=32, color=RED
+            )
+            contradiction.next_to(even_q, DOWN, buff=0.5)
+            safe_position(contradiction)
+            play_text_next(self, beats, Write(contradiction))
+
+            # Fade out previous steps to reduce clutter
+            self.play(
+                FadeOut(VGroup(assume, step1, step2, even_note, sub, step3, even_q)),
+                run_time=0.5,
+            )
+
+            # Conclusion
+            conclusion = Text(
+                "Therefore, √2 is irrational", font_size=36, weight=BOLD, color=GOLD
+            )
+            conclusion.move_to(DOWN * 3.5)
+            play_text_next(self, beats, Write(conclusion))
