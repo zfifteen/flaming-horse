@@ -1,0 +1,258 @@
+{
+  "project_name": "irrational",
+  "topic": "Create a video explaining what irrational numbers are.",
+  "phase": "complete",
+  "created_at": "2026-02-14T04:38:07Z",
+  "updated_at": "2026-02-14T05:11:54Z",
+  "run_count": 11,
+  "plan_file": "plan.json",
+  "narration_file": "narration_script.py",
+  "voice_config_file": null,
+  "scenes": [
+    {
+      "id": "scene_01_intro",
+      "title": "Introduction to Numbers",
+      "narration_key": "intro",
+      "narration_summary": "Hook the audience with a question about numbers and introduce the difference between rational and irrational numbers.",
+      "estimated_words": 75,
+      "estimated_duration": "30s",
+      "animations": [
+        "Write title",
+        "FadeIn number line",
+        "Highlight rational vs irrational examples"
+      ],
+      "complexity": "low",
+      "risk_flags": [],
+      "status": "rendered",
+      "file": "scene_01_intro.py",
+      "class_name": "Scene01Intro",
+      "video_file": "media/videos/scene_01_intro/1440p60/Scene01Intro.mp4",
+      "verification": {
+        "file_size_bytes": 769166,
+        "duration_seconds": 17.666667,
+        "audio_present": true,
+        "verified_at": "2026-02-14T05:09:29Z"
+      }
+    },
+    {
+      "id": "scene_02_definition",
+      "title": "What Are Irrational Numbers?",
+      "narration_key": "definition",
+      "narration_summary": "Define irrational numbers as real numbers that cannot be expressed as a ratio of two integers.",
+      "estimated_words": 90,
+      "estimated_duration": "36s",
+      "animations": [
+        "Show fraction examples",
+        "Cross out fractions",
+        "Write formal definition"
+      ],
+      "complexity": "low",
+      "risk_flags": [],
+      "status": "rendered",
+      "file": "scene_02_definition.py",
+      "class_name": "Scene02Definition",
+      "video_file": "media/videos/scene_02_definition/1440p60/Scene02Definition.mp4",
+      "verification": {
+        "file_size_bytes": 1034175,
+        "duration_seconds": 21.633333,
+        "audio_present": true,
+        "verified_at": "2026-02-14T05:09:49Z"
+      }
+    },
+    {
+      "id": "scene_03_examples",
+      "title": "Famous Irrational Numbers",
+      "narration_key": "examples",
+      "narration_summary": "Present well-known irrational numbers like pi, e, and square roots of non-perfect squares.",
+      "estimated_words": 120,
+      "estimated_duration": "48s",
+      "animations": [
+        "Display pi symbol",
+        "Show decimal expansion",
+        "Animate square root calculations"
+      ],
+      "complexity": "medium",
+      "risk_flags": [
+        "Requires LaTeX rendering for mathematical symbols"
+      ],
+      "status": "rendered",
+      "file": "scene_03_examples.py",
+      "class_name": "Scene03Examples",
+      "video_file": "media/videos/scene_03_examples/1440p60/Scene03Examples.mp4",
+      "verification": {
+        "file_size_bytes": 1266925,
+        "duration_seconds": 29.0,
+        "audio_present": true,
+        "verified_at": "2026-02-14T05:10:12Z"
+      }
+    },
+    {
+      "id": "scene_04_proof",
+      "title": "Proof: Square Root of 2 is Irrational",
+      "narration_key": "proof",
+      "narration_summary": "Demonstrate a classic proof by contradiction showing that sqrt(2) cannot be written as a fraction.",
+      "estimated_words": 135,
+      "estimated_duration": "54s",
+      "animations": [
+        "Step-by-step algebraic manipulation",
+        "Show contradiction",
+        "Highlight key assumptions"
+      ],
+      "complexity": "medium",
+      "risk_flags": [
+        "Complex mathematical notation",
+        "Sequential logic steps"
+      ],
+      "status": "rendered",
+      "file": "scene_04_proof.py",
+      "class_name": "Scene04Proof",
+      "video_file": "media/videos/scene_04_proof/1440p60/Scene04Proof.mp4",
+      "verification": {
+        "file_size_bytes": 2015560,
+        "duration_seconds": 41.933333,
+        "audio_present": true,
+        "verified_at": "2026-02-14T05:10:48Z"
+      }
+    },
+    {
+      "id": "scene_05_properties",
+      "title": "Properties and Applications",
+      "narration_key": "properties",
+      "narration_summary": "Discuss properties of irrational numbers and their role in real analysis and geometry.",
+      "estimated_words": 105,
+      "estimated_duration": "42s",
+      "animations": [
+        "Show number line with irrationals",
+        "Demonstrate density",
+        "Brief geometry applications"
+      ],
+      "complexity": "low",
+      "risk_flags": [],
+      "status": "rendered",
+      "file": "scene_05_properties.py",
+      "class_name": "Scene05Properties",
+      "video_file": "media/videos/scene_05_properties/1440p60/Scene05Properties.mp4",
+      "verification": {
+        "file_size_bytes": 1056668,
+        "duration_seconds": 26.55,
+        "audio_present": true,
+        "verified_at": "2026-02-14T05:11:09Z"
+      }
+    },
+    {
+      "id": "scene_06_conclusion",
+      "title": "Recap and Importance",
+      "narration_key": "conclusion",
+      "narration_summary": "Summarize key points about irrational numbers and explain their significance in mathematics.",
+      "estimated_words": 75,
+      "estimated_duration": "30s",
+      "animations": [
+        "FadeIn key takeaways",
+        "Final number line visualization"
+      ],
+      "complexity": "low",
+      "risk_flags": [],
+      "status": "rendered",
+      "file": "scene_06_conclusion.py",
+      "class_name": "Scene06Conclusion",
+      "video_file": "media/videos/scene_06_conclusion/1440p60/Scene06Conclusion.mp4",
+      "verification": {
+        "file_size_bytes": 752759,
+        "duration_seconds": 18.15,
+        "audio_present": true,
+        "verified_at": "2026-02-14T05:11:24Z"
+      }
+    }
+  ],
+  "current_scene_index": 6,
+  "errors": [],
+  "history": [
+    {
+      "timestamp": "2026-02-14T04:38:45Z",
+      "phase": "plan",
+      "action": "Applied plan.json to project_state.json (deterministic)"
+    },
+    {
+      "timestamp": "2026-02-14T04:38:45Z",
+      "phase": "plan",
+      "action": "Applied plan.json to project_state.json (deterministic)"
+    },
+    {
+      "timestamp": "2026-02-14T04:38:46Z",
+      "phase": "review",
+      "action": "Advanced to narration (deterministic)"
+    },
+    {
+      "timestamp": "2026-02-14T04:38:46Z",
+      "phase": "review",
+      "action": "Advanced to narration (deterministic)"
+    },
+    {
+      "timestamp": "2026-02-14T04:38:55Z",
+      "phase": "narration",
+      "action": "Detected narration_script.py; advanced to build_scenes (deterministic)"
+    },
+    {
+      "timestamp": "2026-02-14T04:38:55Z",
+      "phase": "narration",
+      "action": "Detected narration_script.py; advanced to build_scenes (deterministic)"
+    },
+    {
+      "timestamp": "2026-02-14T04:39:14Z",
+      "phase": "build_scenes",
+      "action": "Marked built: scene_01_intro.py (Scene01Intro); advanced index to 1"
+    },
+    {
+      "timestamp": "2026-02-14T04:39:34Z",
+      "phase": "build_scenes",
+      "action": "Marked built: scene_02_definition.py (Scene02Definition); advanced index to 2"
+    },
+    {
+      "timestamp": "2026-02-14T04:39:55Z",
+      "phase": "build_scenes",
+      "action": "Marked built: scene_03_examples.py (Scene03Examples); advanced index to 3"
+    },
+    {
+      "timestamp": "2026-02-14T04:40:59Z",
+      "phase": "build_scenes",
+      "action": "Marked built: scene_05_properties.py (Scene05Properties); advanced index to 5"
+    },
+    {
+      "timestamp": "2026-02-14T04:40:59Z",
+      "phase": "build_scenes",
+      "action": "Marked built: scene_06_conclusion.py (Scene06Conclusion); advanced index to 6"
+    },
+    {
+      "timestamp": "2026-02-14T04:41:53Z",
+      "phase": "scene_qc",
+      "action": "Detected scene_qc_report.md; advanced to precache_voiceovers (deterministic)"
+    },
+    {
+      "timestamp": "2026-02-14T04:41:53Z",
+      "phase": "scene_qc",
+      "action": "Detected scene_qc_report.md; advanced to precache_voiceovers (deterministic)"
+    },
+    {
+      "timestamp": "2026-02-14T04:58:41Z",
+      "phase": "precache_voiceovers",
+      "action": "Detected media/voiceovers/qwen/cache.json; advanced to final_render (deterministic)"
+    },
+    {
+      "timestamp": "2026-02-14T04:58:41Z",
+      "phase": "precache_voiceovers",
+      "action": "Detected media/voiceovers/qwen/cache.json; advanced to final_render (deterministic)"
+    },
+    {
+      "timestamp": "2026-02-14T05:09:05Z",
+      "phase": "final_render",
+      "action": "Repaired missing scene metadata in state: set file for scene_04_proof -> scene_04_proof.py; set class_name for scene_04_proof -> Scene04Proof"
+    },
+    "Phase final_render: Rendered and verified all scenes (scripted), advancing to assemble",
+    "Phase assemble: Assembled final_video.mp4 (scripted)"
+  ],
+  "flags": {
+    "needs_human_review": false,
+    "dry_run": false,
+    "force_replan": false
+  }
+}
