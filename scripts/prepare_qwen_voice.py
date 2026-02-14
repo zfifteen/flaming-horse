@@ -24,6 +24,25 @@ from subprocess import PIPE, Popen
 from typing import Any
 
 
+SUPPRESSED_STDERR_SUBSTRINGS = (
+    "Warning: flash-attn is not installed.",
+    "Will only run the manual PyTorch version.",
+    "Please install flash-attn for faster inference.",
+)
+
+
+def should_forward_worker_stderr(line: str) -> bool:
+    stripped = line.strip()
+    if not stripped:
+        return True
+    if any(token in stripped for token in SUPPRESSED_STDERR_SUBSTRINGS):
+        return False
+    # qwen_tts wraps this warning in lines of asterisks; hide those wrappers too.
+    if set(stripped) == {"*"}:
+        return False
+    return True
+
+
 def sha256_file(path: Path) -> str:
     h = hashlib.sha256()
     with path.open("rb") as f:
@@ -276,8 +295,9 @@ def main() -> int:
         if not line:
             break
         stderr_lines.append(line)
-        sys.stderr.write(line)
-        sys.stderr.flush()
+        if should_forward_worker_stderr(line):
+            sys.stderr.write(line)
+            sys.stderr.flush()
 
     stdout_text = proc.stdout.read()
     rc = proc.wait()

@@ -36,6 +36,7 @@ def main() -> int:
     payload = json.loads(sys.stdin.read())
 
     model_id = payload["model_id"]
+    model_source = payload.get("model_source") or model_id
     device = payload["device"]
     dtype_str = payload["dtype"]
     language = payload["language"]
@@ -58,7 +59,7 @@ def main() -> int:
     print("→ Loading Qwen model", file=sys.stderr)
     t0 = time.perf_counter()
     model = Qwen3TTSModel.from_pretrained(
-        model_id,
+        str(model_source),
         device_map=device,
         dtype=dtype_map[dtype_str],
     )

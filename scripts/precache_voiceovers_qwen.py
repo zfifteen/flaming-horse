@@ -4,7 +4,28 @@ import os
 import threading
 import subprocess
 import sys
+import time
 from pathlib import Path
+from typing import Optional
+
+
+SUPPRESSED_STDERR_SUBSTRINGS = (
+    "Warning: flash-attn is not installed.",
+    "Will only run the manual PyTorch version.",
+    "Please install flash-attn for faster inference.",
+)
+
+
+def should_forward_worker_stderr(line: str) -> bool:
+    stripped = line.strip()
+    if not stripped:
+        return True
+    if any(token in stripped for token in SUPPRESSED_STDERR_SUBSTRINGS):
+        return False
+    # qwen_tts wraps this warning in lines of asterisks; hide those wrappers too.
+    if set(stripped) == {"*"}:
+        return False
+    return True
 
 
 def parse_args() -> argparse.Namespace:
@@ -31,6 +52,44 @@ def load_config(project_dir: Path) -> dict:
     if not config_path.exists():
         raise FileNotFoundError(f"Missing voice_clone_config.json in {project_dir}")
     return json.loads(config_path.read_text(encoding="utf-8"))
+
+
+def _hf_repo_id_to_cache_dirname(model_id: str) -> Optional[str]:
+    if "/" not in model_id:
+        return None
+    org, repo = model_id.split("/", 1)
+    if not org or not repo:
+        return None
+    return f"models--{org}--{repo}"
+
+
+def find_hf_snapshot_dir(model_id: str) -> Optional[Path]:
+    dirname = _hf_repo_id_to_cache_dirname(model_id)
+    if not dirname:
+        return None
+
+    hf_home = Path(
+        os.environ.get("HF_HOME", str(Path.home() / ".cache" / "huggingface"))
+    )
+    hub_dir = hf_home / "hub"
+    model_dir = hub_dir / dirname
+    snapshots_dir = model_dir / "snapshots"
+    if not snapshots_dir.exists():
+        return None
+
+    ref_main = model_dir / "refs" / "main"
+    if ref_main.exists():
+        commit = ref_main.read_text(encoding="utf-8").strip()
+        if commit:
+            cand = snapshots_dir / commit
+            if cand.exists():
+                return cand
+
+    snapshots = [p for p in snapshots_dir.iterdir() if p.is_dir()]
+    if not snapshots:
+        return None
+    snapshots.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+    return snapshots[0]
 
 
 def ensure_ref_text(ref_text_path: Path) -> str:
@@ -61,6 +120,53 @@ def build_cache_entry(
     }
 
 
+def bootstrap_existing_entries_from_media(
+    cache_dir: Path,
+    script: dict,
+    model_id: str,
+    ref_audio: str,
+    ref_text: str,
+) -> dict:
+    """Build synthetic cache entries from already-rendered mp3 files.
+
+    This lets interrupted runs resume instead of regenerating every narration key
+    when cache.json is missing.
+    """
+    by_key = {}
+    now = time.time()
+    for narration_key, text in script.items():
+        audio_file = f"{narration_key}.mp3"
+        if not (cache_dir / audio_file).exists():
+            continue
+        by_key[narration_key] = build_cache_entry(
+            narration_key=narration_key,
+            text=text,
+            audio_file=audio_file,
+            model_id=model_id,
+            ref_audio=ref_audio,
+            ref_text=ref_text,
+            duration=0.0,
+            created_at=now,
+        )
+    return by_key
+
+
+def _stream_lines(
+    stream,
+    sink: list[str],
+    writer,
+    line_filter=None,
+) -> None:
+    for line in iter(stream.readline, ""):
+        sink.append(line)
+        if writer is None:
+            continue
+        if line_filter is not None and not line_filter(line):
+            continue
+        writer.write(line)
+        writer.flush()
+
+
 def main() -> int:
     args = parse_args()
     project_dir = Path(args.project_dir).resolve()
@@ -84,6 +190,38 @@ def main() -> int:
             "ref_audio and ref_text must be set in voice_clone_config.json"
         )
 
+    if device != "cpu" or dtype_str != "float32":
+        raise ValueError(
+            "This repo requires CPU float32 for Qwen voice clone. "
+            f"Found device={device!r} dtype={dtype_str!r} in voice_clone_config.json"
+        )
+
+    model_source = None
+    if isinstance(model_id, str) and Path(model_id).exists():
+        model_source = str(Path(model_id).resolve())
+    elif isinstance(model_id, str):
+        snap = find_hf_snapshot_dir(model_id)
+        if snap is not None:
+            model_source = str(snap)
+
+    if not model_source:
+        hf_home = Path(
+            os.environ.get("HF_HOME", str(Path.home() / ".cache" / "huggingface"))
+        )
+        expected = _hf_repo_id_to_cache_dirname(str(model_id))
+        expected_path = (hf_home / "hub" / expected) if expected else (hf_home / "hub")
+        print(
+            "ERROR: Qwen model snapshot not found in local HuggingFace cache.",
+            file=sys.stderr,
+        )
+        print(f"  Model id: {model_id}", file=sys.stderr)
+        print(f"  Looked under: {expected_path}", file=sys.stderr)
+        print(
+            "  Fix: run your model download/setup step outside the build, then retry.",
+            file=sys.stderr,
+        )
+        raise SystemExit(2)
+
     ref_audio_path = (project_dir / ref_audio).resolve()
     ref_text = ensure_ref_text((project_dir / ref_text_path).resolve())
 
@@ -96,12 +234,28 @@ def main() -> int:
         existing_entries = json.loads(cache_index_path.read_text(encoding="utf-8"))
 
     existing_by_key = {e.get("narration_key"): e for e in existing_entries}
+    if not existing_by_key:
+        # Resume support: if prior run produced some mp3 files but never wrote
+        # cache.json, infer minimal entries so those keys are treated as hits.
+        existing_by_key = bootstrap_existing_entries_from_media(
+            cache_dir=cache_dir,
+            script=script,
+            model_id=str(model_id),
+            ref_audio=str(ref_audio_path),
+            ref_text=ref_text,
+        )
+        if existing_by_key:
+            print(
+                f"→ Recovered {len(existing_by_key)} existing audio files from {cache_dir}",
+                file=sys.stderr,
+            )
     # If cache contains wav entries from older runs, regenerate.
     if any((e or {}).get("audio_file", "").endswith(".wav") for e in existing_entries):
         existing_by_key = {}
 
     payload = {
         "model_id": model_id,
+        "model_source": model_source,
         "device": device,
         "dtype": dtype_str,
         "language": cfg.get("language", "English"),
@@ -117,43 +271,48 @@ def main() -> int:
         raise FileNotFoundError(f"Missing worker script: {helper}")
 
     # Stream worker progress (stderr) live so the pipeline doesn't look hung.
+    env = os.environ.copy()
+    env.setdefault("HF_HUB_OFFLINE", "1")
+    env.setdefault("TRANSFORMERS_OFFLINE", "1")
+    env.setdefault("TOKENIZERS_PARALLELISM", "false")
+    env["PYTHONUNBUFFERED"] = "1"
+
     proc = subprocess.Popen(
         [os.path.expanduser(python_path), str(helper)],
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
+        env=env,
     )
     assert proc.stdin is not None
     assert proc.stdout is not None
     assert proc.stderr is not None
 
-    worker_stdout_stream = proc.stdout
     proc.stdin.write(json.dumps(payload))
     proc.stdin.close()
 
-    stdout_chunks: list[str] = []
-    stderr_chunks: list[str] = []
-
-    def _read_stdout() -> None:
-        stdout_chunks.append(worker_stdout_stream.read())
-
-    def _read_stderr() -> None:
-        stderr_chunks.append(proc.stderr.read())
-
-    t_stdout = threading.Thread(target=_read_stdout, daemon=True)
-    t_stderr = threading.Thread(target=_read_stderr, daemon=True)
-
-    t_stdout.start()
-    t_stderr.start()
+    stdout_lines: list[str] = []
+    stderr_lines: list[str] = []
+    t_out = threading.Thread(
+        target=_stream_lines,
+        args=(proc.stdout, stdout_lines, sys.stdout, should_forward_worker_stderr),
+        daemon=True,
+    )
+    t_err = threading.Thread(
+        target=_stream_lines,
+        args=(proc.stderr, stderr_lines, sys.stderr, should_forward_worker_stderr),
+        daemon=True,
+    )
+    t_out.start()
+    t_err.start()
 
     returncode = proc.wait()
+    t_out.join()
+    t_err.join()
 
-    t_stdout.join(timeout=5)
-    t_stderr.join(timeout=5)
-
-    worker_stdout = "".join(stdout_chunks)
-    worker_stderr = "".join(stderr_chunks)
+    worker_stdout = "".join(stdout_lines)
+    worker_stderr = "".join(stderr_lines)
 
     if returncode != 0:
         if worker_stdout.strip():

@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Force offline mode for all HuggingFace/Transformers usage in this pipeline.
+export HF_HUB_OFFLINE=1
+export TRANSFORMERS_OFFLINE=1
+export TOKENIZERS_PARALLELISM=false
+
 # ─── Configuration ───────────────────────────────────────────────────
 if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
   echo "Usage: $0 <project_dir> [--topic \"<video topic>\"] [--max-runs N]" >&2
@@ -454,6 +459,7 @@ Begin execution now.
 EOF
   
   # Invoke OpenCode with Grok - message must come after all options
+  # TODO Replace this with an option to select from available models configured in OpenCode
   opencode run --model "xai/grok-code-fast-1" \
     --file "$prompt_file" \
     --file "${SCRIPT_DIR}/../reference_docs/manim_content_pipeline.md" \

@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Force offline mode for all HuggingFace/Transformers usage in this pipeline.
+export HF_HUB_OFFLINE=1
+export TRANSFORMERS_OFFLINE=1
+export TOKENIZERS_PARALLELISM=false
+
 usage() {
   cat <<'EOF'
 Usage:
