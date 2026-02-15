@@ -355,6 +355,17 @@ def main() -> int:
         encoding="utf-8",
     )
     print(f"✓ Updated cache index: {cache_index_path}")
+    
+    # Save hash of narration script to track changes
+    import hashlib
+    narration_file = project_dir / "narration_script.py"
+    if narration_file.exists():
+        narration_hash = hashlib.sha256(
+            narration_file.read_text(encoding='utf-8').encode('utf-8')
+        ).hexdigest()
+        hash_file = cache_dir / ".cache_hash"
+        hash_file.write_text(narration_hash, encoding='utf-8')
+    
     return 0
 
 
