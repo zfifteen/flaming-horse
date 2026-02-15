@@ -29,6 +29,7 @@ VALID_PHASES = {
     "init",
     "plan",
     "review",
+    "training",
     "narration",
     "build_scenes",
     "scene_qc",
@@ -363,15 +364,41 @@ def apply_phase(project_dir: Path, state: dict, phase: str) -> dict:
         return state
 
     if phase == "review":
-        # For now, review deterministically advances to narration.
-        state["phase"] = "narration"
+        # Deterministically advance to training examples before narration.
+        state["phase"] = "training"
         state["flags"]["needs_human_review"] = False
         state.setdefault("history", []).append(
             {
                 "timestamp": utc_now(),
                 "phase": "review",
-                "action": "Advanced to narration (deterministic)",
+                "action": "Advanced to training (deterministic)",
             }
+        )
+        return state
+
+    if phase == "training":
+        ack_path = project_dir / "training_ack.md"
+        if ack_path.exists() and ack_path.stat().st_size > 0:
+            state["phase"] = "narration"
+            state["flags"]["needs_human_review"] = False
+            _clear_errors_matching(
+                state,
+                lambda e: e.startswith("training incomplete:")
+                or e.startswith("training failed:"),
+            )
+            state.setdefault("history", []).append(
+                {
+                    "timestamp": utc_now(),
+                    "phase": "training",
+                    "action": "Detected training_ack.md; advanced to narration (deterministic)",
+                }
+            )
+            return state
+
+        state["phase"] = "training"
+        _add_error_unique(
+            state,
+            "training incomplete: training_ack.md missing or empty",
         )
         return state
 

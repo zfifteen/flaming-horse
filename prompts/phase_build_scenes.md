@@ -1,4 +1,5 @@
 - Read AGENTS.md CAREFULLY before writing or editing any scene code.
+ - Apply the learned patterns from `example/good/*` and avoid anti-patterns in `example/bad/*`.
 MANDATORY: ALWAYS follow the scene examples syntax from `reference_docs/manim_template.py.txt` EXACTLY.
 - Infrastructure tasks are owned by the orchestrator. Do NOT run scaffold scripts, shell setup commands, or state-management commands.
 - Target scene for this run:
@@ -6,6 +7,13 @@ MANDATORY: ALWAYS follow the scene examples syntax from `reference_docs/manim_te
   - file: `{{TARGET_SCENE_FILE}}`
   - class: `{{TARGET_SCENE_CLASS}}`
   - narration key: `{{TARGET_NARRATION_KEY}}`
+- Choose a scene profile before coding:
+  - `simple` profile for intro/recap scenes (typically first or last scene): 3-5 animation events.
+  - `complex` profile for middle instructional scenes: 8-12 animation events with staged construction.
+- For `complex` profile, include at least:
+  - one transform-style transition (`Transform`, `ReplacementTransform`, or `FadeTransform`)
+  - one emphasis animation (`Indicate`, `Circumscribe`, `Wiggle`, or `Flash`)
+  - one explicit cleanup transition (`FadeOut` or `FadeTransform`) before switching dense sections
 - Edit ONLY the target scene file above.
 - Never write scene files from scratch. Update only the editable slot block between:
   - `# SLOT_START:scene_body`
@@ -22,3 +30,6 @@ MANDATORY: ALWAYS follow the scene examples syntax from `reference_docs/manim_te
 - NEVER enable optional alignment extras.
 - Mentally validate: does the code import manim correctly and run without NameError?
 - Layout contract: Title at UP * 3.8, subtitle directly below, graphs/diagrams moved DOWN * 0.6 to 1.2, no .to_edge(...) for titles/labels, safe_layout for 2+ siblings, safe_position after .next_to().
+- Never introduce `Text(...).move_to(ORIGIN)` while bullets or diagrams are still visible.
+- Before showing a new dense text block or title card, clear prior dense content using `FadeOut(...)` or replace it using `FadeTransform(...)`.
+- For middle scenes, avoid one-shot static compositions (title + one diagram + long wait). Use multi-step progression.

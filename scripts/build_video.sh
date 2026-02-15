@@ -113,6 +113,7 @@ OPENCODE_SESSION_ID=""
 PROMPTS_DIR="${SCRIPT_DIR}/../prompts"
 PHASE_PROMPT_MAIN_TEMPLATE="${PROMPTS_DIR}/phase_prompt.md"
 PHASE_PROMPT_TEMPLATE="${PROMPTS_DIR}/phase_prompt_instructions.md"
+PHASE_TRAINING_TEMPLATE="${PROMPTS_DIR}/phase_training.md"
 PHASE_NARRATION_TEMPLATE="${PROMPTS_DIR}/phase_narration.md"
 PHASE_BUILD_SCENES_TEMPLATE="${PROMPTS_DIR}/phase_build_scenes.md"
 SCENE_FIX_TEMPLATE="${PROMPTS_DIR}/scene_fix_prompt.md"
@@ -225,6 +226,7 @@ try:
         'init',
         'plan',
         'review',
+        'training',
         'narration',
         'build_scenes',
         'scene_qc',
@@ -296,7 +298,7 @@ capture_opencode_session_id_if_missing() {
 
 apply_state_phase() {
   # Deterministically apply phase transitions based on artifacts on disk.
-  # The agent is allowed to write plan.json / narration_script.py / scenes,
+  # The agent is allowed to update phase artifacts (plan/narration/training/scene files),
   # but this script owns project_state.json.
   local phase="$1"
   python3 "${SCRIPT_DIR}/update_project_state.py" \
@@ -309,7 +311,7 @@ apply_state_phase() {
 is_retryable_phase() {
   local phase="$1"
   case "$phase" in
-    init|plan|narration|build_scenes|scene_qc|final_render|assemble)
+    init|plan|training|narration|build_scenes|scene_qc|final_render|assemble)
       return 0
       ;;
     *)
@@ -785,7 +787,10 @@ PY
   local -a build_scene_file_arg=()
   local -a plan_file_arg=()
   local -a phase_reference_file_args=()
+  local -a training_file_arg=()
+  local -a scene_examples_file_arg=()
   local -a narration_file_arg=()
+  local training_examples_count=0
   if [[ "$phase" == "plan" && -f "plan.json" ]]; then
     plan_file_arg=(--file "plan.json")
     if [[ -f "${REPO_ROOT}/reference_docs/phase_plan.md" ]]; then
@@ -800,6 +805,39 @@ PY
     phase_specific_instruction="$(cat "$PHASE_NARRATION_TEMPLATE")"
     if [[ -f "plan.json" ]]; then
       narration_file_arg=(--file "plan.json")
+    fi
+  fi
+
+  if [[ "$phase" == "training" ]]; then
+    if [[ ! -f "$PHASE_TRAINING_TEMPLATE" ]]; then
+      echo "❌ Missing prompt template: $PHASE_TRAINING_TEMPLATE" | tee -a "$LOG_FILE" >&2
+      return 1
+    fi
+    phase_specific_instruction="$(cat "$PHASE_TRAINING_TEMPLATE")"
+
+    if [[ -f "training_ack.md" ]]; then
+      training_file_arg+=(--file "training_ack.md")
+    fi
+
+    while IFS= read -r example_file; do
+      [[ -n "$example_file" ]] || continue
+      training_file_arg+=(--file "$example_file")
+      training_examples_count=$((training_examples_count + 1))
+    done < <(REPO_ROOT_FOR_PY="$REPO_ROOT" python3 - <<'PY'
+import os
+from pathlib import Path
+
+root = Path(os.environ["REPO_ROOT_FOR_PY"]) / "example"
+if root.exists():
+    for path in sorted(root.rglob("*")):
+        if path.is_file() and path.suffix in {".md", ".py", ".txt"}:
+            print(str(path))
+PY
+)
+
+    if [[ $training_examples_count -eq 0 ]]; then
+      echo "❌ Missing training examples under ${REPO_ROOT}/example" | tee -a "$LOG_FILE" >&2
+      return 1
     fi
   fi
 
@@ -857,6 +895,21 @@ PY
     if [[ -n "$build_target_scene_file" && -f "$build_target_scene_file" ]]; then
       build_scene_file_arg=(--file "$build_target_scene_file")
     fi
+
+    while IFS= read -r example_file; do
+      [[ -n "$example_file" ]] || continue
+      scene_examples_file_arg+=(--file "$example_file")
+    done < <(REPO_ROOT_FOR_PY="$REPO_ROOT" python3 - <<'PY'
+import os
+from pathlib import Path
+
+root = Path(os.environ["REPO_ROOT_FOR_PY"]) / "example"
+if root.exists():
+    for path in sorted(root.rglob("*")):
+        if path.is_file() and path.suffix in {".md", ".py", ".txt"}:
+            print(str(path))
+PY
+)
   fi
 
   local retry_context_file
@@ -939,6 +992,8 @@ PY
     --file "$STATE_FILE" \
     "${plan_file_arg[@]}" \
     "${phase_reference_file_args[@]}" \
+    "${training_file_arg[@]}" \
+    "${scene_examples_file_arg[@]}" \
     "${narration_file_arg[@]}" \
     "${build_scene_file_arg[@]}" \
     "${retry_context_arg[@]}" \
@@ -1577,6 +1632,54 @@ PY
   apply_state_phase "review" || true
 }
 
+handle_training() {
+  echo "🧠 Training on scene examples..." | tee -a "$LOG_FILE"
+  invoke_agent "training" "$(get_run_count)"
+
+  normalize_state_json || true
+
+  cd "$PROJECT_DIR"
+  if [[ ! -f "training_ack.md" ]]; then
+    echo "✗ ERROR: training_ack.md missing after training phase" | tee -a "$LOG_FILE" >&2
+    return 1
+  fi
+
+  if ! python3 - <<'PY' \
+    > >(tee -a "$LOG_FILE") \
+    2> >(tee -a "$ERROR_LOG" | tee -a "$LOG_FILE" >&2); then
+from pathlib import Path
+
+text = Path("training_ack.md").read_text(encoding="utf-8").strip()
+if not text:
+    raise SystemExit("training_ack.md is empty")
+
+required_headers = [
+    "## Read Examples",
+    "## Scene Profile Mapping",
+    "## Motion Rules",
+    "## Do Rules",
+    "## Avoid Rules",
+    "## Acknowledgment",
+]
+for header in required_headers:
+    if header not in text:
+        raise SystemExit(f"training_ack.md missing required section: {header}")
+
+advanced_hits = text.count("example/good/advanced/")
+if advanced_hits < 2:
+    raise SystemExit(
+        "training_ack.md must reference at least two advanced examples (example/good/advanced/*)"
+    )
+
+print("✓ training_ack.md structure looks valid")
+PY
+    echo "✗ ERROR: Training acknowledgment validation failed" | tee -a "$LOG_FILE" >&2
+    return 1
+  fi
+
+  apply_state_phase "training" || true
+}
+
 handle_narration() {
   echo "🎙️  Generating narration scripts..." | tee -a "$LOG_FILE"
   invoke_agent "narration" "$(get_run_count)"
@@ -2012,7 +2115,7 @@ render_scenes_parallel() {
   local worker="${SCRIPT_DIR}/render_scene_worker.sh"
   local failed=0
   
-  if ! parallel --colsep '|' -j "$PARALLEL_RENDERS" --halt soon,fail=1 \
+  if ! parallel --colsep '[|]' -j "$PARALLEL_RENDERS" --halt soon,fail=1 \
     "$worker" {1} {2} {3} {4} {5} :::: "$job_list" \
     > >(tee -a "$LOG_FILE") 2> >(tee -a "$ERROR_LOG" | tee -a "$LOG_FILE" >&2); then
     echo "❌ Parallel rendering failed for one or more scenes" | tee -a "$LOG_FILE" >&2
@@ -2241,14 +2344,19 @@ PY
   verify_scene_video() {
     local scene_id="$1"
     local class_name="$2"
+    local log_missing="${3:-1}"
     local video_path="media/videos/${scene_id}/1440p60/${class_name}.mp4"
 
     if [[ ! -f "$video_path" ]]; then
-      echo "✗ Render output missing: $video_path" | tee -a "$LOG_FILE" >&2
+      if [[ "$log_missing" == "1" ]]; then
+        echo "✗ Render output missing: $video_path" | tee -a "$LOG_FILE" >&2
+      fi
       return 1
     fi
     if [[ ! -s "$video_path" ]]; then
-      echo "✗ Render output empty: $video_path" | tee -a "$LOG_FILE" >&2
+      if [[ "$log_missing" == "1" ]]; then
+        echo "✗ Render output empty: $video_path" | tee -a "$LOG_FILE" >&2
+      fi
       return 1
     fi
     if ! command -v ffprobe >/dev/null 2>&1; then
@@ -2258,7 +2366,9 @@ PY
     local audio_stream
     audio_stream=$(ffprobe -v error -select_streams a:0 -show_entries stream=codec_type -of csv=p=0 "$video_path" 2>/dev/null || true)
     if [[ -z "$audio_stream" ]]; then
-      echo "✗ No audio stream detected: $video_path" | tee -a "$LOG_FILE" >&2
+      if [[ "$log_missing" == "1" ]]; then
+        echo "✗ No audio stream detected: $video_path" | tee -a "$LOG_FILE" >&2
+      fi
       return 1
     fi
     return 0
@@ -2369,7 +2479,7 @@ PY
     fi
 
     # If the output already exists and verifies, don't re-render.
-    if verify_scene_video "$scene_id" "$scene_class"; then
+    if verify_scene_video "$scene_id" "$scene_class" 0; then
       update_state_rendered "$scene_id" "$scene_class" "$est_duration"
       echo "✓ Already rendered + verified: $scene_id" | tee -a "$LOG_FILE"
       continue
@@ -2687,6 +2797,7 @@ run_phase_once() {
     init) handle_init ;;
     plan) handle_plan ;;
     review) handle_review ;;
+    training) handle_training ;;
     narration) handle_narration ;;
     build_scenes) handle_build_scenes ;;
     scene_qc) handle_scene_qc ;;

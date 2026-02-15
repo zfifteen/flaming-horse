@@ -102,7 +102,7 @@ Consult these files for technical details:
 {
   "project_name": "string",
   "topic": "string|null",
-  "phase": "plan|review|narration|build_scenes|final_render|assemble|complete",
+  "phase": "plan|review|training|narration|build_scenes|final_render|assemble|complete",
   "created_at": "ISO8601",
   "updated_at": "ISO8601",
   "run_count": 0,
@@ -135,6 +135,14 @@ Consult these files for technical details:
 ### Phase: `plan` and `review`
 
 See reference_docs/phase_plan.md for details.
+
+---
+
+### Phase: `training`
+
+- Read examples from `example/good/` and `example/bad/`.
+- Update `training_ack.md` with layout and animation rules to follow for scene generation.
+- Do not create new files in this phase.
 
 ---
 
@@ -486,11 +494,11 @@ If validation detects overlaps/desyncs:
 ## Workflow Summary
 
 ```
-plan → review → narration → build_scenes → final_render → assemble → complete
-  ↓       ↓          ↓            ↓              ↓             ↓          ↓
-plan.   validate   scripts      code          render        concat    done
-json    feasib.    + voice      files         videos        final
-                   config                                    .mp4
+plan → review → training → narration → build_scenes → final_render → assemble → complete
+  ↓       ↓          ↓            ↓            ↓              ↓             ↓          ↓
+plan.   validate   learn        scripts      code          render        concat    done
+json    feasib.    examples     + voice      files         videos        final
+                                  config                                   .mp4
 ```
 
 ### Pipeline Enhancements (New)

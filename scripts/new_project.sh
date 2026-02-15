@@ -172,6 +172,21 @@ cat > "$PROJECT_DIR/narration_script.py" <<'EOF'
 SCRIPT = {}
 EOF
 
+cat > "$PROJECT_DIR/training_ack.md" <<'EOF'
+## Read Examples
+
+## Scene Profile Mapping
+
+## Motion Rules
+
+## Do Rules
+
+## Avoid Rules
+
+## Acknowledgment
+
+EOF
+
 echo "✅ Created project: $PROJECT_DIR"
 echo "📝 State file: $PROJECT_DIR/project_state.json"
 if [[ -n "${TOPIC}" ]]; then

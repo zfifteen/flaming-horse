@@ -310,6 +310,133 @@ def test_apply_plan_canonicalizes_invalid_scene_ids() -> None:
         )
 
 
+def test_apply_review_advances_to_training() -> None:
+    with tempfile.TemporaryDirectory() as d:
+        tmp = Path(d)
+        project_dir = make_project_dir(tmp)
+        write_state_raw(
+            project_dir,
+            json.dumps(
+                {
+                    "project_name": "x",
+                    "topic": "t",
+                    "phase": "review",
+                    "created_at": "t",
+                    "updated_at": "t",
+                    "run_count": 0,
+                    "plan_file": "plan.json",
+                    "narration_file": None,
+                    "voice_config_file": None,
+                    "scenes": [],
+                    "current_scene_index": 0,
+                    "errors": [],
+                    "history": [],
+                    "flags": {
+                        "needs_human_review": False,
+                        "dry_run": False,
+                        "force_replan": False,
+                    },
+                },
+                indent=2,
+            ),
+        )
+
+        cp = run(
+            "--project-dir",
+            str(project_dir),
+            "--mode",
+            "apply",
+            "--phase",
+            "review",
+        )
+        require(cp.returncode == 0, f"apply review failed: {cp.stderr}")
+        state = read_state(project_dir)
+        require(state["phase"] == "training", "review should advance to training")
+
+
+def test_apply_training_requires_ack_then_advances() -> None:
+    with tempfile.TemporaryDirectory() as d:
+        tmp = Path(d)
+        project_dir = make_project_dir(tmp)
+        write_state_raw(
+            project_dir,
+            json.dumps(
+                {
+                    "project_name": "x",
+                    "topic": "t",
+                    "phase": "training",
+                    "created_at": "t",
+                    "updated_at": "t",
+                    "run_count": 0,
+                    "plan_file": "plan.json",
+                    "narration_file": None,
+                    "voice_config_file": None,
+                    "scenes": [],
+                    "current_scene_index": 0,
+                    "errors": [],
+                    "history": [],
+                    "flags": {
+                        "needs_human_review": False,
+                        "dry_run": False,
+                        "force_replan": False,
+                    },
+                },
+                indent=2,
+            ),
+        )
+
+        cp_missing = run(
+            "--project-dir",
+            str(project_dir),
+            "--mode",
+            "apply",
+            "--phase",
+            "training",
+        )
+        require(
+            cp_missing.returncode == 0, f"apply training failed: {cp_missing.stderr}"
+        )
+        state_missing = read_state(project_dir)
+        require(
+            state_missing["phase"] == "training",
+            "training should remain when ack is missing",
+        )
+        require(
+            any(
+                isinstance(e, str)
+                and e.startswith(
+                    "training incomplete: training_ack.md missing or empty"
+                )
+                for e in state_missing.get("errors", [])
+            ),
+            "missing training ack error not recorded",
+        )
+
+        (project_dir / "training_ack.md").write_text(
+            "## Read Examples\n- example/good/good_title_subtitle_diagram.md\n\n"
+            "## Do Rules\n- Keep title/subtitle contract.\n\n"
+            "## Avoid Rules\n- Do not overlap headline and diagram.\n\n"
+            "## Acknowledgment\nI will follow these rules in build_scenes.\n",
+            encoding="utf-8",
+        )
+        cp_present = run(
+            "--project-dir",
+            str(project_dir),
+            "--mode",
+            "apply",
+            "--phase",
+            "training",
+        )
+        require(
+            cp_present.returncode == 0, f"apply training failed: {cp_present.stderr}"
+        )
+        state_present = read_state(project_dir)
+        require(
+            state_present["phase"] == "narration",
+            "training should advance to narration when ack exists",
+        )
+
+
 def main() -> int:
     require(UPDATER.exists(), f"missing: {UPDATER}")
 
@@ -319,6 +446,8 @@ def main() -> int:
         test_apply_plan_reads_plan_json,
         test_apply_build_scenes_marks_built,
         test_apply_plan_canonicalizes_invalid_scene_ids,
+        test_apply_review_advances_to_training,
+        test_apply_training_requires_ack_then_advances,
     ]
 
     for t in tests:
