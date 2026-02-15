@@ -42,11 +42,12 @@ def save_state(state_file: Path, state: dict) -> None:
 
 def export_bash_vars(state: dict) -> None:
     """Export state fields as bash variables."""
-    # Export commonly accessed fields
-    print(f"export STATE_PHASE='{state['phase']}'")
-    print(f"export STATE_RUN_COUNT='{state['run_count']}'")
-    print(f"export STATE_NEEDS_REVIEW='{state['flags'].get('needs_human_review', False)}'")
-    print(f"export STATE_CURRENT_SCENE_INDEX='{state.get('current_scene_index', 0)}'")
+    import shlex
+    # Export commonly accessed fields with proper shell escaping
+    print(f"export STATE_PHASE={shlex.quote(str(state['phase']))}")
+    print(f"export STATE_RUN_COUNT={shlex.quote(str(state['run_count']))}")
+    print(f"export STATE_NEEDS_REVIEW={shlex.quote(str(state['flags'].get('needs_human_review', False)))}")
+    print(f"export STATE_CURRENT_SCENE_INDEX={shlex.quote(str(state.get('current_scene_index', 0)))}")
     print(f"export STATE_CACHE_VALID='1'")
 
 

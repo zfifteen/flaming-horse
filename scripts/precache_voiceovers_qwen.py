@@ -1,4 +1,5 @@
 import argparse
+import hashlib
 import json
 import os
 import threading
@@ -357,7 +358,6 @@ def main() -> int:
     print(f"✓ Updated cache index: {cache_index_path}")
     
     # Save hash of narration script to track changes
-    import hashlib
     narration_file = project_dir / "narration_script.py"
     if narration_file.exists():
         narration_hash = hashlib.sha256(

@@ -28,7 +28,8 @@ if [[ "$PARALLEL_RENDERS" -eq 0 ]]; then
     if command -v nproc &> /dev/null; then
         NCORES=$(nproc)
     else
-        NCORES=2
+        # Fallback to sequential mode when core count is unknown
+        NCORES=1
     fi
     PARALLEL_RENDERS=$((NCORES * 3 / 4))
     [[ $PARALLEL_RENDERS -lt 1 ]] && PARALLEL_RENDERS=1
@@ -1863,6 +1864,28 @@ render_scenes_parallel() {
   
   echo "→ Rendering scenes in parallel (max $PARALLEL_RENDERS concurrent jobs)" | tee -a "$LOG_FILE"
   
+  # Pre-render validation for all scenes before dispatching to workers
+  echo "→ Pre-validating all scenes before parallel rendering..." | tee -a "$LOG_FILE"
+  while IFS='|' read -r scene_id scene_file scene_class est_duration; do
+    [[ -n "$scene_id" ]] || continue
+    
+    # Syntax validation
+    if ! scene_python_syntax_ok "$scene_file"; then
+      echo "⚠ Pre-render syntax check failed for ${scene_file}. Cannot proceed with parallel rendering." | tee -a "$LOG_FILE"
+      echo "  Falling back to sequential mode for self-healing." | tee -a "$LOG_FILE"
+      return 1
+    fi
+    
+    # ShowCreation detection
+    if grep -q "ShowCreation" "$scene_file"; then
+      echo "⚠ Invalid animation detected (ShowCreation) in ${scene_file}. Cannot proceed with parallel rendering." | tee -a "$LOG_FILE"
+      echo "  Falling back to sequential mode for self-healing." | tee -a "$LOG_FILE"
+      return 1
+    fi
+  done <<< "$scene_lines"
+  
+  echo "✓ Pre-validation passed for all scenes" | tee -a "$LOG_FILE"
+  
   # Create job list file
   local job_list="${PROJECT_DIR}/.render_jobs.txt"
   : > "$job_list"
@@ -1877,6 +1900,8 @@ render_scenes_parallel() {
   local failed=0
   
   if ! parallel --colsep '|' -j "$PARALLEL_RENDERS" --halt soon,fail=1 \
+    --env MANIM_VOICE_PROD --env PYTHONPATH --env FLAMING_HORSE_TTS_BACKEND \
+    --env HF_HUB_OFFLINE --env TRANSFORMERS_OFFLINE --env TOKENIZERS_PARALLELISM \
     "$worker" {1} {2} {3} {4} {5} :::: "$job_list" \
     > >(tee -a "$LOG_FILE") 2> >(tee -a "$ERROR_LOG" | tee -a "$LOG_FILE" >&2); then
     echo "❌ Parallel rendering failed for one or more scenes" | tee -a "$LOG_FILE" >&2
