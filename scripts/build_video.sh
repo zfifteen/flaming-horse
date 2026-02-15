@@ -1734,6 +1734,18 @@ PY
     return 1
   fi
 
+  # Preserve originals so we can roll back if QC introduces syntax errors.
+  local -a qc_scene_array=()
+  mapfile -t qc_scene_array <<< "$qc_scene_files"
+  local qc_backup_dir
+  qc_backup_dir="$(mktemp -d)"
+  for f in "${qc_scene_array[@]}"; do
+    cp "$f" "${qc_backup_dir}/$(basename "$f")" || {
+      echo "❌ Failed to back up scene file $f" | tee -a "$LOG_FILE" >&2
+      return 1
+    }
+  done
+
   local prompt_file=".agent_prompt_scene_qc.md"
   if [[ ! -f "$SCENE_QC_TEMPLATE" ]]; then
     echo "❌ Missing prompt template: $SCENE_QC_TEMPLATE" | tee -a "$LOG_FILE" >&2
@@ -1801,6 +1813,29 @@ PY
     echo "❌ Scene QC agent failed with exit code: $exit_code" | tee -a "$LOG_FILE"
     return 1
   fi
+
+  # Deterministic post-QC syntax gate: ensure patched scenes are valid Python.
+  local qc_failed_file=""
+  for f in "${qc_scene_array[@]}"; do
+    if ! python3 -m py_compile "$f" \
+      > >(tee -a "$LOG_FILE") \
+      2> >(tee -a "$ERROR_LOG" | tee -a "$LOG_FILE" >&2); then
+      qc_failed_file="$f"
+      break
+    fi
+  done
+
+  if [[ -n "$qc_failed_file" ]]; then
+    echo "✗ QC introduced syntax errors in $qc_failed_file; restoring backups" | tee -a "$LOG_FILE" >&2
+    for f in "${qc_scene_array[@]}"; do
+      cp "${qc_backup_dir}/$(basename "$f")" "$f" || true
+    done
+    rm -rf "$qc_backup_dir"
+    echo "❌ Scene QC failed: syntax validation gate did not pass" | tee -a "$LOG_FILE" >&2
+    return 1
+  fi
+
+  rm -rf "$qc_backup_dir"
 
   if [[ ! -s "scene_qc_report.md" ]]; then
     echo "❌ scene_qc_report.md missing or empty after scene QC" | tee -a "$LOG_FILE" >&2

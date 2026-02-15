@@ -8,8 +8,9 @@ Primary instructions:
 - Validate and patch scene files listed below (from project_state.json):
 {{SCENE_FILES}}
 - Keep creative intent; fix timing sync and overlap/layout defects.
+- Write real newlines in Python code (never literal "\\n" escapes in source).
 - Do NOT edit project_state.json.
-- Write a report file named scene_qc_report.md in this directory.
+- Write a non-empty report file named scene_qc_report.md in this directory.
 
 Attached files include:
 - project_state.json

@@ -25,6 +25,7 @@ Hard requirements:
    - No `self.wait(...)` with duration `<= 0`.
    - No animation `run_time < 0.3`.
    - Avoid expressions that can collapse to zero waits (example: `a - a`).
+   - Do not leave literal `"\\n"` escape text inside Python code; use actual newlines.
 2. Fix narration sync issues.
    - Within each `with self.voiceover(...) as tracker:` block, keep total timing budget at or below narration duration.
    - Remove over-allocation patterns that cause dead air.
@@ -64,6 +65,7 @@ Required report format:
   - exact fix applied
   - why it resolves sync/layout risk
 - Include any residual risks that need deterministic script validation.
+- The report must be present and non-empty.
 
 ## Operational Notes
 
