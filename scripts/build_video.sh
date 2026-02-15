@@ -91,23 +91,17 @@ STATE_FILE="${PROJECT_DIR}/project_state.json"
 STATE_BACKUP="${PROJECT_DIR}/.state_backup.json"
 LOCK_FILE="${PROJECT_DIR}/.build.lock"
 LOG_FILE="${PROJECT_DIR}/build.log"
+ERROR_LOG="${PROJECT_DIR}/errors.log"
 OPENCODE_SESSION_ID=""
 
 
-# Reference docs (relative to script location)
-SCENE_QC_PROMPT_DOC="${SCRIPT_DIR}/../docs/SCENE_QC_AGENT_PROMPT.md"
+# Prompt templates (relative to script location)
 PROMPTS_DIR="${SCRIPT_DIR}/../prompts"
 PHASE_PROMPT_MAIN_TEMPLATE="${PROMPTS_DIR}/phase_prompt.md"
 PHASE_PROMPT_TEMPLATE="${PROMPTS_DIR}/phase_prompt_instructions.md"
 PHASE_BUILD_SCENES_TEMPLATE="${PROMPTS_DIR}/phase_build_scenes.md"
 SCENE_FIX_TEMPLATE="${PROMPTS_DIR}/scene_fix_prompt.md"
 SCENE_QC_TEMPLATE="${PROMPTS_DIR}/scene_qc_prompt.md"
-REFERENCE_DOCS=(
-  "${SCRIPT_DIR}/../reference_docs/manim_content_pipeline.md"
-  "${SCRIPT_DIR}/../reference_docs/manim_voiceover.md"
-  "${SCRIPT_DIR}/../reference_docs/manim_template.py.txt"
-  "${SCRIPT_DIR}/../reference_docs/manim_config_guide.md"
-)
 
 
 # ─── Lock File Management ────────────────────────────────────────────
@@ -303,6 +297,7 @@ build_retry_context() {
 
   python3 - <<PY > "$context_file"
 import json
+import re
 from pathlib import Path
 from datetime import datetime
 
@@ -467,7 +462,9 @@ validate_scene_template_structure() {
     return 1
   fi
 
-  python3 - <<PY 2>&1 | tee -a "$LOG_FILE"
+  python3 - <<PY \
+    > >(tee -a "$LOG_FILE") \
+    2> >(tee -a "$ERROR_LOG" | tee -a "$LOG_FILE" >&2)
 from pathlib import Path
 
 path = Path("${scene_file}")
@@ -561,7 +558,9 @@ try:
 except SyntaxError as e:
     print(f'✗ Syntax error: {e}')
     sys.exit(1)
-" 2>&1 | tee -a "$LOG_FILE"
+" \
+    > >(tee -a "$LOG_FILE") \
+    2> >(tee -a "$ERROR_LOG" | tee -a "$LOG_FILE" >&2)
   
   local syntax_result=${PIPESTATUS[0]}
   if [[ $syntax_result -ne 0 ]]; then
@@ -634,7 +633,9 @@ validate_scene_runtime() {
   fi
 
   echo "→ Runtime validating ${scene_file} (${scene_class})..." | tee -a "$LOG_FILE"
-  if ! "$manim_bin" render "$scene_file" "$scene_class" --dry_run 2>&1 | tee -a "$LOG_FILE"; then
+  if ! "$manim_bin" render "$scene_file" "$scene_class" --dry_run \
+    > >(tee -a "$LOG_FILE") \
+    2> >(tee -a "$ERROR_LOG" | tee -a "$LOG_FILE" >&2); then
     echo "✗ Runtime validation failed for ${scene_file}" | tee -a "$LOG_FILE"
     return 1
   fi
@@ -650,7 +651,9 @@ ensure_qwen_cache_index() {
   fi
 
   echo "→ Voice cache index missing; generating cache before runtime validation..." | tee -a "$LOG_FILE"
-  if ! python3 "${SCRIPT_DIR}/precache_voiceovers_qwen.py" "$PROJECT_DIR" 2>&1 | tee -a "$LOG_FILE"; then
+  if ! python3 "${SCRIPT_DIR}/precache_voiceovers_qwen.py" "$PROJECT_DIR" \
+    > >(tee -a "$LOG_FILE") \
+    2> >(tee -a "$ERROR_LOG" | tee -a "$LOG_FILE" >&2); then
     echo "✗ ERROR: Failed to generate voice cache index for runtime validation" | tee -a "$LOG_FILE"
     return 1
   fi
@@ -740,12 +743,65 @@ PY
   cd "$PROJECT_DIR"
 
   local phase_specific_instruction=""
+  local build_target_scene_id=""
+  local build_target_scene_file=""
+  local build_target_scene_class=""
+  local build_target_narration_key=""
+  local -a build_scene_file_arg=()
   if [[ "$phase" == "build_scenes" ]]; then
     if [[ ! -f "$PHASE_BUILD_SCENES_TEMPLATE" ]]; then
       echo "❌ Missing prompt template: $PHASE_BUILD_SCENES_TEMPLATE" | tee -a "$LOG_FILE" >&2
       return 1
     fi
-    phase_specific_instruction="$(cat "$PHASE_BUILD_SCENES_TEMPLATE")"
+
+    local build_scene_meta
+    build_scene_meta=$(python3 - <<PY
+import json
+import re
+
+def camel_from_scene_id(scene_id: str) -> str:
+    m = re.match(r"^scene_(\d{2})_([a-z0-9_]+)$", scene_id)
+    if not m:
+        return ""
+    num = m.group(1)
+    slug = m.group(2)
+    parts = [p for p in slug.split("_") if p]
+    title = "".join(p.capitalize() for p in parts)
+    return f"Scene{num}{title}" if title else f"Scene{num}"
+
+state = json.load(open("${STATE_FILE}", "r"))
+idx = int(state.get("current_scene_index") or 0)
+scenes = state.get("scenes") or []
+if not isinstance(scenes, list) or idx >= len(scenes):
+    print("|||")
+    raise SystemExit(0)
+
+scene = scenes[idx] if isinstance(scenes[idx], dict) else {}
+scene_id = str(scene.get("id") or "")
+scene_file = f"{scene_id}.py" if scene_id else ""
+scene_class = str(scene.get("class_name") or "")
+if not scene_class:
+    scene_class = camel_from_scene_id(scene_id)
+narration_key = str(scene.get("narration_key") or scene_id)
+print(f"{scene_id}|{scene_file}|{scene_class}|{narration_key}")
+PY
+)
+    IFS='|' read -r build_target_scene_id build_target_scene_file build_target_scene_class build_target_narration_key <<< "$build_scene_meta"
+
+    local rendered_build_template=".agent_prompt_${phase}.build.md"
+    render_template_file \
+      "$PHASE_BUILD_SCENES_TEMPLATE" \
+      "$rendered_build_template" \
+      "TARGET_SCENE_ID=${build_target_scene_id}" \
+      "TARGET_SCENE_FILE=${build_target_scene_file}" \
+      "TARGET_SCENE_CLASS=${build_target_scene_class}" \
+      "TARGET_NARRATION_KEY=${build_target_narration_key}"
+    phase_specific_instruction="$(cat "$rendered_build_template")"
+    rm -f "$rendered_build_template"
+
+    if [[ -n "$build_target_scene_file" && -f "$build_target_scene_file" ]]; then
+      build_scene_file_arg=(--file "$build_target_scene_file")
+    fi
   fi
 
   local retry_context_file
@@ -781,7 +837,6 @@ PY
   local files_list
   files_list="$(ls -1 "$PROJECT_DIR" 2>/dev/null || echo "  (empty)")"
 
-  AGENTS_CONTENT="$(cat "${SCRIPT_DIR}/../AGENTS.md")" \
   PHASE_PROMPT_MAIN_TEMPLATE_PATH="$PHASE_PROMPT_MAIN_TEMPLATE" \
   PHASE="$phase" \
   PROJECT_DIR="$PROJECT_DIR" \
@@ -798,7 +853,6 @@ import os
 
 text = Path(os.environ["PHASE_PROMPT_MAIN_TEMPLATE_PATH"]).read_text(encoding="utf-8")
 for key in [
-    "AGENTS_CONTENT",
     "PHASE",
     "PROJECT_DIR",
     "REPO_ROOT_HINT",
@@ -827,12 +881,13 @@ PY
   opencode run --agent manim-ce-scripting-expert --model "${AGENT_MODEL}" \
     "${opencode_session_args[@]}" \
     --file "$prompt_file" \
-    --file "${SCRIPT_DIR}/../reference_docs/manim_config_guide.md" \
     --file "$STATE_FILE" \
+    "${build_scene_file_arg[@]}" \
     "${retry_context_arg[@]}" \
     -- \
-    "Read the first attached file (.agent_prompt_${phase}.md) which contains your complete instructions. Execute the ${phase} phase as described. All reference documentation and the current project state are also attached." \
-    2>&1 | tee -a "$LOG_FILE" | tee "$opencode_output_file"
+    "Read the first attached file (.agent_prompt_${phase}.md) which contains your complete instructions. Execute the ${phase} phase as described. The current project state is also attached." \
+    > >(tee -a "$LOG_FILE" | tee -a "$opencode_output_file") \
+    2> >(tee -a "$LOG_FILE" | tee -a "$opencode_output_file" >&2)
   
   # Clean up prompt file
   rm -f "$prompt_file"
@@ -1099,7 +1154,6 @@ invoke_scene_fix_agent() {
     echo "❌ Missing prompt template: $SCENE_FIX_TEMPLATE" | tee -a "$LOG_FILE" >&2
     return 1
   fi
-  AGENTS_CONTENT="$(cat "${SCRIPT_DIR}/../AGENTS.md")" \
   SCENE_FIX_TEMPLATE_PATH="$SCENE_FIX_TEMPLATE" \
   SCENE_ID="$scene_id" \
   SCENE_FILE="$scene_file" \
@@ -1113,7 +1167,6 @@ import os
 
 text = Path(os.environ["SCENE_FIX_TEMPLATE_PATH"]).read_text(encoding="utf-8")
 for key in [
-    "AGENTS_CONTENT",
     "SCENE_ID",
     "SCENE_FILE",
     "SCENE_CLASS",
@@ -1141,7 +1194,8 @@ PY
     --file "$scene_file" \
     -- \
     "Repair ${scene_file} for final_render. Execute only that targeted fix." \
-    2>&1 | tee -a "$LOG_FILE" | tee "$opencode_output_file"
+    > >(tee -a "$LOG_FILE" | tee -a "$opencode_output_file") \
+    2> >(tee -a "$LOG_FILE" | tee -a "$opencode_output_file" >&2)
 
   local exit_code=${PIPESTATUS[0]}
   capture_opencode_session_id_if_missing "$opencode_output_file"
@@ -1230,8 +1284,11 @@ handle_plan() {
   # If plan.json is missing, recover the latest plan object from build.log.
   cd "$PROJECT_DIR"
   if [[ ! -f "plan.json" ]]; then
-    python3 - <<'PY' 2>&1 | tee -a "$LOG_FILE"
+    python3 - <<'PY' \
+      > >(tee -a "$LOG_FILE") \
+      2> >(tee -a "$ERROR_LOG" | tee -a "$LOG_FILE" >&2)
 import json
+import re
 from pathlib import Path
 import re
 
@@ -1320,7 +1377,9 @@ PY
   fi
 
   # Minimal structural validation of plan.json.
-  python3 - <<'PY' 2>&1 | tee -a "$LOG_FILE"
+  python3 - <<'PY' \
+    > >(tee -a "$LOG_FILE") \
+    2> >(tee -a "$ERROR_LOG" | tee -a "$LOG_FILE" >&2)
 import json
 from pathlib import Path
 
@@ -1336,6 +1395,11 @@ for i, s in enumerate(scenes):
     for k in ('id','title','narration_key'):
         if not s.get(k):
             raise SystemExit(f'scene[{i}] missing {k}')
+    scene_id = str(s.get('id'))
+    if not re.match(r'^scene_[0-9]{2}_[a-z0-9_]+$', scene_id):
+        raise SystemExit(
+            f"scene[{i}] invalid id '{scene_id}'; expected pattern scene_XX_slug (e.g., scene_01_intro)"
+        )
 print('✓ plan.json structure looks valid')
 PY
 
@@ -1353,7 +1417,9 @@ handle_narration() {
   # If narration_script.py is missing, recover it from build.log.
   cd "$PROJECT_DIR"
   if [[ ! -f "narration_script.py" ]]; then
-    python3 - <<'PY' 2>&1 | tee -a "$LOG_FILE"
+    python3 - <<'PY' \
+      > >(tee -a "$LOG_FILE") \
+      2> >(tee -a "$ERROR_LOG" | tee -a "$LOG_FILE" >&2)
 import re
 from pathlib import Path
 
@@ -1458,7 +1524,9 @@ handle_precache_voiceovers() {
     return 1
   fi
   echo "→ Running precache script" | tee -a "$LOG_FILE"
-  python3 "${SCRIPT_DIR}/precache_voiceovers_qwen.py" "$PROJECT_DIR" 2>&1 | tee -a "$LOG_FILE"
+  python3 "${SCRIPT_DIR}/precache_voiceovers_qwen.py" "$PROJECT_DIR" \
+    > >(tee -a "$LOG_FILE") \
+    2> >(tee -a "$ERROR_LOG" | tee -a "$LOG_FILE" >&2)
 
   # Deterministically advance if cache index exists.
   normalize_state_json || true
@@ -1467,48 +1535,93 @@ handle_precache_voiceovers() {
 
 handle_build_scenes() {
   echo "🎨 Building scenes..." | tee -a "$LOG_FILE"
-  
-  # Get list of scene files BEFORE agent runs
+  normalize_state_json || true
   cd "$PROJECT_DIR"
-  local before_files=$(ls scene_*.py 2>/dev/null | sort)
-  
-  # Invoke agent to generate/update scene
+
+  local scene_meta
+  scene_meta=$(python3 - <<PY
+import json
+import re
+
+def camel_from_scene_id(scene_id: str) -> str:
+    m = re.match(r"^scene_(\d{2})_([a-z0-9_]+)$", scene_id)
+    if not m:
+        return ""
+    num = m.group(1)
+    slug = m.group(2)
+    parts = [p for p in slug.split("_") if p]
+    title = "".join(p.capitalize() for p in parts)
+    return f"Scene{num}{title}" if title else f"Scene{num}"
+
+state = json.load(open("${STATE_FILE}", "r"))
+idx = int(state.get("current_scene_index") or 0)
+scenes = state.get("scenes") or []
+if not isinstance(scenes, list) or idx >= len(scenes):
+    print("||||")
+    raise SystemExit(0)
+
+scene = scenes[idx] if isinstance(scenes[idx], dict) else {}
+scene_id = str(scene.get("id") or "")
+narration_key = str(scene.get("narration_key") or scene_id)
+scene_class = str(scene.get("class_name") or "")
+if not scene_class:
+    scene_class = camel_from_scene_id(scene_id)
+
+print(f"{scene_id}|{scene_id}.py|{scene_class}|{narration_key}")
+PY
+)
+
+  local scene_id scene_file scene_class narration_key
+  IFS='|' read -r scene_id scene_file scene_class narration_key <<< "$scene_meta"
+
+  if [[ -z "$scene_id" || -z "$scene_file" || -z "$scene_class" ]]; then
+    echo "✗ ERROR: Could not determine current scene metadata from project_state.json" | tee -a "$LOG_FILE" >&2
+    return 1
+  fi
+
+  if [[ ! "$scene_id" =~ ^scene_[0-9]{2}_[a-z0-9_]+$ ]]; then
+    echo "✗ ERROR: Invalid scene id format '${scene_id}'. Expected scene_XX_slug (e.g., scene_01_intro)." | tee -a "$LOG_FILE" >&2
+    python3 - <<PY
+import json
+from datetime import datetime
+
+with open("${STATE_FILE}", "r") as f:
+    state = json.load(f)
+
+state.setdefault("errors", []).append("build_scenes failed: scene id must match ^scene_[0-9]{2}_[a-z0-9_]+$")
+state.setdefault("flags", {})["needs_human_review"] = True
+state["updated_at"] = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+
+with open("${STATE_FILE}", "w") as f:
+    json.dump(state, f, indent=2)
+PY
+    return 1
+  fi
+
+  if [[ ! -f "$scene_file" ]]; then
+    echo "→ Scaffolding deterministic scene file: $scene_file" | tee -a "$LOG_FILE"
+    if ! python3 "${SCRIPT_DIR}/scaffold_scene.py" \
+      --project "$PROJECT_DIR" \
+      --scene-id "$scene_id" \
+      --class-name "$scene_class" \
+      --narration-key "$narration_key" \
+      --force \
+      > >(tee -a "$LOG_FILE") \
+      2> >(tee -a "$ERROR_LOG" | tee -a "$LOG_FILE" >&2); then
+      echo "✗ ERROR: Failed to scaffold ${scene_file}" | tee -a "$LOG_FILE" >&2
+      return 1
+    fi
+  else
+    echo "→ Scene scaffold already exists: $scene_file" | tee -a "$LOG_FILE"
+  fi
+
   invoke_agent "build_scenes" "$(get_run_count)"
 
   # Agent may have produced malformed JSON edits; normalize before reading/writing state.
   normalize_state_json || true
-  
-  # Get list of scene files AFTER agent runs
-  local after_files=$(ls scene_*.py 2>/dev/null | sort)
-  
-  # Find the new or modified file (simple diff)
-  local new_scene=""
-  for scene_file in $after_files; do
-    if ! echo "$before_files" | grep -q "$scene_file"; then
-      new_scene="$scene_file"
-      break
-    fi
-  done
-  
-  # If no new file detected, try most recently modified scene file.
-  if [[ -z "$new_scene" ]]; then
-    new_scene=$(ls -t scene_*.py 2>/dev/null | head -1)
-  fi
-  
-  if [[ -z "$new_scene" ]]; then
-    echo "⚠ WARNING: No scene file detected after agent run" | tee -a "$LOG_FILE"
 
-    # Still attempt a deterministic state update (no-op if scene not ready yet).
-    apply_state_phase "build_scenes" || true
-    return 0
-  fi
-  
-  echo "→ Detected scene file: $new_scene" | tee -a "$LOG_FILE"
-
-  local scene_id
-  scene_id="$(get_current_scene_id)"
-  local scene_class
-  scene_class="$(infer_scene_class_name "$new_scene")"
+  local new_scene="$scene_file"
+  echo "→ Target scene file: $new_scene" | tee -a "$LOG_FILE"
 
   if ! ensure_qwen_cache_index; then
     echo "✗ Cannot runtime-validate scenes without cached voice data" | tee -a "$LOG_FILE" >&2
@@ -1526,7 +1639,9 @@ handle_build_scenes() {
   fi
 
   # Syntax validation (Python) with self-heal on failure.
-  if ! python3 -m py_compile "$new_scene" 2>&1 | tee -a "$LOG_FILE"; then
+  if ! python3 -m py_compile "$new_scene" \
+    > >(tee -a "$LOG_FILE") \
+    2> >(tee -a "$ERROR_LOG" | tee -a "$LOG_FILE" >&2); then
     echo "✗ Syntax check failed for $new_scene. Attempting self-heal..." | tee -a "$LOG_FILE"
     local syntax_reason
     syntax_reason=$(scene_python_syntax_error_excerpt "$new_scene")
@@ -1582,15 +1697,40 @@ handle_scene_qc() {
   echo "🧪 Running scene QC pass..." | tee -a "$LOG_FILE"
   cd "$PROJECT_DIR"
 
-  if [[ ! -f "$SCENE_QC_PROMPT_DOC" ]]; then
-    echo "❌ Missing scene QC prompt doc: $SCENE_QC_PROMPT_DOC" | tee -a "$LOG_FILE" >&2
+  local qc_scene_files
+  qc_scene_files=$(python3 - <<PY
+import json
+from pathlib import Path
+
+state = json.load(open("${STATE_FILE}", "r"))
+scenes = state.get("scenes") or []
+files = []
+for s in scenes:
+    if not isinstance(s, dict):
+        continue
+    f = s.get("file")
+    if isinstance(f, str) and f:
+        files.append(f)
+
+if not files:
+    print("")
+    raise SystemExit(0)
+
+missing = [f for f in files if not Path(f).exists()]
+if missing:
+    print("MISSING:" + ",".join(missing))
+else:
+    print("\n".join(files))
+PY
+)
+
+  if [[ -z "$qc_scene_files" ]]; then
+    echo "❌ No scene files listed in project_state.json for QC" | tee -a "$LOG_FILE" >&2
     return 1
   fi
 
-  local scene_count
-  scene_count=$(ls scene_*.py 2>/dev/null | wc -l | tr -d ' ')
-  if [[ "${scene_count:-0}" -eq 0 ]]; then
-    echo "❌ No scene files found for QC" | tee -a "$LOG_FILE" >&2
+  if [[ "$qc_scene_files" == MISSING:* ]]; then
+    echo "❌ QC cannot run; missing scene files: ${qc_scene_files#MISSING:}" | tee -a "$LOG_FILE" >&2
     return 1
   fi
 
@@ -1603,7 +1743,8 @@ handle_scene_qc() {
     "$SCENE_QC_TEMPLATE" \
     "$prompt_file" \
     "PROJECT_DIR=${PROJECT_DIR}" \
-    "STATE_FILE=${STATE_FILE}"
+    "STATE_FILE=${STATE_FILE}" \
+    "SCENE_FILES=${qc_scene_files}"
 
   local -a opencode_session_args=()
   if [[ -n "${OPENCODE_SESSION_ID}" ]]; then
@@ -1617,12 +1758,11 @@ handle_scene_qc() {
   opencode run --agent manim-ce-scripting-expert --model "${AGENT_MODEL}" \
     "${opencode_session_args[@]}" \
     --file "$prompt_file" \
-    --file "${SCRIPT_DIR}/../AGENTS.md" \
-    --file "$SCENE_QC_PROMPT_DOC" \
     --file "$STATE_FILE" \
     -- \
-    "Read .agent_prompt_scene_qc.md and execute the QC pass. Patch scene_*.py and write scene_qc_report.md." \
-    2>&1 | tee -a "$LOG_FILE" | tee "$opencode_output_file"
+    "Read .agent_prompt_scene_qc.md and execute the QC pass. Patch the scene files listed from project_state.json and write scene_qc_report.md." \
+    > >(tee -a "$LOG_FILE" | tee -a "$opencode_output_file") \
+    2> >(tee -a "$LOG_FILE" | tee -a "$opencode_output_file" >&2)
 
   local exit_code=${PIPESTATUS[0]}
   capture_opencode_session_id_if_missing "$opencode_output_file"
@@ -1644,11 +1784,11 @@ handle_scene_qc() {
       opencode run --agent manim-ce-scripting-expert \
         "${fallback_session_args[@]}" \
         --file "$prompt_file" \
-        --file "$SCENE_QC_PROMPT_DOC" \
         --file "$STATE_FILE" \
         -- \
-        "Read .agent_prompt_scene_qc.md and execute the QC pass. Patch scene_*.py and write scene_qc_report.md." \
-        2>&1 | tee -a "$LOG_FILE" | tee "$fallback_output_file"
+        "Read .agent_prompt_scene_qc.md and execute the QC pass. Patch the scene files listed from project_state.json and write scene_qc_report.md." \
+        > >(tee -a "$LOG_FILE" | tee -a "$fallback_output_file") \
+        2> >(tee -a "$LOG_FILE" | tee -a "$fallback_output_file" >&2)
       exit_code=${PIPESTATUS[0]}
       capture_opencode_session_id_if_missing "$fallback_output_file"
       rm -f "$fallback_output_file"
@@ -2037,7 +2177,9 @@ PY
       while [[ $transient_attempt -lt $transient_max_attempts ]]; do
         transient_attempt=$((transient_attempt + 1))
 
-        if "$manim_bin" render "$scene_file" "$scene_class" -qh 2>&1 | tee -a "$LOG_FILE" > "$render_log"; then
+        if "$manim_bin" render "$scene_file" "$scene_class" -qh \
+          > >(tee -a "$LOG_FILE" | tee "$render_log") \
+          2> >(tee -a "$ERROR_LOG" | tee -a "$LOG_FILE" | tee -a "$render_log" >&2); then
           render_ok=1
           break
         fi
@@ -2158,7 +2300,9 @@ handle_assemble() {
   cd "$PROJECT_DIR"
 
   # Generate scenes.txt from state (script is in repo root)
-  python3 "${SCRIPT_DIR}/generate_scenes_txt.py" "$PROJECT_DIR" 2>&1 | tee -a "$LOG_FILE"
+  python3 "${SCRIPT_DIR}/generate_scenes_txt.py" "$PROJECT_DIR" \
+    > >(tee -a "$LOG_FILE") \
+    2> >(tee -a "$ERROR_LOG" | tee -a "$LOG_FILE" >&2)
 
   if [[ ! -f "${PROJECT_DIR}/scenes.txt" ]]; then
     echo "❌ scenes.txt not created" | tee -a "$LOG_FILE" >&2
@@ -2221,7 +2365,8 @@ PY
     -c:a aac -b:a 192k -ar 48000 \
     -movflags +faststart \
     "${PROJECT_DIR}/final_video.mp4" \
-    2>&1 | tee -a "$LOG_FILE"; then
+    > >(tee -a "$LOG_FILE") \
+    2> >(tee -a "$LOG_FILE" >&2); then
     echo "❌ ffmpeg assembly command failed" | tee -a "$LOG_FILE" >&2
     python3 - <<PY
 import json
