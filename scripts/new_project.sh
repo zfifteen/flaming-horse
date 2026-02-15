@@ -156,6 +156,22 @@ cat > "$PROJECT_DIR/project_state.json" <<EOF
 }
 EOF
 
+# Seed orchestrator-owned artifact files so the agent only edits existing files.
+cat > "$PROJECT_DIR/plan.json" <<EOF
+{
+  "title": "",
+  "topic_summary": "",
+  "target_audience": "",
+  "estimated_duration_seconds": 0,
+  "total_estimated_words": 0,
+  "scenes": []
+}
+EOF
+
+cat > "$PROJECT_DIR/narration_script.py" <<'EOF'
+SCRIPT = {}
+EOF
+
 echo "✅ Created project: $PROJECT_DIR"
 echo "📝 State file: $PROJECT_DIR/project_state.json"
 if [[ -n "${TOPIC}" ]]; then

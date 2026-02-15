@@ -783,7 +783,15 @@ PY
   local build_target_scene_class=""
   local build_target_narration_key=""
   local -a build_scene_file_arg=()
+  local -a plan_file_arg=()
+  local -a phase_reference_file_args=()
   local -a narration_file_arg=()
+  if [[ "$phase" == "plan" && -f "plan.json" ]]; then
+    plan_file_arg=(--file "plan.json")
+    if [[ -f "${REPO_ROOT}/reference_docs/phase_plan.md" ]]; then
+      phase_reference_file_args=(--file "${REPO_ROOT}/reference_docs/phase_plan.md")
+    fi
+  fi
   if [[ "$phase" == "narration" ]]; then
     if [[ ! -f "$PHASE_NARRATION_TEMPLATE" ]]; then
       echo "❌ Missing prompt template: $PHASE_NARRATION_TEMPLATE" | tee -a "$LOG_FILE" >&2
@@ -929,6 +937,8 @@ PY
     "${opencode_session_args[@]}" \
     --file "$prompt_file" \
     --file "$STATE_FILE" \
+    "${plan_file_arg[@]}" \
+    "${phase_reference_file_args[@]}" \
     "${narration_file_arg[@]}" \
     "${build_scene_file_arg[@]}" \
     "${retry_context_arg[@]}" \
@@ -1328,10 +1338,35 @@ handle_plan() {
   # Agent may have corrupted state JSON; normalize before applying plan.
   normalize_state_json || true
 
-  # Reliability: some model outputs print JSON but don't write plan.json.
-  # If plan.json is missing, recover the latest plan object from build.log.
+  # Reliability: some model outputs print JSON but don't write plan.json,
+  # or leave plan.json present but invalid/empty.
+  # If plan.json is missing OR invalid, recover the latest plan object from build.log.
   cd "$PROJECT_DIR"
-  if [[ ! -f "plan.json" ]]; then
+  local plan_json_valid=0
+  if [[ -f "plan.json" ]]; then
+    if python3 - <<'PY'
+import json
+from pathlib import Path
+
+path = Path('plan.json')
+try:
+    plan = json.loads(path.read_text(encoding='utf-8'))
+except Exception:
+    raise SystemExit(1)
+
+if not isinstance(plan, dict):
+    raise SystemExit(1)
+scenes = plan.get('scenes')
+if not isinstance(scenes, list) or not scenes:
+    raise SystemExit(1)
+raise SystemExit(0)
+PY
+    then
+      plan_json_valid=1
+    fi
+  fi
+
+  if [[ $plan_json_valid -ne 1 ]]; then
     python3 - <<'PY' \
       > >(tee -a "$LOG_FILE") \
       2> >(tee -a "$ERROR_LOG" | tee -a "$LOG_FILE" >&2)
@@ -1374,13 +1409,27 @@ for block in json_blocks:
         obj['title'] = title
         obj['topic_summary'] = topic_summary
         # Ensure scenes have required fields if possible
-        for scene in scenes:
+        def slugify(text: str) -> str:
+            return re.sub(r'_+', '_', re.sub(r'[^a-z0-9]+', '_', (text or '').lower())).strip('_')
+
+        for idx, scene in enumerate(scenes, start=1):
+            title_for_slug = str(scene.get('title') or '')
+            slug = slugify(title_for_slug)
+            if not slug:
+                raw_id = str(scene.get('id') or '')
+                m = re.match(r'^scene_\d{2}_([a-z0-9_]+)$', raw_id)
+                slug = m.group(1) if m else slugify(raw_id)
+            if not slug:
+                slug = "untitled"
+
+            scene_default_id = f"scene_{idx:02d}_{slug}"
+
             if not scene.get('id'):
-                scene['id'] = f"scene_{len(scenes) - scenes.index(scene) + 1:02d}"
+                scene['id'] = scene_default_id
             if not scene.get('title'):
-                scene['title'] = f"Scene {scene.get('id', 'Unknown')}"
+                scene['title'] = f"Scene {idx:02d}"
             if not scene.get('narration_key'):
-                scene['narration_key'] = f"{scene.get('id', 'unknown')}"
+                scene['narration_key'] = str(scene.get('id') or scene_default_id)
         best = obj
         best_pos = i
         break  # Take the first valid one
@@ -1394,9 +1443,64 @@ Path('plan.json').write_text(json.dumps(best, indent=2) + '\n', encoding='utf-8'
 print('✓ Recovered and normalized plan.json from build.log')
 PY
   fi
-  
+
+  # Fail fast if plan.json is still unusable after recovery.
+  if ! python3 - <<'PY' \
+    > >(tee -a "$LOG_FILE") \
+    2> >(tee -a "$ERROR_LOG" | tee -a "$LOG_FILE" >&2); then
+import json
+from pathlib import Path
+
+plan = json.loads(Path('plan.json').read_text(encoding='utf-8'))
+if not isinstance(plan, dict):
+    raise SystemExit('plan.json must be an object')
+scenes = plan.get('scenes')
+if not isinstance(scenes, list) or not scenes:
+    raise SystemExit('plan.json.scenes missing/empty')
+for i, s in enumerate(scenes):
+    if not isinstance(s, dict):
+        raise SystemExit(f'scene[{i}] must be an object')
+    if not s.get('title'):
+        raise SystemExit(f'scene[{i}] missing title')
+print('✓ plan.json contains non-empty scenes')
+PY
+    echo "✗ ERROR: plan phase produced invalid plan.json" | tee -a "$LOG_FILE" >&2
+    python3 - <<PY
+import json
+from datetime import datetime
+
+with open("${STATE_FILE}", "r") as f:
+    state = json.load(f)
+
+state.setdefault("errors", []).append("plan failed: invalid or empty plan.json")
+state.setdefault("flags", {})["needs_human_review"] = False
+state["updated_at"] = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+
+with open("${STATE_FILE}", "w") as f:
+    json.dump(state, f, indent=2)
+PY
+    return 1
+  fi
+
   # Deterministically apply plan.json into project_state.json.
-  apply_state_phase "plan" || true
+  if ! apply_state_phase "plan"; then
+    echo "✗ ERROR: Failed applying plan.json to project_state.json" | tee -a "$LOG_FILE" >&2
+    python3 - <<PY
+import json
+from datetime import datetime
+
+with open("${STATE_FILE}", "r") as f:
+    state = json.load(f)
+
+state.setdefault("errors", []).append("plan failed: could not apply plan.json to state")
+state.setdefault("flags", {})["needs_human_review"] = False
+state["updated_at"] = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+
+with open("${STATE_FILE}", "w") as f:
+    json.dump(state, f, indent=2)
+PY
+    return 1
+  fi
 }
 
 handle_review() {
@@ -1425,9 +1529,9 @@ PY
   fi
 
   # Minimal structural validation of plan.json.
-  python3 - <<'PY' \
+  if ! python3 - <<'PY' \
     > >(tee -a "$LOG_FILE") \
-    2> >(tee -a "$ERROR_LOG" | tee -a "$LOG_FILE" >&2)
+    2> >(tee -a "$ERROR_LOG" | tee -a "$LOG_FILE" >&2); then
 import json
 import re
 from pathlib import Path
@@ -1451,6 +1555,23 @@ for i, s in enumerate(scenes):
         )
 print('✓ plan.json structure looks valid')
 PY
+    echo "✗ ERROR: Plan review validation failed" | tee -a "$LOG_FILE" >&2
+    python3 - <<PY
+import json
+from datetime import datetime
+
+with open("${STATE_FILE}", "r") as f:
+    state = json.load(f)
+
+state.setdefault("errors", []).append("review failed: plan.json validation failed")
+state.setdefault("flags", {})["needs_human_review"] = True
+state["updated_at"] = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+
+with open("${STATE_FILE}", "w") as f:
+    json.dump(state, f, indent=2)
+PY
+    return 1
+  fi
 
   # Deterministically advance state.
   apply_state_phase "review" || true

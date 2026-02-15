@@ -39,6 +39,8 @@ VALID_PHASES = {
     "error",
 }
 
+SCENE_ID_RE = re.compile(r"^scene_(\d{2})_([a-z0-9_]+)$")
+
 
 def _add_error_unique(state: dict, msg: str) -> None:
     errors = state.setdefault("errors", [])
@@ -81,6 +83,42 @@ def _ensure_dict(x: Any) -> dict:
     if isinstance(x, dict):
         return x
     return {}
+
+
+def _slugify(text: str) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "_", text.lower()).strip("_")
+    slug = re.sub(r"_+", "_", slug)
+    return slug
+
+
+def _canonical_scene_id(
+    index: int,
+    title: str,
+    raw_id: str | None,
+    used_ids: set[str],
+) -> str:
+    slug = ""
+    if isinstance(raw_id, str):
+        m = SCENE_ID_RE.match(raw_id)
+        if m:
+            slug = m.group(2)
+
+    if not slug:
+        slug = _slugify(title)
+    if not slug and isinstance(raw_id, str):
+        slug = _slugify(raw_id)
+    if not slug:
+        slug = "scene"
+
+    base = f"scene_{index:02d}_{slug}"
+    candidate = base
+    suffix = 2
+    while candidate in used_ids:
+        candidate = f"{base}_{suffix}"
+        suffix += 1
+
+    used_ids.add(candidate)
+    return candidate
 
 
 def read_json_best_effort(path: Path) -> dict:
@@ -251,17 +289,23 @@ def load_plan(project_dir: Path) -> dict:
 
 def scenes_from_plan(plan: dict) -> list[dict]:
     out = []
-    for s in plan.get("scenes", []):
+    used_ids: set[str] = set()
+    for index, s in enumerate(plan.get("scenes", []), start=1):
         if not isinstance(s, dict):
             continue
-        scene_id = _safe_str(s.get("id"))
-        if not scene_id:
-            continue
+        scene_title = _safe_str(s.get("title")) or f"Scene {index:02d}"
+        scene_id = _canonical_scene_id(
+            index=index,
+            title=scene_title,
+            raw_id=_safe_str(s.get("id")),
+            used_ids=used_ids,
+        )
+        narration_key = _safe_str(s.get("narration_key")) or scene_id
         out.append(
             {
                 "id": scene_id,
-                "title": _safe_str(s.get("title")) or scene_id,
-                "narration_key": _safe_str(s.get("narration_key")) or scene_id,
+                "title": scene_title,
+                "narration_key": narration_key,
                 "narration_summary": _safe_str(s.get("narration_summary")) or "",
                 "estimated_words": int(s.get("estimated_words") or 0),
                 "estimated_duration": _safe_str(s.get("estimated_duration")) or "0s",

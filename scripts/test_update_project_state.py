@@ -222,13 +222,91 @@ def test_apply_build_scenes_marks_built() -> None:
             "class_name not inferred",
         )
         require(
-            state["phase"] == "final_render",
-            "single scene should advance to final_render",
+            state["phase"] == "scene_qc",
+            "single scene should advance to scene_qc",
         )
         require(
             "build_scenes incomplete: expected scene_01_intro.py not found"
             not in state["errors"],
             "stale build_scenes incomplete error not cleared",
+        )
+
+
+def test_apply_plan_canonicalizes_invalid_scene_ids() -> None:
+    with tempfile.TemporaryDirectory() as d:
+        tmp = Path(d)
+        project_dir = make_project_dir(tmp)
+        write_state_raw(
+            project_dir,
+            json.dumps(
+                {
+                    "project_name": "x",
+                    "topic": "t",
+                    "phase": "plan",
+                    "created_at": "t",
+                    "updated_at": "t",
+                    "run_count": 0,
+                    "plan_file": None,
+                    "narration_file": None,
+                    "voice_config_file": None,
+                    "scenes": [],
+                    "current_scene_index": 0,
+                    "errors": [],
+                    "history": [],
+                    "flags": {
+                        "needs_human_review": False,
+                        "dry_run": False,
+                        "force_replan": False,
+                    },
+                },
+                indent=2,
+            ),
+        )
+        (project_dir / "plan.json").write_text(
+            json.dumps(
+                {
+                    "title": "Vid",
+                    "topic_summary": "s",
+                    "scenes": [
+                        {
+                            "id": 1,
+                            "title": "Introduction",
+                            "narration_key": "scene_01_intro",
+                        },
+                        {
+                            "id": 2,
+                            "title": "Introduction",
+                            "narration_key": "scene_02_intro",
+                        },
+                    ],
+                },
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+
+        cp = run(
+            "--project-dir",
+            str(project_dir),
+            "--mode",
+            "apply",
+            "--phase",
+            "plan",
+        )
+        require(cp.returncode == 0, f"apply plan failed: {cp.stderr}")
+        state = read_state(project_dir)
+        scene_ids = [scene["id"] for scene in state["scenes"]]
+        require(
+            scene_ids[0] == "scene_01_introduction",
+            f"unexpected first canonical id: {scene_ids[0]}",
+        )
+        require(
+            scene_ids[1] == "scene_02_introduction",
+            f"unexpected second canonical id: {scene_ids[1]}",
+        )
+        require(
+            all(id_.startswith("scene_") for id_ in scene_ids),
+            "all scenes must have canonical scene_* ids",
         )
 
 
@@ -240,6 +318,7 @@ def main() -> int:
         test_normalize_restores_missing_flags,
         test_apply_plan_reads_plan_json,
         test_apply_build_scenes_marks_built,
+        test_apply_plan_canonicalizes_invalid_scene_ids,
     ]
 
     for t in tests:
