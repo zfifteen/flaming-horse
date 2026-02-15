@@ -1,0 +1,64 @@
+{
+  "title": "Understanding the Pythagorean Theorem",
+  "topic_summary": "A fundamental mathematical theorem that establishes the relationship between the sides of a right triangle, stating that the square of the hypotenuse equals the sum of the squares of the other two sides.",
+  "target_audience": "Students learning geometry, mathematics enthusiasts, and anyone interested in basic mathematical concepts",
+  "estimated_duration_seconds": 180,
+  "total_estimated_words": 450,
+  "scenes": [
+    {
+      "id": "scene_01_intro",
+      "title": "Introduction to the Pythagorean Theorem",
+      "narration_key": "intro",
+      "narration_summary": "Hook the audience with the theorem's statement and its importance in mathematics",
+      "estimated_words": 90,
+      "estimated_duration": "36s",
+      "animations": ["Write title", "FadeIn theorem equation"],
+      "complexity": "low",
+      "risk_flags": []
+    },
+    {
+      "id": "scene_02_triangle",
+      "title": "Understanding Right Triangles",
+      "narration_key": "triangle",
+      "narration_summary": "Define right triangles and explain the terms hypotenuse, adjacent, and opposite sides",
+      "estimated_words": 90,
+      "estimated_duration": "36s",
+      "animations": ["Draw right triangle", "Label sides", "Highlight hypotenuse"],
+      "complexity": "low",
+      "risk_flags": []
+    },
+    {
+      "id": "scene_03_proof",
+      "title": "Visual Proof of the Theorem",
+      "narration_key": "proof",
+      "narration_summary": "Demonstrate a geometric proof by showing how squares on the sides fit together",
+      "estimated_words": 90,
+      "estimated_duration": "36s",
+      "animations": ["Construct squares on triangle sides", "Rearrange squares to show equality"],
+      "complexity": "medium",
+      "risk_flags": ["3D visualization"]
+    },
+    {
+      "id": "scene_04_applications",
+      "title": "Real-World Applications",
+      "narration_key": "applications",
+      "narration_summary": "Show practical uses in distance calculation, architecture, and navigation",
+      "estimated_words": 90,
+      "estimated_duration": "36s",
+      "animations": ["Show coordinate grid", "Plot points", "Calculate distance"],
+      "complexity": "medium",
+      "risk_flags": []
+    },
+    {
+      "id": "scene_05_recap",
+      "title": "Recap and Summary",
+      "narration_key": "recap",
+      "narration_summary": "Summarize the theorem, its proof, and key applications",
+      "estimated_words": 90,
+      "estimated_duration": "36s",
+      "animations": ["FadeIn key points", "Show theorem equation"],
+      "complexity": "low",
+      "risk_flags": []
+    }
+  ]
+}

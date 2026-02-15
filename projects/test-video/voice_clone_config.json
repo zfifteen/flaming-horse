@@ -1,6 +1,6 @@
 {
-  "qwen_python": "~/qwen3-tts-local/.venv/bin/python",
-  "model_id": "Qwen/Qwen3-TTS-12Hz-1.7B-Base",
+  "qwen_python": "/usr/bin/python3",
+  "model_id": "mock-test-model",
   "device": "cpu",
   "dtype": "float32",
   "language": "English",

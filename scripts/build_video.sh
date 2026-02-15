@@ -1381,6 +1381,7 @@ PY
     > >(tee -a "$LOG_FILE") \
     2> >(tee -a "$ERROR_LOG" | tee -a "$LOG_FILE" >&2)
 import json
+import re
 from pathlib import Path
 
 plan = json.loads(Path('plan.json').read_text(encoding='utf-8'))
