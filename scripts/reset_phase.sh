@@ -3,7 +3,7 @@ PROJECT_DIR="${1:?Usage: $0 <project_dir> <phase>}"
 NEW_PHASE="${2:?Usage: $0 <project_dir> <phase>}"
 
 VALID_PHASES=("init" "plan" "review" "narration" "build_scenes" "final_render" "assemble" "complete")
-if [[ ! " ${VALID_PHASES[@]} " =~ " ${NEW_PHASE} " ]]; then
+if [[ ! " ${VALID_PHASES[*]} " =~ " ${NEW_PHASE} " ]]; then
   echo "❌ Invalid phase: $NEW_PHASE" >&2
   echo "Valid phases: ${VALID_PHASES[*]}" >&2
   exit 1
