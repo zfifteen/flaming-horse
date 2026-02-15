@@ -20,6 +20,20 @@ PROJECT_DEFAULT_NAME="${PROJECT_DEFAULT_NAME:-default_video}"
 MAX_RUNS="${MAX_RUNS:-50}"
 PHASE_RETRY_LIMIT="${PHASE_RETRY_LIMIT:-3}"
 PHASE_RETRY_BACKOFF_SECONDS="${PHASE_RETRY_BACKOFF_SECONDS:-2}"
+PARALLEL_RENDERS="${PARALLEL_RENDERS:-0}"  # 0 = auto-detect, -1 = disable, N = use N jobs
+
+# Auto-detect number of CPU cores for parallel rendering
+if [[ "$PARALLEL_RENDERS" -eq 0 ]]; then
+    # Use 75% of available cores, minimum 1, maximum 4
+    if command -v nproc &> /dev/null; then
+        NCORES=$(nproc)
+    else
+        NCORES=2
+    fi
+    PARALLEL_RENDERS=$((NCORES * 3 / 4))
+    [[ $PARALLEL_RENDERS -lt 1 ]] && PARALLEL_RENDERS=1
+    [[ $PARALLEL_RENDERS -gt 4 ]] && PARALLEL_RENDERS=4
+fi
 
 # Force offline mode for all HuggingFace/Transformers usage in this pipeline.
 HF_HUB_OFFLINE="${HF_HUB_OFFLINE:-1}"
@@ -1832,6 +1846,59 @@ PY
   return 0
 }
 
+
+# Parallel scene rendering coordinator
+render_scenes_parallel() {
+  local scene_lines="$1"
+  
+  if [[ $PARALLEL_RENDERS -le 1 ]]; then
+    echo "→ Parallel rendering disabled (PARALLEL_RENDERS=$PARALLEL_RENDERS)" | tee -a "$LOG_FILE"
+    return 1  # Fall back to sequential
+  fi
+  
+  if ! command -v parallel &> /dev/null; then
+    echo "→ GNU parallel not available, falling back to sequential rendering" | tee -a "$LOG_FILE"
+    return 1
+  fi
+  
+  echo "→ Rendering scenes in parallel (max $PARALLEL_RENDERS concurrent jobs)" | tee -a "$LOG_FILE"
+  
+  # Create job list file
+  local job_list="${PROJECT_DIR}/.render_jobs.txt"
+  : > "$job_list"
+  
+  while IFS='|' read -r scene_id scene_file scene_class est_duration; do
+    [[ -n "$scene_id" ]] || continue
+    echo "${PROJECT_DIR}|${scene_id}|${scene_file}|${scene_class}|${est_duration}" >> "$job_list"
+  done <<< "$scene_lines"
+  
+  # Run parallel rendering
+  local worker="${SCRIPT_DIR}/render_scene_worker.sh"
+  local failed=0
+  
+  if ! parallel --colsep '|' -j "$PARALLEL_RENDERS" --halt soon,fail=1 \
+    "$worker" {1} {2} {3} {4} {5} :::: "$job_list" \
+    > >(tee -a "$LOG_FILE") 2> >(tee -a "$ERROR_LOG" | tee -a "$LOG_FILE" >&2); then
+    echo "❌ Parallel rendering failed for one or more scenes" | tee -a "$LOG_FILE" >&2
+    failed=1
+  fi
+  
+  rm -f "$job_list"
+  
+  if [[ $failed -eq 1 ]]; then
+    return 1
+  fi
+  
+  # Update state for all rendered scenes
+  while IFS='|' read -r scene_id scene_file scene_class est_duration; do
+    [[ -n "$scene_id" ]] || continue
+    update_state_rendered "$scene_id" "$scene_class" "$est_duration"
+    echo "✓ Parallel render complete: $scene_id" | tee -a "$LOG_FILE"
+  done <<< "$scene_lines"
+  
+  return 0
+}
+
 handle_final_render() {
   echo "🎬 Final render with cached voiceover (backend: ${FLAMING_HORSE_TTS_BACKEND:-qwen})..." | tee -a "$LOG_FILE"
   export MANIM_VOICE_PROD=1
@@ -2104,9 +2171,15 @@ with open("${STATE_FILE}", "w") as f:
 PY
   }
 
-  echo "→ Rendering scenes sequentially (cached voice backend: ${FLAMING_HORSE_TTS_BACKEND:-qwen})" | tee -a "$LOG_FILE"
+  echo "→ Rendering scenes (parallel mode: ${PARALLEL_RENDERS} jobs, backend: ${FLAMING_HORSE_TTS_BACKEND:-qwen})" | tee -a "$LOG_FILE"
 
-  while IFS='|' read -r scene_id scene_file scene_class est_duration; do
+  # Try parallel rendering first, fall back to sequential if unavailable
+  if render_scenes_parallel "$scene_lines"; then
+    echo "✓ Parallel rendering completed successfully" | tee -a "$LOG_FILE"
+  else
+    echo "→ Using sequential rendering (fallback)" | tee -a "$LOG_FILE"
+    
+    while IFS='|' read -r scene_id scene_file scene_class est_duration; do
     [[ -n "$scene_id" ]] || continue
 
     # Pre-render syntax gate with self-healing.
@@ -2298,6 +2371,7 @@ PY
     update_state_rendered "$scene_id" "$scene_class" "$est_duration"
     echo "✓ Rendered + verified: $scene_id" | tee -a "$LOG_FILE"
   done <<< "$scene_lines"
+  fi  # End of parallel/sequential rendering block
 
   # Advance to assemble
   python3 - <<PY
