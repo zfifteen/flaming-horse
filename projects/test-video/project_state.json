@@ -1,12 +1,12 @@
 {
   "project_name": "test-video",
   "topic": "Explain the Pythagorean theorem",
-  "phase": "narration",
+  "phase": "build_scenes",
   "created_at": "2026-02-15T07:35:04Z",
-  "updated_at": "2026-02-15T07:37:36Z",
-  "run_count": 5,
+  "updated_at": "2026-02-15T07:38:55Z",
+  "run_count": 6,
   "plan_file": "plan.json",
-  "narration_file": null,
+  "narration_file": "narration_script.py",
   "voice_config_file": null,
   "scenes": [
     {
@@ -91,7 +91,7 @@
   ],
   "current_scene_index": 0,
   "errors": [
-    "narration failed: narration_script.py missing"
+    "Phase build_scenes failed after 4 attempts: see build.log"
   ],
   "history": [
     {
@@ -128,6 +128,27 @@
       "timestamp": "2026-02-15T07:37:34Z",
       "phase": "review",
       "action": "Advanced to narration (deterministic)"
+    },
+    {
+      "timestamp": "2026-02-15T07:38:13Z",
+      "phase": "manual_reset",
+      "message": "Phase manually reset from 'narration' to 'narration'"
+    },
+    {
+      "timestamp": "2026-02-15T07:38:22Z",
+      "phase": "narration",
+      "action": "Detected narration_script.py; advanced to build_scenes (deterministic)"
+    },
+    {
+      "timestamp": "2026-02-15T07:38:22Z",
+      "phase": "narration",
+      "action": "Detected narration_script.py; advanced to build_scenes (deterministic)"
+    },
+    {
+      "timestamp": "2026-02-15T07:38:55Z",
+      "phase": "build_scenes",
+      "action": "retry_exhausted",
+      "reason": "self-healing attempts exhausted"
     }
   ],
   "flags": {

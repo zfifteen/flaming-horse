@@ -1,6 +1,6 @@
 {
   "qwen_python": "/usr/bin/python3",
-  "model_id": "mock-test-model",
+  "model_id": "/tmp/mock-model",
   "device": "cpu",
   "dtype": "float32",
   "language": "English",

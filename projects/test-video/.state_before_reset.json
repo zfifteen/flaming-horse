@@ -3,8 +3,8 @@
   "topic": "Explain the Pythagorean theorem",
   "phase": "narration",
   "created_at": "2026-02-15T07:35:04Z",
-  "updated_at": "2026-02-15T07:36:33Z",
-  "run_count": 3,
+  "updated_at": "2026-02-15T07:37:36Z",
+  "run_count": 5,
   "plan_file": "plan.json",
   "narration_file": null,
   "voice_config_file": null,
@@ -111,6 +111,21 @@
     },
     {
       "timestamp": "2026-02-15T07:36:31Z",
+      "phase": "review",
+      "action": "Advanced to narration (deterministic)"
+    },
+    {
+      "timestamp": "2026-02-15T07:37:33Z",
+      "phase": "manual_reset",
+      "message": "Phase manually reset from 'narration' to 'review'"
+    },
+    {
+      "timestamp": "2026-02-15T07:37:34Z",
+      "phase": "review",
+      "action": "Advanced to narration (deterministic)"
+    },
+    {
+      "timestamp": "2026-02-15T07:37:34Z",
       "phase": "review",
       "action": "Advanced to narration (deterministic)"
     }
