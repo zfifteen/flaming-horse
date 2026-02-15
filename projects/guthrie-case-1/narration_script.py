@@ -1,0 +1,8 @@
+SCRIPT = {
+    "intro": "What if a single overlooked detail changes everything you know about the Guthrie case?\\nToday, we uncover that detail and explore its implications.\\nWe'll cover the background, key facts, traditional views, and the novel insights that rewrite the story.",
+    "background": "The Guthrie case began in nineteen eighty-five.\\nIt involved plaintiff John Guthrie against corporation Apex Industries.\\nGuthrie claimed negligence in a workplace accident that left him paralyzed.\\nThe initial filings set the stage for a landmark ruling on corporate liability.",
+    "key_facts": "Here is the timeline.\\nJanuary first: Guthrie starts work at the factory.\\nMarch fifteenth: Faulty machine malfunctions during his shift.\\nApril second: Guthrie sues Apex for two million dollars.\\nJune tenth: Court rules in favor of Guthrie, awarding one point five million.\\nThese facts shaped the debate.",
+    "traditional_analysis": "Traditionally, experts saw this as a clear negligence case.\\nApex failed basic safety protocols.\\nThe award set precedent for strict liability.\\nCritics argued it opened floodgates for lawsuits.\\nMost agreed the ruling was justified based on evidence.",
+    "novel_insights": "But new evidence reveals a twist.\\nGuthrie had prior knowledge of the machine flaw but said nothing.\\nThis suggests shared responsibility.\\nRe-examining documents shows Apex warnings were ignored.\\nThe case challenges our view of victim and villain.",
+    "conclusion": "The Guthrie case teaches us to question assumptions.\\nNovel insights show shared fault, not simple negligence.\\nThis reshapes liability discussions.\\nRethink what you know, and dig deeper next time."
+}

@@ -1,0 +1,220 @@
+{
+  "project_name": "qc-regression-demo",
+  "topic": "Test video for QC pipeline regression",
+  "phase": "complete",
+  "created_at": "2026-02-15T07:00:49Z",
+  "updated_at": "2026-02-15T07:34:15Z",
+  "run_count": 11,
+  "plan_file": "plan.json",
+  "narration_file": "narration_script.py",
+  "voice_config_file": null,
+  "scenes": [
+    {
+      "id": "scene_01_intro",
+      "title": "Introduction",
+      "narration_key": "intro",
+      "narration_summary": "Hook with QC importance and overview of the regression demo pipeline.",
+      "estimated_words": 50,
+      "estimated_duration": "20s",
+      "animations": [
+        "Title and subtitle fade in",
+        "Overview diagram"
+      ],
+      "complexity": "low",
+      "risk_flags": [],
+      "status": "rendered",
+      "file": "scene_01_intro.py",
+      "class_name": "Scene01Intro",
+      "video_file": "media/videos/scene_01_intro/1440p60/Scene01Intro.mp4",
+      "verification": {
+        "file_size_bytes": 0,
+        "duration_seconds": 21.883333,
+        "audio_present": true,
+        "verified_at": "2026-02-15T07:31:19Z"
+      }
+    },
+    {
+      "id": "scene_02_data",
+      "title": "Data Overview",
+      "narration_key": "data_overview",
+      "narration_summary": "Present sample QC dataset in table format and initial visualizations.",
+      "estimated_words": 60,
+      "estimated_duration": "25s",
+      "animations": [
+        "Table reveal",
+        "Bar chart construction"
+      ],
+      "complexity": "low",
+      "risk_flags": [],
+      "status": "rendered",
+      "file": "scene_02_data.py",
+      "class_name": "Scene02Data",
+      "video_file": "media/videos/scene_02_data/1440p60/Scene02Data.mp4",
+      "verification": {
+        "file_size_bytes": 0,
+        "duration_seconds": 23.716667,
+        "audio_present": true,
+        "verified_at": "2026-02-15T07:32:01Z"
+      }
+    },
+    {
+      "id": "scene_03_regression",
+      "title": "Regression Analysis",
+      "narration_key": "regression_analysis",
+      "narration_summary": "Apply linear regression model to data, visualize scatter plot and fitted line.",
+      "estimated_words": 70,
+      "estimated_duration": "30s",
+      "animations": [
+        "Scatter plot",
+        "Regression line draw",
+        "Prediction highlights"
+      ],
+      "complexity": "medium",
+      "risk_flags": [],
+      "status": "rendered",
+      "file": "scene_03_regression.py",
+      "class_name": "Scene03Regression",
+      "video_file": "media/videos/scene_03_regression/1440p60/Scene03Regression.mp4",
+      "verification": {
+        "file_size_bytes": 0,
+        "duration_seconds": 20.083333,
+        "audio_present": true,
+        "verified_at": "2026-02-15T07:32:31Z"
+      }
+    },
+    {
+      "id": "scene_04_results",
+      "title": "Results and Metrics",
+      "narration_key": "results",
+      "narration_summary": "Show model performance metrics like R\u00b2, RMSE via gauges and comparison table.",
+      "estimated_words": 60,
+      "estimated_duration": "25s",
+      "animations": [
+        "Metric gauges fill",
+        "Comparison table"
+      ],
+      "complexity": "low",
+      "risk_flags": [],
+      "status": "rendered",
+      "file": "scene_04_results.py",
+      "class_name": "Scene04Results",
+      "video_file": "media/videos/scene_04_results/1440p60/Scene04Results.mp4",
+      "verification": {
+        "file_size_bytes": 0,
+        "duration_seconds": 19.966667,
+        "audio_present": true,
+        "verified_at": "2026-02-15T07:33:02Z"
+      }
+    },
+    {
+      "id": "scene_05_conclusion",
+      "title": "Conclusion",
+      "narration_key": "conclusion",
+      "narration_summary": "Recap key steps, benefits of the QC regression pipeline, and call to action.",
+      "estimated_words": 60,
+      "estimated_duration": "20s",
+      "animations": [
+        "Summary bullet points",
+        "Final graphic"
+      ],
+      "complexity": "low",
+      "risk_flags": [],
+      "status": "rendered",
+      "file": "scene_05_conclusion.py",
+      "class_name": "Scene05Conclusion",
+      "video_file": "media/videos/scene_05_conclusion/1440p60/Scene05Conclusion.mp4",
+      "verification": {
+        "file_size_bytes": 0,
+        "duration_seconds": 17.283333,
+        "audio_present": true,
+        "verified_at": "2026-02-15T07:33:33Z"
+      }
+    }
+  ],
+  "current_scene_index": 5,
+  "errors": [],
+  "history": [
+    {
+      "timestamp": "2026-02-15T07:12:58Z",
+      "phase": "plan",
+      "action": "Applied plan.json to project_state.json (deterministic)"
+    },
+    {
+      "timestamp": "2026-02-15T07:12:58Z",
+      "phase": "plan",
+      "action": "Applied plan.json to project_state.json (deterministic)"
+    },
+    {
+      "timestamp": "2026-02-15T07:12:59Z",
+      "phase": "review",
+      "action": "Advanced to narration (deterministic)"
+    },
+    {
+      "timestamp": "2026-02-15T07:12:59Z",
+      "phase": "review",
+      "action": "Advanced to narration (deterministic)"
+    },
+    {
+      "timestamp": "2026-02-15T07:13:14Z",
+      "phase": "narration",
+      "action": "Detected narration_script.py; advanced to build_scenes (deterministic)"
+    },
+    {
+      "timestamp": "2026-02-15T07:13:14Z",
+      "phase": "narration",
+      "action": "Detected narration_script.py; advanced to build_scenes (deterministic)"
+    },
+    {
+      "timestamp": "2026-02-15T07:25:24Z",
+      "phase": "build_scenes",
+      "action": "Marked built: scene_01_intro.py (Scene01Intro); advanced index to 1"
+    },
+    {
+      "timestamp": "2026-02-15T07:28:07Z",
+      "phase": "build_scenes",
+      "action": "Marked built: scene_02_data.py (Scene02Data); advanced index to 2"
+    },
+    {
+      "timestamp": "2026-02-15T07:28:34Z",
+      "phase": "build_scenes",
+      "action": "Marked built: scene_03_regression.py (Scene03Regression); advanced index to 3"
+    },
+    {
+      "timestamp": "2026-02-15T07:29:47Z",
+      "phase": "build_scenes",
+      "action": "Marked built: scene_04_results.py (Scene04Results); advanced index to 4"
+    },
+    {
+      "timestamp": "2026-02-15T07:30:15Z",
+      "phase": "build_scenes",
+      "action": "Marked built: scene_05_conclusion.py (Scene05Conclusion); advanced index to 5"
+    },
+    {
+      "timestamp": "2026-02-15T07:30:37Z",
+      "phase": "scene_qc",
+      "action": "Detected scene_qc_report.md; advanced to precache_voiceovers (deterministic)"
+    },
+    {
+      "timestamp": "2026-02-15T07:30:37Z",
+      "phase": "scene_qc",
+      "action": "Detected scene_qc_report.md; advanced to precache_voiceovers (deterministic)"
+    },
+    {
+      "timestamp": "2026-02-15T07:30:46Z",
+      "phase": "precache_voiceovers",
+      "action": "Detected media/voiceovers/qwen/cache.json; advanced to final_render (deterministic)"
+    },
+    {
+      "timestamp": "2026-02-15T07:30:47Z",
+      "phase": "precache_voiceovers",
+      "action": "Detected media/voiceovers/qwen/cache.json; advanced to final_render (deterministic)"
+    },
+    "Phase final_render: Rendered and verified all scenes (scripted), advancing to assemble",
+    "Phase assemble: Assembled final_video.mp4 (scripted)"
+  ],
+  "flags": {
+    "needs_human_review": false,
+    "dry_run": false,
+    "force_replan": false
+  }
+}

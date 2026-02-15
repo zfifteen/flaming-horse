@@ -1,0 +1,162 @@
+{
+  "project_name": "guthrie-case-1",
+  "topic": "/Users/velocityworks/IdeaProjects/flaming-horse/concepts/guthrie_case_novel_insight_analysis.md",
+  "phase": "build_scenes",
+  "created_at": "2026-02-15T16:39:10Z",
+  "updated_at": "2026-02-15T17:01:04Z",
+  "run_count": 6,
+  "plan_file": "plan.json",
+  "narration_file": "narration_script.py",
+  "voice_config_file": null,
+  "scenes": [
+    {
+      "id": "scene_01_intro",
+      "title": "Introduction",
+      "narration_key": "intro",
+      "narration_summary": "Hook with intriguing question about the case and outline video structure.",
+      "estimated_words": 60,
+      "estimated_duration": "25s",
+      "animations": [
+        "Fade in title",
+        "Subtitle reveal",
+        "Simple timeline graphic"
+      ],
+      "complexity": "low",
+      "risk_flags": [],
+      "status": "pending"
+    },
+    {
+      "id": "scene_02_background",
+      "title": "Case Background",
+      "narration_key": "background",
+      "narration_summary": "Overview of the Guthrie case origins, parties involved, and initial context.",
+      "estimated_words": 120,
+      "estimated_duration": "50s",
+      "animations": [
+        "Text bullets fade in",
+        "Timeline chart",
+        "Key names highlight"
+      ],
+      "complexity": "low",
+      "risk_flags": [],
+      "status": "pending"
+    },
+    {
+      "id": "scene_03_key_facts",
+      "title": "Key Facts and Timeline",
+      "narration_key": "key_facts",
+      "narration_summary": "Detailed timeline of events and critical facts.",
+      "estimated_words": 150,
+      "estimated_duration": "60s",
+      "animations": [
+        "Interactive timeline",
+        "Bullet points staggered",
+        "Highlight connections"
+      ],
+      "complexity": "medium",
+      "risk_flags": [],
+      "status": "pending"
+    },
+    {
+      "id": "scene_04_traditional_analysis",
+      "title": "Traditional Analysis",
+      "narration_key": "traditional_analysis",
+      "narration_summary": "Standard interpretations and common conclusions drawn from the case.",
+      "estimated_words": 140,
+      "estimated_duration": "55s",
+      "animations": [
+        "Comparison table",
+        "Fade in pros/cons",
+        "Chart of viewpoints"
+      ],
+      "complexity": "medium",
+      "risk_flags": [
+        "Table sizing"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": "scene_05_novel_insights",
+      "title": "Novel Insights",
+      "narration_key": "novel_insights",
+      "narration_summary": "Presentation of new perspectives and novel insights challenging the status quo.",
+      "estimated_words": 160,
+      "estimated_duration": "65s",
+      "animations": [
+        "Reveal hidden connections graph",
+        "Emphasis highlights",
+        "3D relationship diagram"
+      ],
+      "complexity": "high",
+      "risk_flags": [],
+      "status": "pending"
+    },
+    {
+      "id": "scene_06_conclusion",
+      "title": "Conclusion and Recap",
+      "narration_key": "conclusion",
+      "narration_summary": "Summarize key insights, implications, and call to action.",
+      "estimated_words": 120,
+      "estimated_duration": "45s",
+      "animations": [
+        "Recap bullets",
+        "Final graphic",
+        "Fade out"
+      ],
+      "complexity": "low",
+      "risk_flags": [],
+      "status": "pending"
+    }
+  ],
+  "current_scene_index": 0,
+  "errors": [],
+  "history": [
+    {
+      "timestamp": "2026-02-15T16:46:09Z",
+      "phase": "plan",
+      "action": "Applied plan.json to project_state.json (deterministic)"
+    },
+    {
+      "timestamp": "2026-02-15T16:46:09Z",
+      "phase": "plan",
+      "action": "Applied plan.json to project_state.json (deterministic)"
+    },
+    {
+      "timestamp": "2026-02-15T16:46:09Z",
+      "phase": "review",
+      "action": "Advanced to narration (deterministic)"
+    },
+    {
+      "timestamp": "2026-02-15T16:46:09Z",
+      "phase": "review",
+      "action": "Advanced to narration (deterministic)"
+    },
+    {
+      "timestamp": "2026-02-15T16:46:22Z",
+      "phase": "narration",
+      "action": "Detected narration_script.py; advanced to build_scenes (deterministic)"
+    },
+    {
+      "timestamp": "2026-02-15T16:46:22Z",
+      "phase": "narration",
+      "action": "Detected narration_script.py; advanced to build_scenes (deterministic)"
+    },
+    {
+      "timestamp": "2026-02-15T16:46:38Z",
+      "phase": "build_scenes",
+      "action": "retry_exhausted",
+      "reason": "self-healing attempts exhausted"
+    },
+    {
+      "timestamp": "2026-02-15T17:01:04Z",
+      "phase": "build_scenes",
+      "action": "retry_exhausted",
+      "reason": "self-healing attempts exhausted"
+    }
+  ],
+  "flags": {
+    "needs_human_review": false,
+    "dry_run": false,
+    "force_replan": false
+  }
+}

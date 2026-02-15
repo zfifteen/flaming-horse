@@ -1,0 +1,75 @@
+{
+  "title": "Novel Insights from the Guthrie Case Analysis",
+  "topic_summary": "This video presents novel insights from the analysis of the Guthrie case, focusing on key events, traditional interpretations, and groundbreaking perspectives that challenge existing views.",
+  "target_audience": "Legal professionals, researchers, and case study enthusiasts",
+  "estimated_duration_seconds": 300,
+  "total_estimated_words": 750,
+  "scenes": [
+    {
+      "id": "scene_01_intro",
+      "title": "Introduction",
+      "narration_key": "intro",
+      "narration_summary": "Hook with intriguing question about the case and outline video structure.",
+      "estimated_words": 60,
+      "estimated_duration": "25s",
+      "animations": ["Fade in title", "Subtitle reveal", "Simple timeline graphic"],
+      "complexity": "low",
+      "risk_flags": []
+    },
+    {
+      "id": "scene_02_background",
+      "title": "Case Background",
+      "narration_key": "background",
+      "narration_summary": "Overview of the Guthrie case origins, parties involved, and initial context.",
+      "estimated_words": 120,
+      "estimated_duration": "50s",
+      "animations": ["Text bullets fade in", "Timeline chart", "Key names highlight"],
+      "complexity": "low",
+      "risk_flags": []
+    },
+    {
+      "id": "scene_03_key_facts",
+      "title": "Key Facts and Timeline",
+      "narration_key": "key_facts",
+      "narration_summary": "Detailed timeline of events and critical facts.",
+      "estimated_words": 150,
+      "estimated_duration": "60s",
+      "animations": ["Interactive timeline", "Bullet points staggered", "Highlight connections"],
+      "complexity": "medium",
+      "risk_flags": []
+    },
+    {
+      "id": "scene_04_traditional_analysis",
+      "title": "Traditional Analysis",
+      "narration_key": "traditional_analysis",
+      "narration_summary": "Standard interpretations and common conclusions drawn from the case.",
+      "estimated_words": 140,
+      "estimated_duration": "55s",
+      "animations": ["Comparison table", "Fade in pros/cons", "Chart of viewpoints"],
+      "complexity": "medium",
+      "risk_flags": ["Table sizing"]
+    },
+    {
+      "id": "scene_05_novel_insights",
+      "title": "Novel Insights",
+      "narration_key": "novel_insights",
+      "narration_summary": "Presentation of new perspectives and novel insights challenging the status quo.",
+      "estimated_words": 160,
+      "estimated_duration": "65s",
+      "animations": ["Reveal hidden connections graph", "Emphasis highlights", "3D relationship diagram"],
+      "complexity": "high",
+      "risk_flags": []
+    },
+    {
+      "id": "scene_06_conclusion",
+      "title": "Conclusion and Recap",
+      "narration_key": "conclusion",
+      "narration_summary": "Summarize key insights, implications, and call to action.",
+      "estimated_words": 120,
+      "estimated_duration": "45s",
+      "animations": ["Recap bullets", "Final graphic", "Fade out"],
+      "complexity": "low",
+      "risk_flags": []
+    }
+  ]
+}

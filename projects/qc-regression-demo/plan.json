@@ -1,0 +1,64 @@
+{
+  "title": "QC Regression Pipeline Demo",
+  "topic_summary": "Demonstration of a quality control regression pipeline, showcasing data processing, model application, and result analysis using charts and tables.",
+  "target_audience": "Software QA engineers and developers testing regression pipelines",
+  "estimated_duration_seconds": 120,
+  "total_estimated_words": 300,
+  "scenes": [
+    {
+      "id": "scene_01_intro",
+      "title": "Introduction",
+      "narration_key": "intro",
+      "narration_summary": "Hook with QC importance and overview of the regression demo pipeline.",
+      "estimated_words": 50,
+      "estimated_duration": "20s",
+      "animations": ["Title and subtitle fade in", "Overview diagram"],
+      "complexity": "low",
+      "risk_flags": []
+    },
+    {
+      "id": "scene_02_data",
+      "title": "Data Overview",
+      "narration_key": "data_overview",
+      "narration_summary": "Present sample QC dataset in table format and initial visualizations.",
+      "estimated_words": 60,
+      "estimated_duration": "25s",
+      "animations": ["Table reveal", "Bar chart construction"],
+      "complexity": "low",
+      "risk_flags": []
+    },
+    {
+      "id": "scene_03_regression",
+      "title": "Regression Analysis",
+      "narration_key": "regression_analysis",
+      "narration_summary": "Apply linear regression model to data, visualize scatter plot and fitted line.",
+      "estimated_words": 70,
+      "estimated_duration": "30s",
+      "animations": ["Scatter plot", "Regression line draw", "Prediction highlights"],
+      "complexity": "medium",
+      "risk_flags": []
+    },
+    {
+      "id": "scene_04_results",
+      "title": "Results and Metrics",
+      "narration_key": "results",
+      "narration_summary": "Show model performance metrics like R², RMSE via gauges and comparison table.",
+      "estimated_words": 60,
+      "estimated_duration": "25s",
+      "animations": ["Metric gauges fill", "Comparison table"],
+      "complexity": "low",
+      "risk_flags": []
+    },
+    {
+      "id": "scene_05_conclusion",
+      "title": "Conclusion",
+      "narration_key": "conclusion",
+      "narration_summary": "Recap key steps, benefits of the QC regression pipeline, and call to action.",
+      "estimated_words": 60,
+      "estimated_duration": "20s",
+      "animations": ["Summary bullet points", "Final graphic"],
+      "complexity": "low",
+      "risk_flags": []
+    }
+  ]
+}
