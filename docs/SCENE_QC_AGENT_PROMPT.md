@@ -44,6 +44,12 @@ Hard requirements:
    - Do NOT call `FadeIn(..., lag_ratio=...)`.
    - Do NOT call `FadeIn(..., scale_factor=...)`.
    - For staggered fades, use `LaggedStart(FadeIn(a), FadeIn(b), ..., lag_ratio=...)`.
+6. **CRITICAL: Prevent escape corruption when editing strings.**
+   - When editing Python string literals, preserve single escape sequences (`\n`, `\t`, etc.).
+   - Do NOT introduce double-escaped sequences like `\\n` (literal backslash-n).
+   - Example CORRECT: `text = "Hello\nWorld"` (actual newline in string).
+   - Example WRONG: `text = "Hello\\nWorld"` (literal backslash-n characters).
+   - After editing any file, verify all strings compile correctly with `python3 -m py_compile`.
 
 Repair strategy:
 - Prefer minimal edits to timing/layout lines.
@@ -57,6 +63,8 @@ Validation checklist before finishing:
 - [ ] No obvious timing over-allocation per voiceover block
 - [ ] No major overlaps in active scene layout
 - [ ] Prior section content cleaned up before new dense section
+- [ ] No double-escaped sequences (e.g., `\\n` instead of `\n`) in string literals
+- [ ] All edited files compile successfully with `python3 -m py_compile <file>`
 
 Required report format:
 - Scene-by-scene summary with:

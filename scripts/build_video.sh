@@ -1734,6 +1734,19 @@ PY
     return 1
   fi
 
+  # Step 1: Create backups of all scene files before QC edits
+  echo "→ Creating pre-QC backups..." | tee -a "$LOG_FILE"
+  local -a scene_file_array
+  mapfile -t scene_file_array <<< "$qc_scene_files"
+  local backup_count=0
+  for scene_file in "${scene_file_array[@]}"; do
+    if [[ -n "$scene_file" && -f "$scene_file" ]]; then
+      cp "$scene_file" "${scene_file}.pre_qc"
+      ((backup_count++))
+    fi
+  done
+  echo "  Backed up ${backup_count} scene files" | tee -a "$LOG_FILE"
+
   local prompt_file=".agent_prompt_scene_qc.md"
   if [[ ! -f "$SCENE_QC_TEMPLATE" ]]; then
     echo "❌ Missing prompt template: $SCENE_QC_TEMPLATE" | tee -a "$LOG_FILE" >&2
@@ -1799,15 +1812,72 @@ PY
 
   if [[ $exit_code -ne 0 ]]; then
     echo "❌ Scene QC agent failed with exit code: $exit_code" | tee -a "$LOG_FILE"
+    # Restore backups on agent failure
+    echo "→ Restoring pre-QC backups due to agent failure..." | tee -a "$LOG_FILE"
+    for scene_file in "${scene_file_array[@]}"; do
+      if [[ -n "$scene_file" && -f "${scene_file}.pre_qc" ]]; then
+        mv "${scene_file}.pre_qc" "$scene_file"
+      fi
+    done
     return 1
   fi
 
+  # Step 2: Validate QC report was generated
   if [[ ! -s "scene_qc_report.md" ]]; then
     echo "❌ scene_qc_report.md missing or empty after scene QC" | tee -a "$LOG_FILE" >&2
+    echo "  QC agent must create a report documenting all changes." | tee -a "$LOG_FILE" >&2
+    # Restore backups on missing report
+    echo "→ Restoring pre-QC backups due to missing report..." | tee -a "$LOG_FILE"
+    for scene_file in "${scene_file_array[@]}"; do
+      if [[ -n "$scene_file" && -f "${scene_file}.pre_qc" ]]; then
+        mv "${scene_file}.pre_qc" "$scene_file"
+      fi
+    done
     return 1
   fi
 
-  echo "✓ Scene QC complete: scene_qc_report.md" | tee -a "$LOG_FILE"
+  # Step 3: Post-QC syntax validation gate
+  echo "→ Validating Python syntax of QC-edited scene files..." | tee -a "$LOG_FILE"
+  local syntax_errors=0
+  local -a corrupted_files=()
+  for scene_file in "${scene_file_array[@]}"; do
+    if [[ -z "$scene_file" || ! -f "$scene_file" ]]; then
+      continue
+    fi
+    
+    if ! scene_python_syntax_ok "$scene_file"; then
+      ((syntax_errors++))
+      corrupted_files+=("$scene_file")
+      echo "  ✗ Syntax error in: $scene_file" | tee -a "$LOG_FILE" >&2
+      scene_python_syntax_error_excerpt "$scene_file" | tee -a "$LOG_FILE" >&2
+    else
+      echo "  ✓ Syntax valid: $scene_file" | tee -a "$LOG_FILE"
+    fi
+  done
+
+  # Step 4: Rollback if any syntax errors detected
+  if [[ $syntax_errors -gt 0 ]]; then
+    echo "❌ QC introduced syntax errors in ${syntax_errors} file(s): ${corrupted_files[*]}" | tee -a "$LOG_FILE" >&2
+    echo "  Rolling back all scene files to pre-QC state..." | tee -a "$LOG_FILE"
+    for scene_file in "${scene_file_array[@]}"; do
+      if [[ -n "$scene_file" && -f "${scene_file}.pre_qc" ]]; then
+        mv "${scene_file}.pre_qc" "$scene_file"
+        echo "  ↺ Restored: $scene_file" | tee -a "$LOG_FILE"
+      fi
+    done
+    echo "❌ Scene QC failed validation. Corrupted files rolled back." | tee -a "$LOG_FILE" >&2
+    return 1
+  fi
+
+  # Step 5: Cleanup backups on success
+  echo "→ QC validation passed. Removing backups..." | tee -a "$LOG_FILE"
+  for scene_file in "${scene_file_array[@]}"; do
+    if [[ -n "$scene_file" && -f "${scene_file}.pre_qc" ]]; then
+      rm -f "${scene_file}.pre_qc"
+    fi
+  done
+
+  echo "✓ Scene QC complete: ${backup_count} files validated, scene_qc_report.md" | tee -a "$LOG_FILE"
   apply_state_phase "scene_qc" || true
   return 0
 }
