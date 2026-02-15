@@ -1,5 +1,3 @@
-{{AGENTS_CONTENT}}
-
 ────────────────────────────────────────────────────────────────
 
 CURRENT TASK:
@@ -16,13 +14,9 @@ Files available in this directory:
 
 Video topic (if set): {{TOPIC}}
 
-Reference documentation has been attached to this message:
-- manim_content_pipeline.md
-- manim_voiceover.md
-- manim_template.py.txt
-- manim_config_guide.md
+Reference documentation lives in-repo under `reference_docs/` and should be consulted as needed.
 
-The current project_state.json has also been attached.
+The current project_state.json is attached.
 
 {{PHASE_INSTRUCTIONS}}
 

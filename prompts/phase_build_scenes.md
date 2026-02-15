@@ -1,6 +1,12 @@
 - Read AGENTS.md CAREFULLY before writing or editing any scene code.
-MANDATORY: ALWAYS follow the scene examples syntax from attached manim_template.py.txt EXACTLY.
-- Always scaffold each scene file first using the scaffold path provided in the task header: `python3 "<scaffold_path>" --project . --scene-id <scene_id> --class-name <ClassName> --narration-key <key> --force`.
+MANDATORY: ALWAYS follow the scene examples syntax from `reference_docs/manim_template.py.txt` EXACTLY.
+- Infrastructure tasks are owned by the orchestrator. Do NOT run scaffold scripts, shell setup commands, or state-management commands.
+- Target scene for this run:
+  - id: `{{TARGET_SCENE_ID}}`
+  - file: `{{TARGET_SCENE_FILE}}`
+  - class: `{{TARGET_SCENE_CLASS}}`
+  - narration key: `{{TARGET_NARRATION_KEY}}`
+- Edit ONLY the target scene file above.
 - Never write scene files from scratch. Update only the editable slot block between:
   - `# SLOT_START:scene_body`
   - `# SLOT_END:scene_body`
@@ -10,10 +16,9 @@ MANDATORY: ALWAYS follow the scene examples syntax from attached manim_template.
 - NEVER invent animations like ShowCreation (causes NameError).
 - Manim CE 0.19 compatibility rules:
   - NEVER use `from manim.utils.color import Color`.
-  - NEVER pass `lag_ratio` or `scale_factor` directly to `FadeIn(...)`.
-  - For staggered reveals, use `LaggedStart(FadeIn(a), FadeIn(b), ..., lag_ratio=...)`.
-  - Use built-in color constants (`BLUE`, `YELLOW`, etc.) or `.set_color(...)`.
-- ALWAYS use the Write tool to create scene_XX.py. Do NOT print code blocks; confirm tool use.
+- NEVER pass `lag_ratio` or `scale_factor` directly to `FadeIn(...)`.
+- For staggered reveals, use `LaggedStart(FadeIn(a), FadeIn(b), ..., lag_ratio=...)`.
+- Use built-in color constants (`BLUE`, `YELLOW`, etc.) or `.set_color(...)`.
 - NEVER enable optional alignment extras.
 - Mentally validate: does the code import manim correctly and run without NameError?
 - Layout contract: Title at UP * 3.8, subtitle directly below, graphs/diagrams moved DOWN * 0.6 to 1.2, no .to_edge(...) for titles/labels, safe_layout for 2+ siblings, safe_position after .next_to().
