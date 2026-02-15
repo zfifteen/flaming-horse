@@ -6,8 +6,8 @@ from pathlib import Path
 
 import numpy as np
 import soundfile as sf
-import torch
-from qwen_tts import Qwen3TTSModel
+
+from qwen_tts_mediator import build_voice_clone_prompt, generate_voice_clone, load_model
 
 
 def build_cache_entry(
@@ -46,31 +46,19 @@ def main() -> int:
     script = payload["script"]
     existing_by_key = payload["existing"]
 
-    dtype_map = {
-        "float16": torch.float16,
-        "bfloat16": torch.bfloat16,
-        "float32": torch.float32,
-    }
-    if dtype_str not in dtype_map:
-        raise ValueError(f"Unsupported dtype: {dtype_str}")
-
     output_dir.mkdir(parents=True, exist_ok=True)
 
     print("→ Loading Qwen model", file=sys.stderr)
     t0 = time.perf_counter()
-    model = Qwen3TTSModel.from_pretrained(
-        str(model_source),
-        device_map=device,
-        dtype=dtype_map[dtype_str],
-    )
+    model = load_model(str(model_source), str(device), str(dtype_str))
     print(f"✓ Loaded model in {time.perf_counter() - t0:.1f}s", file=sys.stderr)
 
     print("→ Building voice clone prompt", file=sys.stderr)
     t1 = time.perf_counter()
-    voice_clone_prompt = model.create_voice_clone_prompt(
+    voice_clone_prompt = build_voice_clone_prompt(
+        model,
         ref_audio=str(ref_audio),
         ref_text=ref_text,
-        x_vector_only_mode=False,
     )
     print(f"✓ Prompt built in {time.perf_counter() - t1:.1f}s", file=sys.stderr)
 
@@ -85,7 +73,8 @@ def main() -> int:
                 continue
 
         t_seg = time.perf_counter()
-        wavs, sr = model.generate_voice_clone(
+        wavs, sr = generate_voice_clone(
+            model,
             text=text,
             language=language,
             voice_clone_prompt=voice_clone_prompt,

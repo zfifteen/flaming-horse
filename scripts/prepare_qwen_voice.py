@@ -4,8 +4,7 @@
 This is a reliability step: it fails fast if the Qwen environment, model weights,
 or reference assets are missing, before the main build pipeline runs.
 
-It runs the expensive first-load steps (model load + prompt build), and by
-default performs a tiny dry-run generation.
+It runs the expensive first-load steps (model load + prompt build).
 
 Stamp file:
   <project>/<output_dir>/ready.json
@@ -123,11 +122,6 @@ def parse_args() -> argparse.Namespace:
         "--force",
         action="store_true",
         help="Re-run warmup even if ready stamp matches",
-    )
-    p.add_argument(
-        "--no-dry-run",
-        action="store_true",
-        help="Skip the tiny generation dry-run (faster, less confidence)",
     )
     return p.parse_args()
 
@@ -255,8 +249,6 @@ def main() -> int:
         "language": cfg.get("language", "English"),
         "ref_audio": str(ref_audio),
         "ref_text": ref_text_str,
-        "dry_run": (not args.no_dry_run),
-        "dry_run_text": "Warmup.",
     }
 
     print("→ Preparing Qwen voice (CPU float32)")
@@ -330,7 +322,6 @@ def main() -> int:
         "ref_audio": str(ref_audio),
         "ref_text": str(ref_text),
         "offline": True,
-        "dry_run": bool(payload["dry_run"]),
         "timings": result,
         "prepared_in_seconds": round(time.perf_counter() - t0, 3),
         "prepared_at": time.time(),
