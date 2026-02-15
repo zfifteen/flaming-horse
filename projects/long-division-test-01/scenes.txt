@@ -1,6 +1,0 @@
-file 'media/videos/scene_01/1440p60/Scene01Intro.mp4'
-file 'media/videos/scene_02/1440p60/Scene02Components.mp4'
-file 'media/videos/scene_03/1440p60/Scene03Step1.mp4'
-file 'media/videos/scene_04/1440p60/Scene04Step2.mp4'
-file 'media/videos/scene_05/1440p60/Scene05Example.mp4'
-file 'media/videos/scene_06/1440p60/Scene06Recap.mp4'

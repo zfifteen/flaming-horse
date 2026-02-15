@@ -19,7 +19,7 @@ def _install_voiceover_stubs():
     base = types.ModuleType("manim_voiceover_plus.services.base")
 
     class SpeechService:
-        def __init__(self, cache_dir, transcription_model=None, **kwargs):
+        def __init__(self, cache_dir, model=None, **kwargs):
             self.cache_dir = cache_dir
 
     base.SpeechService = SpeechService

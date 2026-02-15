@@ -14,19 +14,6 @@ Render with: manim <filename>.py YourSceneName
 from manim import *
 import numpy as np
 
-# ── Python 3.13 Compatibility Patch ────────────────────────────────
-import manim_voiceover_plus.services.base as base
-original_set_transcription = base.SpeechService.set_transcription
-
-def patched_set_transcription(self, model=None, kwargs=None):
-    if model is None:
-        self.transcription_model = None
-        self.whisper_model = None
-        return
-    original_set_transcription(self, model=model, kwargs=kwargs)
-
-base.SpeechService.set_transcription = patched_set_transcription
-
 # ── Voiceover Imports ──────────────────────────────────────────────
 from pathlib import Path
 from manim_voiceover_plus import VoiceoverScene

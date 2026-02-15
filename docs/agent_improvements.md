@@ -87,12 +87,14 @@ The plan is structured by category, with rationale, specific updates, implementa
   
   def harmonious_color(base_color, variations=3, lightness_shift=0.1):
       # [Full function code: Generate a palette from base for visual cohesion]
-      r, g, b = colorsys.rgb_to_hls(*base_color[:3] if len(base_color) > 3 else base_color)
+        rgb = np.array(base_color.to_rgb())
+        h, l, s = colorsys.rgb_to_hls(*rgb)
       palette = []
       for i in range(variations):
           h_shift = i * (360 / variations) / 360
-          new_h = (r + h_shift) % 1
-          new_r, new_g, new_b = colorsys.hls_to_rgb(new_h, g, b + lightness_shift * i)
+          new_h = (h + h_shift) % 1
+          new_l = min(1.0, max(0.0, l + lightness_shift * i))
+          new_r, new_g, new_b = colorsys.hls_to_rgb(new_h, new_l, s)
           palette.append([new_r, new_g, new_b, 1.0])
       return palette
   
@@ -110,7 +112,7 @@ The plan is structured by category, with rationale, specific updates, implementa
   title.color = blues[0]
   self.play(polished_fade_in(subtitle))
   ```
-  - 3D Guidelines: Prefer for spatial topics (e.g., geometry); limit to 1-2 moving objects. Use `self.camera.set_euler_angles(theta=-TAU/8, phi=TAU/4)` for subtle depth without complexity.
+  - 3D Guidelines: Prefer for spatial topics (e.g., geometry); limit to 1-2 moving objects. Use `self.set_camera_orientation(phi=75 * DEGREES, theta=-45 * DEGREES)` in a `ThreeDScene` for subtle depth without complexity.
   - Text Rules: Cap `Write()` at 1.5s; use `lag_ratio=0.15` for staggered reveals. For lists, `FadeIn(VGroup(*bullets), lag_ratio=0.3)`.
   ```
 - In **Pre-Render Validation Checklist**, add:

@@ -9,19 +9,6 @@ import sys
 TEMPLATE = """from manim import *
 import numpy as np
 
-# Python 3.13 Compatibility Patch
-import manim_voiceover_plus.services.base as base
-original_set_transcription = base.SpeechService.set_transcription
-
-def patched_set_transcription(self, model=None, kwargs=None):
-    if model is None:
-        self.transcription_model = None
-        self.whisper_model = None
-        return
-    original_set_transcription(self, model=model, kwargs=kwargs)
-
-base.SpeechService.set_transcription = patched_set_transcription
-
 # Voiceover Imports
 from pathlib import Path
 from manim_voiceover_plus import VoiceoverScene
@@ -133,7 +120,7 @@ def play_in_slot(scene, slot, *animations, max_run_time=None, min_run_time=0.3, 
         scene.wait(remaining)
 
 
-def play_text_in_slot(scene, slot, *animations, max_text_seconds=2.0, min_run_time=0.3, **play_kwargs):
+def play_text_in_slot(scene, slot, *animations, max_text_seconds=1.5, min_run_time=0.3, **play_kwargs):
     '''Text animations must complete quickly; fill the rest with waits.'''
     return play_in_slot(
         scene,
@@ -157,7 +144,7 @@ def play_next(scene, beats, *animations, max_run_time=None, min_run_time=0.3, **
     )
 
 
-def play_text_next(scene, beats, *animations, max_text_seconds=2.0, min_run_time=0.3, **play_kwargs):
+def play_text_next(scene, beats, *animations, max_text_seconds=1.5, min_run_time=0.3, **play_kwargs):
     '''Play next beat slot with text reveal cap.'''
     return play_text_in_slot(
         scene,

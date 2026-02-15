@@ -88,6 +88,12 @@ LOG_FILE="${PROJECT_DIR}/build.log"
 
 # Reference docs (relative to script location)
 SCENE_QC_PROMPT_DOC="${SCRIPT_DIR}/../docs/SCENE_QC_AGENT_PROMPT.md"
+PROMPTS_DIR="${SCRIPT_DIR}/../prompts"
+PHASE_PROMPT_MAIN_TEMPLATE="${PROMPTS_DIR}/phase_prompt.md"
+PHASE_PROMPT_TEMPLATE="${PROMPTS_DIR}/phase_prompt_instructions.md"
+PHASE_BUILD_SCENES_TEMPLATE="${PROMPTS_DIR}/phase_build_scenes.md"
+SCENE_FIX_TEMPLATE="${PROMPTS_DIR}/scene_fix_prompt.md"
+SCENE_QC_TEMPLATE="${PROMPTS_DIR}/scene_qc_prompt.md"
 REFERENCE_DOCS=(
   "${SCRIPT_DIR}/../reference_docs/manim_content_pipeline.md"
   "${SCRIPT_DIR}/../reference_docs/manim_voiceover.md"
@@ -361,6 +367,27 @@ PY
   return 0
 }
 
+render_template_file() {
+  local template_file="$1"
+  local output_file="$2"
+  shift 2
+
+  python3 - "$template_file" "$output_file" "$@" <<'PY'
+from pathlib import Path
+import sys
+
+template_path = Path(sys.argv[1])
+output_path = Path(sys.argv[2])
+
+text = template_path.read_text(encoding="utf-8")
+for kv in sys.argv[3:]:
+    key, value = kv.split("=", 1)
+    text = text.replace("{{" + key + "}}", value)
+
+output_path.write_text(text, encoding="utf-8")
+PY
+}
+
 # ═══════════════════════════════════════════════════════════════
 # Validation Functions
 # ═══════════════════════════════════════════════════════════════
@@ -443,7 +470,7 @@ validate_voiceover_sync() {
     grep -n 'voiceover(text=f' "$scene_file" | tee -a "$LOG_FILE"
     return 1
   fi
-  
+
   # Check for tracker.duration usage (warning only)
   if ! grep -q 'tracker\.duration' "$scene_file"; then
     echo "⚠ WARNING: Scene may not use tracker.duration for synchronization" | tee -a "$LOG_FILE"
@@ -540,14 +567,11 @@ PY
 
   local phase_specific_instruction=""
   if [[ "$phase" == "build_scenes" ]]; then
-    phase_specific_instruction="- Read AGENTS.md CAREFULLY before writing or editing any scene code.
-MANDATORY: ALWAYS follow the scene examples syntax from attached manim_template.py.txt EXACTLY.
-- Use Create for mobjects/lines/curves (e.g., Create(curve, rate_func=smooth)).
-- Use Write for text (cap at 1.5s) and FadeIn for reveals.
-- NEVER invent animations like ShowCreation (causes NameError).
-- ALWAYS use the Write tool to create scene_XX.py. Do NOT print code blocks; confirm tool use.
-- Mentally validate: does the code import manim correctly and run without NameError?
-- Layout contract: Title at UP * 3.8, subtitle directly below, graphs/diagrams moved DOWN * 0.6 to 1.2, no .to_edge(...) for titles/labels, safe_layout for 2+ siblings, safe_position after .next_to()."
+    if [[ ! -f "$PHASE_BUILD_SCENES_TEMPLATE" ]]; then
+      echo "❌ Missing prompt template: $PHASE_BUILD_SCENES_TEMPLATE" | tee -a "$LOG_FILE" >&2
+      return 1
+    fi
+    phase_specific_instruction="$(cat "$PHASE_BUILD_SCENES_TEMPLATE")"
   fi
 
   local retry_context_file
@@ -561,57 +585,59 @@ MANDATORY: ALWAYS follow the scene examples syntax from attached manim_template.
   
   # Create a temporary prompt file
   local prompt_file=".agent_prompt_${phase}.md"
-cat > "$prompt_file" <<EOF
-$(cat "${SCRIPT_DIR}/../AGENTS.md")
+  if [[ ! -f "$PHASE_PROMPT_MAIN_TEMPLATE" ]]; then
+    echo "❌ Missing prompt template: $PHASE_PROMPT_MAIN_TEMPLATE" | tee -a "$LOG_FILE" >&2
+    return 1
+  fi
+  if [[ ! -f "$PHASE_PROMPT_TEMPLATE" ]]; then
+    echo "❌ Missing prompt template: $PHASE_PROMPT_TEMPLATE" | tee -a "$LOG_FILE" >&2
+    return 1
+  fi
 
-────────────────────────────────────────────────────────────────
+  local rendered_phase_template=".agent_prompt_${phase}.instructions.md"
+  render_template_file \
+    "$PHASE_PROMPT_TEMPLATE" \
+    "$rendered_phase_template" \
+    "PHASE=${phase}" \
+    "SCAFFOLD_PATH=${SCRIPT_DIR}/scaffold_scene.py"
+  local phase_instructions
+  phase_instructions="$(cat "$rendered_phase_template")"
+  rm -f "$rendered_phase_template"
 
-CURRENT TASK:
+  local files_list
+  files_list="$(ls -1 "$PROJECT_DIR" 2>/dev/null || echo "  (empty)")"
 
-You are executing phase: ${phase}
+  AGENTS_CONTENT="$(cat "${SCRIPT_DIR}/../AGENTS.md")" \
+  PHASE_PROMPT_MAIN_TEMPLATE_PATH="$PHASE_PROMPT_MAIN_TEMPLATE" \
+  PHASE="$phase" \
+  PROJECT_DIR="$PROJECT_DIR" \
+  REPO_ROOT_HINT="${SCRIPT_DIR}/.." \
+  SCAFFOLD_PATH="${SCRIPT_DIR}/scaffold_scene.py" \
+  FILES_LIST="$files_list" \
+  TOPIC="$topic" \
+  PHASE_INSTRUCTIONS="$phase_instructions" \
+  PHASE_SPECIFIC_REMINDER="$phase_specific_instruction" \
+  RETRY_CONTEXT_NOTICE="$retry_context_notice" \
+  python3 - <<'PY' > "$prompt_file"
+from pathlib import Path
+import os
 
-Working directory: ${PROJECT_DIR}
-
-Repo root (scripts live here): ${SCRIPT_DIR}/..
-Scene scaffold script (absolute path): ${SCRIPT_DIR}/scaffold_scene.py
-
-Files available in this directory:
-$(ls -1 "$PROJECT_DIR" 2>/dev/null || echo "  (empty)")
-
-Video topic (if set): ${topic}
-
-Reference documentation has been attached to this message:
-- manim_content_pipeline.md
-- manim_voiceover.md  
-- manim_template.py.txt
-- manim_config_guide.md
-
-The current project_state.json has also been attached.
-
-INSTRUCTIONS:
-1. Read project_state.json to understand the current state
-2. Execute ONLY the ${phase} phase tasks as defined in the system prompt above
-3. For the plan phase: Generate plan.json exactly as specified in reference_docs/phase_plan.md. Use the Write tool to create the file at ./plan.json with the JSON content. Ensure it has keys like "title", "topic_summary", and a "scenes" array with required fields (id, title, narration_key, etc.).
-4. For other phases, use the Write or Edit tools to generate required files (e.g., narration_script.py, scene_*.py).
-5. Do NOT edit project_state.json. The build pipeline owns state updates.
-   Only generate the required artifacts for the phase (plan.json, narration_script.py, scene_*.py).
-6. If errors occur, do NOT edit state; instead, explain what failed in plain text.
-
-IMPORTANT PATH NOTE:
-- Your working directory is the project directory, which does NOT contain a ./scripts folder.
-- If you need to scaffold a scene, run the scaffold tool via the absolute path above, e.g.:
-  python3 "${SCRIPT_DIR}/scaffold_scene.py" --project . --scene-id <scene_id> --class-name <ClassName> --narration-key <key>
-
-PHASE-SPECIFIC REMINDER:
-${phase_specific_instruction}
-
-${retry_context_notice}
-
-TOPIC REQUIREMENT:
-- For the plan phase, you MUST use the provided video topic (above). If it is empty, fail the phase with an error explaining how to set it.
-
-Begin execution now.
-EOF
+text = Path(os.environ["PHASE_PROMPT_MAIN_TEMPLATE_PATH"]).read_text(encoding="utf-8")
+for key in [
+    "AGENTS_CONTENT",
+    "PHASE",
+    "PROJECT_DIR",
+    "REPO_ROOT_HINT",
+    "SCAFFOLD_PATH",
+    "FILES_LIST",
+    "TOPIC",
+    "PHASE_INSTRUCTIONS",
+    "PHASE_SPECIFIC_REMINDER",
+    "RETRY_CONTEXT_NOTICE",
+]:
+    text = text.replace("{{" + key + "}}", os.environ.get(key, ""))
+print(text, end="")
+PY
   
   # Invoke OpenCode - message must come after all options
   # TODO Replace this with an option to select from available models configured in OpenCode
@@ -756,32 +782,35 @@ invoke_scene_fix_agent() {
   cd "$PROJECT_DIR"
 
   local prompt_file=".agent_prompt_fix_${scene_id}.md"
-  cat > "$prompt_file" <<EOF
-$(cat "${SCRIPT_DIR}/../AGENTS.md")
+  if [[ ! -f "$SCENE_FIX_TEMPLATE" ]]; then
+    echo "❌ Missing prompt template: $SCENE_FIX_TEMPLATE" | tee -a "$LOG_FILE" >&2
+    return 1
+  fi
+  AGENTS_CONTENT="$(cat "${SCRIPT_DIR}/../AGENTS.md")" \
+  SCENE_FIX_TEMPLATE_PATH="$SCENE_FIX_TEMPLATE" \
+  SCENE_ID="$scene_id" \
+  SCENE_FILE="$scene_file" \
+  SCENE_CLASS="$scene_class" \
+  ATTEMPT="$attempt" \
+  PHASE_RETRY_LIMIT="$PHASE_RETRY_LIMIT" \
+  FAILURE_REASON="$failure_reason" \
+  python3 - <<'PY' > "$prompt_file"
+from pathlib import Path
+import os
 
-───────────────────────────────────────────────────────────────
-
-CURRENT TASK:
-
-You are repairing one broken scene file so final_render can proceed.
-
-Target scene id: ${scene_id}
-Target file: ${scene_file}
-Target class: ${scene_class}
-Retry attempt: ${attempt}/${PHASE_RETRY_LIMIT}
-
-Failure details to fix:
-${failure_reason}
-
-INSTRUCTIONS:
-1. Edit ONLY ${scene_file}
-2. Fix the deterministic failure shown above (syntax/runtime/import/validation)
-3. Preserve AGENTS.md requirements (cached Qwen voice, SCRIPT dict usage, safe positioning, BeatPlan timing helpers)
-4. Do NOT edit project_state.json
-5. Do not add fallback code; make the scene valid and renderable
-
-When done, stop.
-EOF
+text = Path(os.environ["SCENE_FIX_TEMPLATE_PATH"]).read_text(encoding="utf-8")
+for key in [
+    "AGENTS_CONTENT",
+    "SCENE_ID",
+    "SCENE_FILE",
+    "SCENE_CLASS",
+    "ATTEMPT",
+    "PHASE_RETRY_LIMIT",
+    "FAILURE_REASON",
+]:
+    text = text.replace("{{" + key + "}}", os.environ.get(key, ""))
+print(text, end="")
+PY
 
   opencode --agent manim-ce-scripting-expert run --model "${AGENT_MODEL}" \
     --file "$prompt_file" \
@@ -1224,26 +1253,15 @@ handle_scene_qc() {
   fi
 
   local prompt_file=".agent_prompt_scene_qc.md"
-  cat > "$prompt_file" <<EOF
-You are executing a dedicated scene quality-control pass for this project.
-
-Working directory: ${PROJECT_DIR}
-State file: ${STATE_FILE}
-
-Primary instructions:
-- Read and follow docs/SCENE_QC_AGENT_PROMPT.md exactly.
-- Validate and patch all scene_*.py files in this directory.
-- Keep creative intent; fix timing sync and overlap/layout defects.
-- Do NOT edit project_state.json.
-- Write a report file named scene_qc_report.md in this directory.
-
-Attached files include:
-- AGENTS.md
-- docs/SCENE_QC_AGENT_PROMPT.md
-- project_state.json
-
-Begin now.
-EOF
+  if [[ ! -f "$SCENE_QC_TEMPLATE" ]]; then
+    echo "❌ Missing prompt template: $SCENE_QC_TEMPLATE" | tee -a "$LOG_FILE" >&2
+    return 1
+  fi
+  render_template_file \
+    "$SCENE_QC_TEMPLATE" \
+    "$prompt_file" \
+    "PROJECT_DIR=${PROJECT_DIR}" \
+    "STATE_FILE=${STATE_FILE}"
 
   opencode --agent manim-ce-scripting-expert run --model "${AGENT_MODEL}" \
     --file "$prompt_file" \

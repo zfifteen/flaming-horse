@@ -88,7 +88,7 @@ Consult these files for technical details:
 
 - **reference_docs/manim_template.py.txt** - Base scene template with locked config
 - **reference_docs/manim_config_guide.md** - Positioning rules, safe zones, sizing guidelines
-- **reference_docs/manim_voiceover.md** - VoiceoverScene patterns, ElevenLabs integration
+- **reference_docs/manim_voiceover.md** - VoiceoverScene patterns for local cached Qwen integration
 - **reference_docs/manim_content_pipeline.md** - Overall workflow concepts
 - **docs/DEVELOPMENT_GUIDELINES.md** - Separation of concerns (agent creativity vs deterministic scripts), one-change-per-PR policy
 - **docs/agent_improvements.md** - Plan for v2.2 updates
@@ -157,19 +157,6 @@ from manim import *
 import numpy as np
 import colorsys  # New: For harmonious_color
 
-# Python 3.13 Compatibility Patch
-import manim_voiceover_plus.services.base as base
-original_set_transcription = base.SpeechService.set_transcription
-
-def patched_set_transcription(self, model=None, kwargs=None):
-    if model is None:
-        self.transcription_model = None
-        self.whisper_model = None
-        return
-    original_set_transcription(self, model=model, kwargs=kwargs)
-
-base.SpeechService.set_transcription = patched_set_transcription
-
 from pathlib import Path
 from manim_voiceover_plus import VoiceoverScene
 from flaming_horse_voice import get_speech_service
@@ -199,12 +186,14 @@ def safe_position(mobject, max_y=3.8, min_y=-3.8, buff=0.2):
 
 # Enhanced Visual Helpers (New - from visual_helpers.md)
 def harmonious_color(base_color, variations=3, lightness_shift=0.1):
-    r, g, b = colorsys.rgb_to_hls(*base_color[:3] if len(base_color) > 3 else base_color)
+    rgb = np.array(base_color.to_rgb())
+    h, l, s = colorsys.rgb_to_hls(*rgb)
     palette = []
     for i in range(variations):
         h_shift = i * (360 / variations) / 360
-        new_h = (r + h_shift) % 1
-        new_r, new_g, new_b = colorsys.hls_to_rgb(new_h, g, b + lightness_shift * i)
+        new_h = (h + h_shift) % 1
+        new_l = min(1.0, max(0.0, l + lightness_shift * i))
+        new_r, new_g, new_b = colorsys.hls_to_rgb(new_h, new_l, s)
         palette.append([new_r, new_g, new_b, 1.0])
     return palette
 
@@ -281,6 +270,7 @@ See reference_docs/visual_helpers.md for more on enhanced helpers and aesthetics
 - ❌ **NEVER** use any network TTS service
 - ❌ **NEVER** create conditional fallback patterns
 - ❌ **NEVER** import other TTS services
+- ❌ **NEVER** enable optional alignment extras or cloud features
 - ✅ **ALWAYS** use cached Qwen voice via `flaming_horse_voice.get_speech_service`
 
 ### 2. Import Naming (Python Module Convention)
@@ -437,7 +427,7 @@ Always include these functions in scene files for polished aesthetics (see refer
 - `harmonious_color()`: Generate cohesive palettes.
 - `polished_fade_in()`: Smooth reveals with scale pop.
 - `adaptive_title_position()`: Dynamic title shifting.
-- 3D Guidelines: Prefer for spatial topics; limit to 1-2 moving objects. Use `self.camera.set_euler_angles(theta=-TAU/8, phi=TAU/4)` for subtle depth.
+- 3D Guidelines: Prefer for spatial topics; limit to 1-2 moving objects. Use `self.set_camera_orientation(phi=75 * DEGREES, theta=-45 * DEGREES)` in a `ThreeDScene`.
 - Text Rules: Cap `Write()` at 1.5s; use `lag_ratio=0.15` for staggered reveals. For lists, `FadeIn(VGroup(*bullets), lag_ratio=0.3)`.
 
 ---
