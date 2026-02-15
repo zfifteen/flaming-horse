@@ -222,8 +222,8 @@ def test_apply_build_scenes_marks_built() -> None:
             "class_name not inferred",
         )
         require(
-            state["phase"] == "final_render",
-            "single scene should advance to final_render",
+            state["phase"] == "scene_qc",
+            "single scene should advance to scene_qc",
         )
         require(
             "build_scenes incomplete: expected scene_01_intro.py not found"
