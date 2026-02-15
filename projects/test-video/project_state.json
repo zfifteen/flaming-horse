@@ -1,0 +1,20 @@
+{
+  "project_name": "test-video",
+  "topic": "Explain the Pythagorean theorem",
+  "phase": "plan",
+  "created_at": "2026-02-15T07:35:04Z",
+  "updated_at": "2026-02-15T07:35:04Z",
+  "run_count": 0,
+  "plan_file": null,
+  "narration_file": null,
+  "voice_config_file": null,
+  "scenes": [],
+  "current_scene_index": 0,
+  "errors": [],
+  "history": [],
+  "flags": {
+    "needs_human_review": false,
+    "dry_run": false,
+    "force_replan": false
+  }
+}
