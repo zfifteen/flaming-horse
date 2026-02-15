@@ -173,18 +173,7 @@ SCRIPT = {}
 EOF
 
 cat > "$PROJECT_DIR/training_ack.md" <<'EOF'
-## Read Examples
-
-## Scene Profile Mapping
-
-## Motion Rules
-
-## Do Rules
-
-## Avoid Rules
-
-## Acknowledgment
-
+pending
 EOF
 
 echo "✅ Created project: $PROJECT_DIR"

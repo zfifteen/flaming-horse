@@ -379,6 +379,17 @@ def apply_phase(project_dir: Path, state: dict, phase: str) -> dict:
     if phase == "training":
         ack_path = project_dir / "training_ack.md"
         if ack_path.exists() and ack_path.stat().st_size > 0:
+            ack_text = (
+                ack_path.read_text(encoding="utf-8").strip().lower().rstrip(".!? ")
+            )
+            if ack_text != "understood":
+                state["phase"] = "training"
+                _add_error_unique(
+                    state,
+                    "training incomplete: training_ack.md must contain exactly 'understood'",
+                )
+                return state
+
             state["phase"] = "narration"
             state["flags"]["needs_human_review"] = False
             _clear_errors_matching(

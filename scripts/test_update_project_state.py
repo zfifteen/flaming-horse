@@ -412,13 +412,35 @@ def test_apply_training_requires_ack_then_advances() -> None:
             "missing training ack error not recorded",
         )
 
-        (project_dir / "training_ack.md").write_text(
-            "## Read Examples\n- example/good/good_title_subtitle_diagram.md\n\n"
-            "## Do Rules\n- Keep title/subtitle contract.\n\n"
-            "## Avoid Rules\n- Do not overlap headline and diagram.\n\n"
-            "## Acknowledgment\nI will follow these rules in build_scenes.\n",
-            encoding="utf-8",
+        (project_dir / "training_ack.md").write_text("acknowledged", encoding="utf-8")
+        cp_invalid = run(
+            "--project-dir",
+            str(project_dir),
+            "--mode",
+            "apply",
+            "--phase",
+            "training",
         )
+        require(
+            cp_invalid.returncode == 0, f"apply training failed: {cp_invalid.stderr}"
+        )
+        state_invalid = read_state(project_dir)
+        require(
+            state_invalid["phase"] == "training",
+            "training should remain when ack text is not 'understood'",
+        )
+        require(
+            any(
+                isinstance(e, str)
+                and e.startswith(
+                    "training incomplete: training_ack.md must contain exactly 'understood'"
+                )
+                for e in state_invalid.get("errors", [])
+            ),
+            "invalid training ack error not recorded",
+        )
+
+        (project_dir / "training_ack.md").write_text("understood\n", encoding="utf-8")
         cp_present = run(
             "--project-dir",
             str(project_dir),

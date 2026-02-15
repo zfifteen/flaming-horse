@@ -1,18 +1,5 @@
 - Read all attached files from the `example/` directory before making any edits.
-- Focus on extracting concrete scene coding patterns from `example/good/*` and anti-patterns from `example/bad/*`.
 - Update only `training_ack.md` in the project directory.
 - Do not create new files in this phase.
-- Keep the acknowledgment concise and structured with these required sections:
-  - `## Read Examples`
-  - `## Scene Profile Mapping`
-  - `## Motion Rules`
-  - `## Do Rules`
-  - `## Avoid Rules`
-  - `## Acknowledgment`
-- In `Read Examples`, list the filenames you reviewed.
-- In `Scene Profile Mapping`, specify when to use `simple` vs `complex` profile (intro/recap vs middle scenes).
-- In `Motion Rules`, include at least 5 concrete rules about pacing and transitions.
-- In `Do Rules`, include 5 short, actionable rules you will follow in `build_scenes`.
-- In `Avoid Rules`, include 5 short anti-patterns you will avoid in `build_scenes`.
-- In `Read Examples`, include at least 2 files from `example/good/advanced/`.
-- In `Acknowledgment`, include a single sentence promising to follow these rules in subsequent scene edits.
+- Replace the entire file contents with exactly one word: `understood`
+- No extra text, headings, bullets, punctuation, or code blocks.

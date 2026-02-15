@@ -141,7 +141,7 @@ See reference_docs/phase_plan.md for details.
 ### Phase: `training`
 
 - Read examples from `example/good/` and `example/bad/`.
-- Update `training_ack.md` with layout and animation rules to follow for scene generation.
+- Update `training_ack.md` to contain exactly: `understood`.
 - Do not create new files in this phase.
 
 ---
