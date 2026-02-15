@@ -305,5 +305,5 @@ Prerequisites for end-to-end run:
 
 ## 10) Notes
 
-- The repository also has mock voice paths for development, but production path in this Codespace guide is strict cached Qwen.
+- This repository enforces strict cached Qwen voice usage with no fallback path.
 - If you only need pipeline readiness checks without a full agent run, use `scripts/qwen_pipeline_preflight.py` and a manual single-scene `manim render`.

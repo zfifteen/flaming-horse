@@ -5,6 +5,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(realpath "${SCRIPT_DIR}/..")"
 ENV_FILE="${REPO_ROOT}/.env"
 
+# Ensure repo-local modules (e.g. flaming_horse_voice) are importable in every
+# phase when rendering from project directories.
+export PYTHONPATH="${REPO_ROOT}:${SCRIPT_DIR}:${PYTHONPATH:-}"
+
 if [[ -f "${ENV_FILE}" ]]; then
   # shellcheck disable=SC1090
   source "${ENV_FILE}"
@@ -28,6 +32,7 @@ export TOKENIZERS_PARALLELISM
 # ─── Configuration ───────────────────────────────────────────────────
 if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
   echo "Usage: $0 [project_dir] [--topic \"<video topic>\"] [--max-runs N]" >&2
+  echo "  --max-runs N limits loop iterations (phase transitions), not full project completion." >&2
   exit 0
 fi
 
@@ -62,11 +67,13 @@ while [[ ${#} -gt 0 ]]; do
       ;;
     -h|--help)
       echo "Usage: $0 [project_dir] [--topic \"<video topic>\"] [--max-runs N]" >&2
+      echo "  --max-runs N limits loop iterations (phase transitions), not full project completion." >&2
       exit 0
       ;;
     *)
       echo "❌ Unknown argument: ${1}" >&2
       echo "Usage: $0 [project_dir] [--topic \"<video topic>\"] [--max-runs N]" >&2
+      echo "  --max-runs N limits loop iterations (phase transitions), not full project completion." >&2
       exit 1
       ;;
   esac
@@ -84,6 +91,7 @@ STATE_FILE="${PROJECT_DIR}/project_state.json"
 STATE_BACKUP="${PROJECT_DIR}/.state_backup.json"
 LOCK_FILE="${PROJECT_DIR}/.build.lock"
 LOG_FILE="${PROJECT_DIR}/build.log"
+OPENCODE_SESSION_ID=""
 
 
 # Reference docs (relative to script location)
@@ -219,6 +227,43 @@ normalize_state_json() {
     --project-dir "${PROJECT_DIR}" \
     --mode normalize \
     >/dev/null
+}
+
+extract_opencode_session_id() {
+  local output_file="$1"
+  python3 - "$output_file" <<'PY'
+import json
+import sys
+
+path = sys.argv[1]
+with open(path, "r", encoding="utf-8", errors="replace") as f:
+    for raw in f:
+        line = raw.strip()
+        if not line or not line.startswith("{"):
+            continue
+        try:
+            event = json.loads(line)
+        except Exception:
+            continue
+        session_id = event.get("sessionID")
+        if isinstance(session_id, str) and session_id.startswith("ses_"):
+            print(session_id)
+            break
+PY
+}
+
+capture_opencode_session_id_if_missing() {
+  local output_file="$1"
+  if [[ -n "${OPENCODE_SESSION_ID}" ]]; then
+    return 0
+  fi
+
+  local parsed_session_id
+  parsed_session_id="$(extract_opencode_session_id "$output_file")"
+  if [[ -n "$parsed_session_id" ]]; then
+    OPENCODE_SESSION_ID="$parsed_session_id"
+    echo "🔗 OpenCode session: ${OPENCODE_SESSION_ID}" | tee -a "$LOG_FILE"
+  fi
 }
 
 apply_state_phase() {
@@ -392,6 +437,57 @@ PY
 # Validation Functions
 # ═══════════════════════════════════════════════════════════════
 
+validate_scene_template_structure() {
+  local scene_file="$1"
+
+  echo "→ Validating template structure in ${scene_file}..." | tee -a "$LOG_FILE"
+
+  local -a required_signatures=(
+    "from narration_script import SCRIPT"
+    "# LOCKED CONFIGURATION (DO NOT MODIFY)"
+    "config.frame_height = 10"
+    "config.frame_width = 10 * 16 / 9"
+    "config.pixel_height = 1440"
+    "config.pixel_width = 2560"
+    "self.set_speech_service(get_speech_service(Path(__file__).resolve().parent))"
+    "# SLOT_START:scene_body"
+    "# SLOT_END:scene_body"
+  )
+
+  local sig
+  for sig in "${required_signatures[@]}"; do
+    if ! grep -Fq "$sig" "$scene_file"; then
+      echo "✗ ERROR: Scene is missing required scaffold signature: $sig" | tee -a "$LOG_FILE"
+      return 1
+    fi
+  done
+
+  if ! grep -Eq "with self\\.voiceover\\(text=SCRIPT\\[['\"][^'\"]+['\"]\\]\\) as tracker:" "$scene_file"; then
+    echo "✗ ERROR: Scene missing required voiceover wrapper using SCRIPT key" | tee -a "$LOG_FILE"
+    return 1
+  fi
+
+  python3 - <<PY 2>&1 | tee -a "$LOG_FILE"
+from pathlib import Path
+
+path = Path("${scene_file}")
+text = path.read_text(encoding="utf-8", errors="replace")
+start = text.find("# SLOT_START:scene_body")
+end = text.find("# SLOT_END:scene_body")
+if start < 0 or end < 0 or end < start:
+    raise SystemExit("invalid slot marker order")
+print("✓ Template structure checks passed")
+PY
+
+  local result=${PIPESTATUS[0]}
+  if [[ $result -ne 0 ]]; then
+    echo "✗ ERROR: Scene has invalid slot marker structure" | tee -a "$LOG_FILE"
+    return 1
+  fi
+
+  return 0
+}
+
 validate_scene_imports() {
   local scene_file="$1"
   
@@ -415,6 +511,33 @@ validate_scene_imports() {
      grep -q "import manim-voiceover-plus" "$scene_file"; then
     echo "✗ ERROR: Scene uses 'manim-voiceover-plus' (hyphens)" | tee -a "$LOG_FILE"
     echo "  Should be 'manim_voiceover_plus' (with underscores)" | tee -a "$LOG_FILE"
+    return 1
+  fi
+
+  # Check for invalid Color import in Manim CE 0.19
+  if grep -Eq "from[[:space:]]+manim\.utils\.color[[:space:]]+import[[:space:]]+Color" "$scene_file"; then
+    echo "✗ ERROR: Invalid import 'from manim.utils.color import Color'" | tee -a "$LOG_FILE"
+    echo "  Manim CE 0.19 does not expose Color there. Use built-in constants (e.g. BLUE) or set_color()." | tee -a "$LOG_FILE"
+    return 1
+  fi
+
+  # Check for unsupported FadeIn kwargs that repeatedly break renders
+  if grep -Eq "FadeIn\([^\n)]*lag_ratio[[:space:]]*=" "$scene_file"; then
+    echo "✗ ERROR: FadeIn(..., lag_ratio=...) is unsupported in this Manim version" | tee -a "$LOG_FILE"
+    echo "  Use LaggedStart(FadeIn(a), FadeIn(b), ..., lag_ratio=...) for staggered reveals." | tee -a "$LOG_FILE"
+    return 1
+  fi
+
+  if grep -Eq "FadeIn\([^\n)]*scale_factor[[:space:]]*=" "$scene_file"; then
+    echo "✗ ERROR: FadeIn(..., scale_factor=...) is unsupported in this Manim version" | tee -a "$LOG_FILE"
+    echo "  Use FadeIn(mobject) only, then animate scaling separately if needed." | tee -a "$LOG_FILE"
+    return 1
+  fi
+
+  # Check for escaped HTML operators that create Python syntax errors
+  if grep -Eq "&lt;|&gt;" "$scene_file"; then
+    echo "✗ ERROR: Scene contains escaped HTML operators (&lt;/&gt;)" | tee -a "$LOG_FILE"
+    echo "  Replace with real Python operators (<, >, <=, >=)." | tee -a "$LOG_FILE"
     return 1
   fi
   
@@ -478,15 +601,66 @@ validate_voiceover_sync() {
     # Don't fail, just warn
   fi
   
-  # Check: Qwen cached voice service is used
+  # Check: cached voice service is used
   if grep -q "VoiceoverScene" "$scene_file"; then
     if ! grep -q "get_speech_service" "$scene_file"; then
-      echo "    ✗ ERROR: Scene missing cached Qwen voice service" | tee -a "$LOG_FILE"
+      echo "    ✗ ERROR: Scene missing cached voice service" | tee -a "$LOG_FILE"
       return 1
     fi
   fi
   
   echo "✓ Voiceover sync checks passed" | tee -a "$LOG_FILE"
+  return 0
+}
+
+validate_scene_runtime() {
+  local scene_file="$1"
+  local scene_class="$2"
+
+  if [[ -z "$scene_class" ]]; then
+    scene_class="$(infer_scene_class_name "$scene_file")"
+  fi
+
+  if [[ -z "$scene_class" ]]; then
+    echo "✗ ERROR: Could not infer scene class name for runtime validation: ${scene_file}" | tee -a "$LOG_FILE"
+    return 1
+  fi
+
+  local manim_bin
+  manim_bin=$(command -v manim)
+  if [[ -z "$manim_bin" ]]; then
+    echo "✗ ERROR: manim not found in PATH for runtime validation" | tee -a "$LOG_FILE"
+    return 1
+  fi
+
+  echo "→ Runtime validating ${scene_file} (${scene_class})..." | tee -a "$LOG_FILE"
+  if ! "$manim_bin" render "$scene_file" "$scene_class" --dry_run 2>&1 | tee -a "$LOG_FILE"; then
+    echo "✗ Runtime validation failed for ${scene_file}" | tee -a "$LOG_FILE"
+    return 1
+  fi
+
+  echo "✓ Runtime validation passed for ${scene_file}" | tee -a "$LOG_FILE"
+  return 0
+}
+
+ensure_qwen_cache_index() {
+  local cache_index="${PROJECT_DIR}/media/voiceovers/qwen/cache.json"
+  if [[ -f "$cache_index" ]]; then
+    return 0
+  fi
+
+  echo "→ Voice cache index missing; generating cache before runtime validation..." | tee -a "$LOG_FILE"
+  if ! python3 "${SCRIPT_DIR}/precache_voiceovers_qwen.py" "$PROJECT_DIR" 2>&1 | tee -a "$LOG_FILE"; then
+    echo "✗ ERROR: Failed to generate voice cache index for runtime validation" | tee -a "$LOG_FILE"
+    return 1
+  fi
+
+  if [[ ! -f "$cache_index" ]]; then
+    echo "✗ ERROR: Precache finished but cache index still missing: $cache_index" | tee -a "$LOG_FILE"
+    return 1
+  fi
+
+  echo "✓ Voice cache index ready for runtime validation" | tee -a "$LOG_FILE"
   return 0
 }
 
@@ -641,22 +815,31 @@ PY
   
   # Invoke OpenCode - message must come after all options
   # TODO Replace this with an option to select from available models configured in OpenCode
+  local -a opencode_session_args=()
+  if [[ -n "${OPENCODE_SESSION_ID}" ]]; then
+    opencode_session_args=(--session "${OPENCODE_SESSION_ID}")
+  else
+    opencode_session_args=(--format json)
+  fi
+  local opencode_output_file
+  opencode_output_file="$(mktemp)"
+
   opencode run --agent manim-ce-scripting-expert --model "${AGENT_MODEL}" \
+    "${opencode_session_args[@]}" \
     --file "$prompt_file" \
-    --file "${SCRIPT_DIR}/../reference_docs/manim_content_pipeline.md" \
-    --file "${SCRIPT_DIR}/../reference_docs/manim_voiceover.md" \
-    --file "${SCRIPT_DIR}/../reference_docs/manim_template.py.txt" \
     --file "${SCRIPT_DIR}/../reference_docs/manim_config_guide.md" \
     --file "$STATE_FILE" \
     "${retry_context_arg[@]}" \
     -- \
     "Read the first attached file (.agent_prompt_${phase}.md) which contains your complete instructions. Execute the ${phase} phase as described. All reference documentation and the current project state are also attached." \
-    2>&1 | tee -a "$LOG_FILE"
+    2>&1 | tee -a "$LOG_FILE" | tee "$opencode_output_file"
   
   # Clean up prompt file
   rm -f "$prompt_file"
   
   local exit_code=${PIPESTATUS[0]}
+  capture_opencode_session_id_if_missing "$opencode_output_file"
+  rm -f "$opencode_output_file"
   
   if [[ $exit_code -ne 0 ]]; then
     echo "❌ Agent invocation failed with exit code: $exit_code" | tee -a "$LOG_FILE"
@@ -675,6 +858,41 @@ path = pathlib.Path("${scene_file}")
 if not path.exists():
     raise SystemExit(1)
 compile(path.read_text(encoding="utf-8"), "${scene_file}", "exec")
+PY
+}
+
+scene_python_syntax_error_excerpt() {
+  local scene_file="$1"
+  cd "$PROJECT_DIR"
+  python3 - <<PY
+import pathlib
+import traceback
+
+path = pathlib.Path("${scene_file}")
+if not path.exists():
+    print(f"Scene file missing: {path}")
+    raise SystemExit(0)
+
+src = path.read_text(encoding="utf-8", errors="replace")
+try:
+    compile(src, "${scene_file}", "exec")
+    print("No syntax errors detected")
+except SyntaxError as e:
+    line = e.text.rstrip() if isinstance(e.text, str) else ""
+    pointer = ""
+    if isinstance(e.offset, int) and e.offset > 0:
+        pointer = " " * (e.offset - 1) + "^"
+    print(
+        f"SyntaxError in {path.name}:{e.lineno}:{e.offset}: {e.msg}"
+    )
+    if line:
+        print(line)
+    if pointer:
+        print(pointer)
+except Exception as e:
+    print(f"{type(e).__name__}: {e}")
+    tb = traceback.format_exc().splitlines()[-12:]
+    print("\n".join(tb))
 PY
 }
 
@@ -725,6 +943,101 @@ if isinstance(scenes, list) and len(scenes) > idx:
 
 print(scene_id)
 PY
+}
+
+get_scene_narration_key() {
+  local scene_id="$1"
+  python3 - <<PY
+import json
+
+scene_id = "${scene_id}"
+fallback = scene_id or "scene_01"
+
+try:
+    state = json.load(open("${STATE_FILE}", "r"))
+except Exception:
+    state = {}
+
+key = ""
+for scene in state.get("scenes", []):
+    if isinstance(scene, dict) and scene.get("id") == scene_id:
+        value = scene.get("narration_key")
+        if isinstance(value, str) and value:
+            key = value
+        break
+
+print(key or fallback)
+PY
+}
+
+reset_scene_from_scaffold() {
+  local scene_id="$1"
+  local scene_file="$2"
+  local scene_class="$3"
+
+  if [[ -z "$scene_class" ]]; then
+    scene_class="$(infer_scene_class_name "$scene_file")"
+  fi
+  if [[ -z "$scene_class" ]]; then
+    scene_class="Scene$(basename "$scene_file" .py | tr -cd '[:alnum:]_')"
+  fi
+
+  local narration_key
+  narration_key="$(get_scene_narration_key "$scene_id")"
+  if [[ -z "$narration_key" ]]; then
+    narration_key="$scene_id"
+  fi
+
+  local previous_file
+  previous_file="${scene_file}.pre_scaffold_backup"
+  if [[ -f "$scene_file" ]]; then
+    cp "$scene_file" "$previous_file"
+  fi
+
+  if ! python3 "${SCRIPT_DIR}/scaffold_scene.py" \
+    --project "$PROJECT_DIR" \
+    --scene-id "$scene_file" \
+    --class-name "$scene_class" \
+    --narration-key "$narration_key" \
+    --force \
+    >/dev/null 2>&1; then
+    echo "✗ ERROR: Failed to scaffold ${scene_file}" | tee -a "$LOG_FILE"
+    rm -f "$previous_file"
+    return 1
+  fi
+
+  if [[ -f "$previous_file" ]]; then
+    python3 - <<PY
+from pathlib import Path
+
+old_path = Path("${previous_file}")
+new_path = Path("${scene_file}")
+
+old_text = old_path.read_text(encoding="utf-8", errors="replace")
+new_text = new_path.read_text(encoding="utf-8", errors="replace")
+
+def extract_slot(text, slot_name):
+    start_tag = f"# SLOT_START:{slot_name}"
+    end_tag = f"# SLOT_END:{slot_name}"
+    start = text.find(start_tag)
+    end = text.find(end_tag)
+    if start < 0 or end < 0 or end < start:
+        return None
+    body_start = start + len(start_tag)
+    return text[body_start:end]
+
+slot = "scene_body"
+old_slot = extract_slot(old_text, slot)
+new_slot = extract_slot(new_text, slot)
+if old_slot is not None and new_slot is not None:
+    new_text = new_text.replace(new_slot, old_slot, 1)
+    new_path.write_text(new_text, encoding="utf-8")
+PY
+    rm -f "$previous_file"
+  fi
+
+  echo "→ Scaffold reset complete for ${scene_file}" | tee -a "$LOG_FILE"
+  return 0
 }
 
 extract_recent_error_excerpt() {
@@ -812,19 +1125,27 @@ for key in [
 print(text, end="")
 PY
 
-  opencode --agent manim-ce-scripting-expert run --model "${AGENT_MODEL}" \
+  local -a opencode_session_args=()
+  if [[ -n "${OPENCODE_SESSION_ID}" ]]; then
+    opencode_session_args=(--session "${OPENCODE_SESSION_ID}")
+  else
+    opencode_session_args=(--format json)
+  fi
+  local opencode_output_file
+  opencode_output_file="$(mktemp)"
+
+  opencode run --agent manim-ce-scripting-expert --model "${AGENT_MODEL}" \
+    "${opencode_session_args[@]}" \
     --file "$prompt_file" \
-    --file "${SCRIPT_DIR}/../reference_docs/manim_content_pipeline.md" \
-    --file "${SCRIPT_DIR}/../reference_docs/manim_voiceover.md" \
-    --file "${SCRIPT_DIR}/../reference_docs/manim_template.py.txt" \
-    --file "${SCRIPT_DIR}/../reference_docs/manim_config_guide.md" \
     --file "$STATE_FILE" \
     --file "$scene_file" \
     -- \
     "Repair ${scene_file} for final_render. Execute only that targeted fix." \
-    2>&1 | tee -a "$LOG_FILE"
+    2>&1 | tee -a "$LOG_FILE" | tee "$opencode_output_file"
 
   local exit_code=${PIPESTATUS[0]}
+  capture_opencode_session_id_if_missing "$opencode_output_file"
+  rm -f "$opencode_output_file"
   rm -f "$prompt_file"
   return $exit_code
 }
@@ -840,13 +1161,31 @@ repair_scene_until_valid() {
     attempt=$((attempt + 1))
     echo "🛠 Self-heal scene ${scene_id} attempt ${attempt}/${PHASE_RETRY_LIMIT}" | tee -a "$LOG_FILE"
 
+    if ! reset_scene_from_scaffold "$scene_id" "$scene_file" "$scene_class"; then
+      reason="Scaffold reset failed for ${scene_file}."
+      continue
+    fi
+
+    if validate_scene_template_structure "$scene_file" && \
+       validate_scene_imports "$scene_file" && \
+       validate_voiceover_sync "$scene_file" && \
+       validate_scene_runtime "$scene_file" "$scene_class"; then
+      echo "✓ Self-heal reset produced a valid scene file: ${scene_file}" | tee -a "$LOG_FILE"
+      return 0
+    fi
+
     if ! invoke_scene_fix_agent "$scene_id" "$scene_file" "$scene_class" "$reason" "$attempt"; then
       reason="Agent repair invocation failed for ${scene_file}."
       continue
     fi
 
+    if ! validate_scene_template_structure "$scene_file"; then
+      reason="Scene failed template structure validation after repair."
+      continue
+    fi
+
     if ! scene_python_syntax_ok "$scene_file"; then
-      reason="Scene still has Python syntax errors after repair."
+      reason="$(scene_python_syntax_error_excerpt "$scene_file")"
       continue
     fi
 
@@ -857,6 +1196,11 @@ repair_scene_until_valid() {
 
     if ! validate_voiceover_sync "$scene_file"; then
       reason="Scene failed voiceover sync validation after repair."
+      continue
+    fi
+
+    if ! validate_scene_runtime "$scene_file" "$scene_class"; then
+      reason=$(extract_recent_error_excerpt "$scene_file")
       continue
     fi
 
@@ -1103,7 +1447,7 @@ PY
 }
 
 handle_precache_voiceovers() {
-  echo "🎙️  Precaching Qwen voiceovers..." | tee -a "$LOG_FILE"
+  echo "🎙️  Precaching voiceovers (backend: ${FLAMING_HORSE_TTS_BACKEND:-qwen})..." | tee -a "$LOG_FILE"
   cd "$PROJECT_DIR"
   if [[ ! -f "voice_clone_config.json" ]]; then
     echo "✗ ERROR: voice_clone_config.json missing in project" | tee -a "$LOG_FILE"
@@ -1161,73 +1505,71 @@ handle_build_scenes() {
   
   echo "→ Detected scene file: $new_scene" | tee -a "$LOG_FILE"
 
-  local manim_bin
-  manim_bin=$(command -v manim)
-  if [[ -z "$manim_bin" ]]; then
-    echo "❌ manim not found in PATH" | tee -a "$LOG_FILE" >&2
+  local scene_id
+  scene_id="$(get_current_scene_id)"
+  local scene_class
+  scene_class="$(infer_scene_class_name "$new_scene")"
+
+  if ! ensure_qwen_cache_index; then
+    echo "✗ Cannot runtime-validate scenes without cached voice data" | tee -a "$LOG_FILE" >&2
     return 1
+  fi
+
+  if ! validate_scene_template_structure "$new_scene"; then
+    echo "✗ Template structure validation failed for $new_scene. Attempting self-heal..." | tee -a "$LOG_FILE"
+    local template_reason
+    template_reason=$(extract_recent_error_excerpt "$new_scene")
+    if ! repair_scene_until_valid "$scene_id" "$new_scene" "$scene_class" "$template_reason"; then
+      echo "✗ Self-heal failed after template validation error in $new_scene" | tee -a "$LOG_FILE" >&2
+      return 1
+    fi
   fi
 
   # Syntax validation (Python) with self-heal on failure.
   if ! python3 -m py_compile "$new_scene" 2>&1 | tee -a "$LOG_FILE"; then
     echo "✗ Syntax check failed for $new_scene. Attempting self-heal..." | tee -a "$LOG_FILE"
     local syntax_reason
-    syntax_reason=$(extract_recent_error_excerpt "$new_scene")
-    if ! repair_scene_until_valid "$(get_current_scene_id)" "$new_scene" "$(infer_scene_class_name "$new_scene")" "$syntax_reason"; then
+    syntax_reason=$(scene_python_syntax_error_excerpt "$new_scene")
+    if ! repair_scene_until_valid "$scene_id" "$new_scene" "$scene_class" "$syntax_reason"; then
       echo "✗ Self-heal failed after syntax error in $new_scene" | tee -a "$LOG_FILE" >&2
       return 1
     fi
   fi
 
-  # Manim dry-run validation (semantic/runtime) with self-heal on failure.
-  local class_name
-  class_name="$(infer_scene_class_name "$new_scene")"
-  if [[ -n "$class_name" ]]; then
-    if ! "$manim_bin" render "$new_scene" "$class_name" --dry_run 2>&1 | tee -a "$LOG_FILE"; then
-      echo "✗ Manim dry-run failed for $new_scene. Attempting self-heal..." | tee -a "$LOG_FILE"
-      local dry_run_reason
-      dry_run_reason=$(extract_recent_error_excerpt "$new_scene")
-      if ! repair_scene_until_valid "$(get_current_scene_id)" "$new_scene" "$class_name" "$dry_run_reason"; then
-        echo "✗ Self-heal failed after dry-run error in $new_scene" | tee -a "$LOG_FILE" >&2
-        return 1
-      fi
-    fi
-  else
-    echo "⚠ WARNING: Could not infer class name for $new_scene; skipping dry-run validation" | tee -a "$LOG_FILE"
-  fi
-  
   # VALIDATION GATE 1: Check imports
   if ! validate_scene_imports "$new_scene"; then
-    echo "✗ Import validation failed. Logging error..." | tee -a "$LOG_FILE"
-    normalize_state_json || true
-    python3 <<PYEOF
-import json
-with open('${STATE_FILE}', 'r') as f:
-    state = json.load(f)
-state['errors'].append("Scene ${new_scene} failed import validation. Check module names - use manim_voiceover_plus with underscores.")
-# Don't set needs_human_review - let agent retry
-with open('${STATE_FILE}', 'w') as f:
-    json.dump(state, f, indent=2)
-PYEOF
-    return 1
+    echo "✗ Import validation failed for $new_scene. Attempting self-heal..." | tee -a "$LOG_FILE"
+    local import_reason
+    import_reason=$(extract_recent_error_excerpt "$new_scene")
+    if ! repair_scene_until_valid "$scene_id" "$new_scene" "$scene_class" "$import_reason"; then
+      echo "✗ Self-heal failed after import/API error in $new_scene" | tee -a "$LOG_FILE" >&2
+      return 1
+    fi
   fi
   
   # VALIDATION GATE 2: Check voiceover sync patterns
   if ! validate_voiceover_sync "$new_scene"; then
-    echo "✗ Sync validation failed. Logging error..." | tee -a "$LOG_FILE"
-    normalize_state_json || true
-    python3 <<PYEOF
-import json
-with open('${STATE_FILE}', 'r') as f:
-    state = json.load(f)
-state['errors'].append("Scene ${new_scene} failed voiceover sync validation. Must use SCRIPT dictionary and cached Qwen voice service.")
-# Don't set needs_human_review - let agent retry
-with open('${STATE_FILE}', 'w') as f:
-    json.dump(state, f, indent=2)
-PYEOF
-    return 1
+    echo "✗ Voiceover sync validation failed for $new_scene. Attempting self-heal..." | tee -a "$LOG_FILE"
+    local sync_reason
+    sync_reason=$(extract_recent_error_excerpt "$new_scene")
+    if ! repair_scene_until_valid "$scene_id" "$new_scene" "$scene_class" "$sync_reason"; then
+      echo "✗ Self-heal failed after sync error in $new_scene" | tee -a "$LOG_FILE" >&2
+      return 1
+    fi
   fi
-  
+
+  # Runtime validation gate: catch construct/animation API failures now,
+  # before advancing to the next scene.
+  if ! validate_scene_runtime "$new_scene" "$scene_class"; then
+    echo "✗ Runtime validation failed for $new_scene. Attempting self-heal..." | tee -a "$LOG_FILE"
+    local runtime_reason
+    runtime_reason=$(extract_recent_error_excerpt "$new_scene")
+    if ! repair_scene_until_valid "$scene_id" "$new_scene" "$scene_class" "$runtime_reason"; then
+      echo "✗ Self-heal failed after runtime error in $new_scene" | tee -a "$LOG_FILE" >&2
+      return 1
+    fi
+  fi
+
   echo "✓ Validation passed for $new_scene" | tee -a "$LOG_FILE"
   
   # Deterministically mark this scene built and advance index/phase.
@@ -1263,30 +1605,53 @@ handle_scene_qc() {
     "PROJECT_DIR=${PROJECT_DIR}" \
     "STATE_FILE=${STATE_FILE}"
 
-  opencode --agent manim-ce-scripting-expert run --model "${AGENT_MODEL}" \
+  local -a opencode_session_args=()
+  if [[ -n "${OPENCODE_SESSION_ID}" ]]; then
+    opencode_session_args=(--session "${OPENCODE_SESSION_ID}")
+  else
+    opencode_session_args=(--format json)
+  fi
+  local opencode_output_file
+  opencode_output_file="$(mktemp)"
+
+  opencode run --agent manim-ce-scripting-expert --model "${AGENT_MODEL}" \
+    "${opencode_session_args[@]}" \
     --file "$prompt_file" \
     --file "${SCRIPT_DIR}/../AGENTS.md" \
     --file "$SCENE_QC_PROMPT_DOC" \
     --file "$STATE_FILE" \
     -- \
     "Read .agent_prompt_scene_qc.md and execute the QC pass. Patch scene_*.py and write scene_qc_report.md." \
-    2>&1 | tee -a "$LOG_FILE"
+    2>&1 | tee -a "$LOG_FILE" | tee "$opencode_output_file"
 
   local exit_code=${PIPESTATUS[0]}
+  capture_opencode_session_id_if_missing "$opencode_output_file"
+  rm -f "$opencode_output_file"
   if [[ $exit_code -ne 0 ]]; then
     # Some environments do not expose the pinned xai model to opencode.
     # Fallback to the user's default configured model for this QC pass.
     if tail -n 120 "$LOG_FILE" | grep -q "ProviderModelNotFoundError"; then
       echo "⚠ Requested model unavailable for scene_qc; retrying with default model..." | tee -a "$LOG_FILE"
-      opencode --agent manim-ce-scripting-expert run \
+      local -a fallback_session_args=()
+      if [[ -n "${OPENCODE_SESSION_ID}" ]]; then
+        fallback_session_args=(--session "${OPENCODE_SESSION_ID}")
+      else
+        fallback_session_args=(--format json)
+      fi
+      local fallback_output_file
+      fallback_output_file="$(mktemp)"
+
+      opencode run --agent manim-ce-scripting-expert \
+        "${fallback_session_args[@]}" \
         --file "$prompt_file" \
-        --file "${SCRIPT_DIR}/../AGENTS.md" \
         --file "$SCENE_QC_PROMPT_DOC" \
         --file "$STATE_FILE" \
         -- \
         "Read .agent_prompt_scene_qc.md and execute the QC pass. Patch scene_*.py and write scene_qc_report.md." \
-        2>&1 | tee -a "$LOG_FILE"
+        2>&1 | tee -a "$LOG_FILE" | tee "$fallback_output_file"
       exit_code=${PIPESTATUS[0]}
+      capture_opencode_session_id_if_missing "$fallback_output_file"
+      rm -f "$fallback_output_file"
     fi
   fi
 
@@ -1308,7 +1673,7 @@ handle_scene_qc() {
 }
 
 handle_final_render() {
-  echo "🎬 Final render with cached Qwen voiceover..." | tee -a "$LOG_FILE"
+  echo "🎬 Final render with cached voiceover (backend: ${FLAMING_HORSE_TTS_BACKEND:-qwen})..." | tee -a "$LOG_FILE"
   export MANIM_VOICE_PROD=1
   # Ensure repo-root packages (e.g. flaming_horse_voice) are importable when
   # manim runs from inside the project directory.
@@ -1347,9 +1712,9 @@ PY
 
   cd "$PROJECT_DIR"
 
-  # Ensure Qwen cache exists (precache step). If missing, generate it now.
+  # Ensure voice cache exists (precache step). If missing, generate it now.
   if [[ ! -f "media/voiceovers/qwen/cache.json" ]]; then
-    echo "→ Missing Qwen cache index; running precache step..." | tee -a "$LOG_FILE"
+    echo "→ Missing voice cache index; running precache step..." | tee -a "$LOG_FILE"
     if ! handle_precache_voiceovers; then
       echo "❌ Precaching voiceovers failed; cannot render." | tee -a "$LOG_FILE" >&2
       python3 - <<PY
@@ -1579,7 +1944,7 @@ with open("${STATE_FILE}", "w") as f:
 PY
   }
 
-  echo "→ Rendering scenes sequentially (Qwen cached)" | tee -a "$LOG_FILE"
+  echo "→ Rendering scenes sequentially (cached voice backend: ${FLAMING_HORSE_TTS_BACKEND:-qwen})" | tee -a "$LOG_FILE"
 
   while IFS='|' read -r scene_id scene_file scene_class est_duration; do
     [[ -n "$scene_id" ]] || continue
@@ -2124,7 +2489,10 @@ while [[ $iteration -lt $MAX_RUNS ]]; do
     fi
   done
   
-  echo "⚠️  Maximum iterations ($MAX_RUNS) reached. Stopping." | tee -a "$LOG_FILE"
+  local stopped_phase
+  stopped_phase="$(get_phase)"
+  echo "⚠️  Maximum iterations ($MAX_RUNS) reached. Stopping at phase: ${stopped_phase}." | tee -a "$LOG_FILE"
+  echo "   Note: --max-runs counts phase-loop iterations, not full end-to-end completion." | tee -a "$LOG_FILE"
   exit 1
 }
 

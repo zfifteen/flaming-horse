@@ -38,7 +38,12 @@ Hard requirements:
    - Keep locked config and compatibility patch intact.
    - Keep `SCRIPT[...]` narration usage.
    - Keep local Qwen voice service usage unchanged.
-   - Keep title placement at `UP * 3.8`.
+    - Keep title placement at `UP * 3.8`.
+5. Enforce Manim CE 0.19 API compatibility.
+   - Do NOT import `Color` from `manim.utils.color`.
+   - Do NOT call `FadeIn(..., lag_ratio=...)`.
+   - Do NOT call `FadeIn(..., scale_factor=...)`.
+   - For staggered fades, use `LaggedStart(FadeIn(a), FadeIn(b), ..., lag_ratio=...)`.
 
 Repair strategy:
 - Prefer minimal edits to timing/layout lines.

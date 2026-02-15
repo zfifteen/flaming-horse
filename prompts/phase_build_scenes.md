@@ -1,8 +1,18 @@
 - Read AGENTS.md CAREFULLY before writing or editing any scene code.
 MANDATORY: ALWAYS follow the scene examples syntax from attached manim_template.py.txt EXACTLY.
+- Always scaffold each scene file first using the scaffold path provided in the task header: `python3 "<scaffold_path>" --project . --scene-id <scene_id> --class-name <ClassName> --narration-key <key> --force`.
+- Never write scene files from scratch. Update only the editable slot block between:
+  - `# SLOT_START:scene_body`
+  - `# SLOT_END:scene_body`
+- Keep protected scaffold structure unchanged (imports, config, helpers, speech service setup, voiceover wrapper).
 - Use Create for mobjects/lines/curves (e.g., Create(curve, rate_func=smooth)).
 - Use Write for text (cap at 1.5s) and FadeIn for reveals.
 - NEVER invent animations like ShowCreation (causes NameError).
+- Manim CE 0.19 compatibility rules:
+  - NEVER use `from manim.utils.color import Color`.
+  - NEVER pass `lag_ratio` or `scale_factor` directly to `FadeIn(...)`.
+  - For staggered reveals, use `LaggedStart(FadeIn(a), FadeIn(b), ..., lag_ratio=...)`.
+  - Use built-in color constants (`BLUE`, `YELLOW`, etc.) or `.set_color(...)`.
 - ALWAYS use the Write tool to create scene_XX.py. Do NOT print code blocks; confirm tool use.
 - NEVER enable optional alignment extras.
 - Mentally validate: does the code import manim correctly and run without NameError?

@@ -9,15 +9,11 @@ export TOKENIZERS_PARALLELISM=false
 usage() {
   cat <<'EOF'
 Usage:
-  ./scripts/create_video.sh <project_name> [--topic "..."] [--projects-dir <dir>] [--build-args "..."] [--mock]
+  ./scripts/create_video.sh <project_name> [--topic "..."] [--projects-dir <dir>] [--build-args "..."]
 
 Examples:
   ./scripts/create_video.sh semi_prime_factorization --topic "Create a video about factoring semi primes"
   ./scripts/create_video.sh my-video --topic "Explain hash functions" --build-args "--topic 'ignored'"
-  ./scripts/create_video.sh test_video --topic "Test video" --mock
-
-Options:
-  --mock              Use mock voice service (dummy audio, no Qwen setup needed)
 
 Notes:
   - This script is a thin wrapper around:
@@ -25,10 +21,14 @@ Notes:
       2) scripts/build_video.sh
   - For reliability, it also warms up the voice service once before building.
   - --build-args is parsed like a shell command line (quotes supported).
+  - IMPORTANT: --build-args "--max-runs N" limits build loop iterations (phases),
+    not "full video runs". For a brand-new project:
+      --max-runs 1 usually executes only the plan phase.
+      --max-runs 2 usually executes plan + review.
+      Higher values are needed for narration/render/assemble.
   - You can also provide the topic via VIDEO_TOPIC.
   - PROJECTS_BASE_DIR sets the default for --projects-dir when omitted.
   - If the project already exists (has project_state.json), this script resumes it and does NOT reinitialize state.
-  - Set FLAMING_HORSE_MOCK_VOICE=1 to use mock voice service globally.
 EOF
 }
 
@@ -55,7 +55,6 @@ shift
 TOPIC=""
 PROJECTS_DIR="${PROJECTS_BASE_DIR:-./projects}"
 BUILD_ARGS_STR=""
-USE_MOCK=0
 INITIAL_PWD="$(pwd)"
 
 while [[ ${#} -gt 0 ]]; do
@@ -86,10 +85,6 @@ while [[ ${#} -gt 0 ]]; do
         exit 1
       fi
       shift 2
-      ;;
-    --mock)
-      USE_MOCK=1
-      shift
       ;;
     -h|--help)
       usage
@@ -131,12 +126,6 @@ if [[ $RESUME_MODE -eq 0 && -z "${TOPIC}" ]]; then
   echo "❌ No topic provided for new project." >&2
   echo "   Provide --topic \"...\" or set VIDEO_TOPIC." >&2
   exit 1
-fi
-
-# Set mock voice mode if requested
-if [[ $USE_MOCK -eq 1 ]]; then
-  export FLAMING_HORSE_MOCK_VOICE=1
-  echo "→ Mock voice mode enabled (FLAMING_HORSE_MOCK_VOICE=1)"
 fi
 
 if [[ $RESUME_MODE -eq 1 ]]; then
