@@ -1,0 +1,5 @@
+file '/home/runner/work/flaming-horse/flaming-horse/projects/test-video/media/videos/scene_01_intro/1440p15/Scene01Intro.mp4'
+file '/home/runner/work/flaming-horse/flaming-horse/projects/test-video/media/videos/scene_02_triangle/1440p15/Scene02Triangle.mp4'
+file '/home/runner/work/flaming-horse/flaming-horse/projects/test-video/media/videos/scene_03_proof/1440p15/Scene03Proof.mp4'
+file '/home/runner/work/flaming-horse/flaming-horse/projects/test-video/media/videos/scene_04_applications/1440p15/Scene04Applications.mp4'
+file '/home/runner/work/flaming-horse/flaming-horse/projects/test-video/media/videos/scene_05_recap/1440p15/Scene05Recap.mp4'
