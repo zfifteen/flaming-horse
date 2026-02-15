@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""Prepare strict cached Qwen voice service for a project."""
+"""Prepare cached voice service for a project."""
 
 import argparse
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -9,7 +10,7 @@ from pathlib import Path
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="Prepare cached Qwen voice service for a project"
+        description="Prepare cached voice service for a project"
     )
     parser.add_argument("--project-dir", required=True, help="Project directory")
     parser.add_argument(
@@ -42,6 +43,15 @@ def prepare_qwen_service(project_dir: Path, force: bool) -> int:
         return 2
 
 
+def selected_tts_backend() -> str:
+    value = os.environ.get("FLAMING_HORSE_TTS_BACKEND", "qwen").strip().lower()
+    if value not in {"qwen", "mlx"}:
+        raise ValueError(
+            f"Invalid FLAMING_HORSE_TTS_BACKEND={value!r}. Expected 'qwen' or 'mlx'."
+        )
+    return value
+
+
 def main() -> int:
     args = parse_args()
     project_dir = Path(args.project_dir).resolve()
@@ -50,7 +60,8 @@ def main() -> int:
         print(f"ERROR: Project directory not found: {project_dir}", file=sys.stderr)
         return 2
 
-    print("→ Preparing cached Qwen voice service")
+    backend = selected_tts_backend()
+    print(f"→ Preparing cached voice service (backend: {backend})")
     return prepare_qwen_service(project_dir, args.force)
 
 

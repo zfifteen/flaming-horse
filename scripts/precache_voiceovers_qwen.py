@@ -98,6 +98,15 @@ def ensure_ref_text(ref_text_path: Path) -> str:
     return ref_text_path.read_text(encoding="utf-8").strip()
 
 
+def selected_tts_backend() -> str:
+    value = os.environ.get("FLAMING_HORSE_TTS_BACKEND", "qwen").strip().lower()
+    if value not in {"qwen", "mlx"}:
+        raise ValueError(
+            f"Invalid FLAMING_HORSE_TTS_BACKEND={value!r}. Expected 'qwen' or 'mlx'."
+        )
+    return value
+
+
 def build_cache_entry(
     narration_key: str,
     text: str,
@@ -174,6 +183,7 @@ def main() -> int:
     cfg = load_config(project_dir)
     script = load_script(project_dir)
 
+    backend = selected_tts_backend()
     model_id = cfg.get("model_id", "Qwen/Qwen3-TTS-12Hz-1.7B-Base")
     device = cfg.get("device", "cpu")
     dtype_str = cfg.get("dtype", "float32")
@@ -190,37 +200,41 @@ def main() -> int:
             "ref_audio and ref_text must be set in voice_clone_config.json"
         )
 
-    if device != "cpu" or dtype_str != "float32":
+    if backend == "qwen" and (device != "cpu" or dtype_str != "float32"):
         raise ValueError(
             "This repo requires CPU float32 for Qwen voice clone. "
             f"Found device={device!r} dtype={dtype_str!r} in voice_clone_config.json"
         )
 
-    model_source = None
-    if isinstance(model_id, str) and Path(model_id).exists():
-        model_source = str(Path(model_id).resolve())
-    elif isinstance(model_id, str):
-        snap = find_hf_snapshot_dir(model_id)
-        if snap is not None:
-            model_source = str(snap)
+    model_source = str(model_id)
+    if backend == "qwen":
+        model_source = None
+        if isinstance(model_id, str) and Path(model_id).exists():
+            model_source = str(Path(model_id).resolve())
+        elif isinstance(model_id, str):
+            snap = find_hf_snapshot_dir(model_id)
+            if snap is not None:
+                model_source = str(snap)
 
-    if not model_source:
-        hf_home = Path(
-            os.environ.get("HF_HOME", str(Path.home() / ".cache" / "huggingface"))
-        )
-        expected = _hf_repo_id_to_cache_dirname(str(model_id))
-        expected_path = (hf_home / "hub" / expected) if expected else (hf_home / "hub")
-        print(
-            "ERROR: Qwen model snapshot not found in local HuggingFace cache.",
-            file=sys.stderr,
-        )
-        print(f"  Model id: {model_id}", file=sys.stderr)
-        print(f"  Looked under: {expected_path}", file=sys.stderr)
-        print(
-            "  Fix: run your model download/setup step outside the build, then retry.",
-            file=sys.stderr,
-        )
-        raise SystemExit(2)
+        if not model_source:
+            hf_home = Path(
+                os.environ.get("HF_HOME", str(Path.home() / ".cache" / "huggingface"))
+            )
+            expected = _hf_repo_id_to_cache_dirname(str(model_id))
+            expected_path = (
+                (hf_home / "hub" / expected) if expected else (hf_home / "hub")
+            )
+            print(
+                "ERROR: Qwen model snapshot not found in local HuggingFace cache.",
+                file=sys.stderr,
+            )
+            print(f"  Model id: {model_id}", file=sys.stderr)
+            print(f"  Looked under: {expected_path}", file=sys.stderr)
+            print(
+                "  Fix: run your model download/setup step outside the build, then retry.",
+                file=sys.stderr,
+            )
+            raise SystemExit(2)
 
     ref_audio_path = (project_dir / ref_audio).resolve()
     ref_text = ensure_ref_text((project_dir / ref_text_path).resolve())

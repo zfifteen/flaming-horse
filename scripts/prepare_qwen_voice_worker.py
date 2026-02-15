@@ -8,6 +8,7 @@ Outputs progress to stderr and final JSON to stdout.
 from __future__ import annotations
 
 import json
+import os
 import sys
 import time
 
@@ -31,6 +32,7 @@ def main() -> int:
     hf_logging.set_verbosity_error()
     eprint(f"→ Python: {sys.executable}")
     payload = json.loads(sys.stdin.read() or "{}")
+    backend = os.environ.get("FLAMING_HORSE_TTS_BACKEND", "qwen").strip().lower()
     model_source = payload.get("model_source")
     device = payload.get("device")
     dtype_str = payload.get("dtype")
@@ -52,12 +54,12 @@ def main() -> int:
 
     timings = {}
 
-    eprint("→ Loading Qwen model")
+    eprint(f"→ Loading TTS backend model ({backend})")
     t0 = time.perf_counter()
     try:
         model = load_model(str(model_source), str(device), str(dtype_str))
     except Exception as e:
-        eprint("ERROR: Failed to load qwen_tts model inside Qwen environment")
+        eprint(f"ERROR: Failed to load TTS backend model ({backend})")
         eprint(f"  Exception: {type(e).__name__}: {e}")
         eprint("  sys.path (first 5):")
         for p in sys.path[:5]:
@@ -66,7 +68,7 @@ def main() -> int:
     timings["model_load_seconds"] = round(time.perf_counter() - t0, 3)
     eprint(f"✓ Loaded model in {timings['model_load_seconds']:.3f}s")
 
-    eprint("→ Building voice clone prompt")
+    eprint(f"→ Building voice clone prompt ({backend})")
     t1 = time.perf_counter()
     voice_clone_prompt = build_voice_clone_prompt(
         model,

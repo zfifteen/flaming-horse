@@ -601,10 +601,10 @@ validate_voiceover_sync() {
     # Don't fail, just warn
   fi
   
-  # Check: Qwen cached voice service is used
+  # Check: cached voice service is used
   if grep -q "VoiceoverScene" "$scene_file"; then
     if ! grep -q "get_speech_service" "$scene_file"; then
-      echo "    ✗ ERROR: Scene missing cached Qwen voice service" | tee -a "$LOG_FILE"
+      echo "    ✗ ERROR: Scene missing cached voice service" | tee -a "$LOG_FILE"
       return 1
     fi
   fi
@@ -649,9 +649,9 @@ ensure_qwen_cache_index() {
     return 0
   fi
 
-  echo "→ Qwen cache index missing; generating cache before runtime validation..." | tee -a "$LOG_FILE"
+  echo "→ Voice cache index missing; generating cache before runtime validation..." | tee -a "$LOG_FILE"
   if ! python3 "${SCRIPT_DIR}/precache_voiceovers_qwen.py" "$PROJECT_DIR" 2>&1 | tee -a "$LOG_FILE"; then
-    echo "✗ ERROR: Failed to generate Qwen cache index for runtime validation" | tee -a "$LOG_FILE"
+    echo "✗ ERROR: Failed to generate voice cache index for runtime validation" | tee -a "$LOG_FILE"
     return 1
   fi
 
@@ -660,7 +660,7 @@ ensure_qwen_cache_index() {
     return 1
   fi
 
-  echo "✓ Qwen cache index ready for runtime validation" | tee -a "$LOG_FILE"
+  echo "✓ Voice cache index ready for runtime validation" | tee -a "$LOG_FILE"
   return 0
 }
 
@@ -827,7 +827,6 @@ PY
   opencode run --agent manim-ce-scripting-expert --model "${AGENT_MODEL}" \
     "${opencode_session_args[@]}" \
     --file "$prompt_file" \
-    --file "${SCRIPT_DIR}/../reference_docs/manim_content_pipeline.md" \
     --file "${SCRIPT_DIR}/../reference_docs/manim_config_guide.md" \
     --file "$STATE_FILE" \
     "${retry_context_arg[@]}" \
@@ -1138,10 +1137,6 @@ PY
   opencode run --agent manim-ce-scripting-expert --model "${AGENT_MODEL}" \
     "${opencode_session_args[@]}" \
     --file "$prompt_file" \
-    --file "${SCRIPT_DIR}/../reference_docs/manim_content_pipeline.md" \
-    --file "${SCRIPT_DIR}/../reference_docs/manim_voiceover.md" \
-    --file "${SCRIPT_DIR}/../reference_docs/manim_template.py.txt" \
-    --file "${SCRIPT_DIR}/../reference_docs/manim_config_guide.md" \
     --file "$STATE_FILE" \
     --file "$scene_file" \
     -- \
@@ -1452,7 +1447,7 @@ PY
 }
 
 handle_precache_voiceovers() {
-  echo "🎙️  Precaching Qwen voiceovers..." | tee -a "$LOG_FILE"
+  echo "🎙️  Precaching voiceovers (backend: ${FLAMING_HORSE_TTS_BACKEND:-qwen})..." | tee -a "$LOG_FILE"
   cd "$PROJECT_DIR"
   if [[ ! -f "voice_clone_config.json" ]]; then
     echo "✗ ERROR: voice_clone_config.json missing in project" | tee -a "$LOG_FILE"
@@ -1649,7 +1644,6 @@ handle_scene_qc() {
       opencode run --agent manim-ce-scripting-expert \
         "${fallback_session_args[@]}" \
         --file "$prompt_file" \
-        --file "${SCRIPT_DIR}/../AGENTS.md" \
         --file "$SCENE_QC_PROMPT_DOC" \
         --file "$STATE_FILE" \
         -- \
@@ -1679,7 +1673,7 @@ handle_scene_qc() {
 }
 
 handle_final_render() {
-  echo "🎬 Final render with cached Qwen voiceover..." | tee -a "$LOG_FILE"
+  echo "🎬 Final render with cached voiceover (backend: ${FLAMING_HORSE_TTS_BACKEND:-qwen})..." | tee -a "$LOG_FILE"
   export MANIM_VOICE_PROD=1
   # Ensure repo-root packages (e.g. flaming_horse_voice) are importable when
   # manim runs from inside the project directory.
@@ -1718,9 +1712,9 @@ PY
 
   cd "$PROJECT_DIR"
 
-  # Ensure Qwen cache exists (precache step). If missing, generate it now.
+  # Ensure voice cache exists (precache step). If missing, generate it now.
   if [[ ! -f "media/voiceovers/qwen/cache.json" ]]; then
-    echo "→ Missing Qwen cache index; running precache step..." | tee -a "$LOG_FILE"
+    echo "→ Missing voice cache index; running precache step..." | tee -a "$LOG_FILE"
     if ! handle_precache_voiceovers; then
       echo "❌ Precaching voiceovers failed; cannot render." | tee -a "$LOG_FILE" >&2
       python3 - <<PY
@@ -1950,7 +1944,7 @@ with open("${STATE_FILE}", "w") as f:
 PY
   }
 
-  echo "→ Rendering scenes sequentially (Qwen cached)" | tee -a "$LOG_FILE"
+  echo "→ Rendering scenes sequentially (cached voice backend: ${FLAMING_HORSE_TTS_BACKEND:-qwen})" | tee -a "$LOG_FILE"
 
   while IFS='|' read -r scene_id scene_file scene_class est_duration; do
     [[ -n "$scene_id" ]] || continue

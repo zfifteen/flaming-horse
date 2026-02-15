@@ -1,4 +1,5 @@
 import json
+import os
 import subprocess
 import sys
 import time
@@ -34,6 +35,7 @@ def build_cache_entry(
 
 def main() -> int:
     payload = json.loads(sys.stdin.read())
+    backend = os.environ.get("FLAMING_HORSE_TTS_BACKEND", "qwen").strip().lower()
 
     model_id = payload["model_id"]
     model_source = payload.get("model_source") or model_id
@@ -48,12 +50,12 @@ def main() -> int:
 
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    print("→ Loading Qwen model", file=sys.stderr)
+    print(f"→ Loading TTS backend model ({backend})", file=sys.stderr)
     t0 = time.perf_counter()
     model = load_model(str(model_source), str(device), str(dtype_str))
     print(f"✓ Loaded model in {time.perf_counter() - t0:.1f}s", file=sys.stderr)
 
-    print("→ Building voice clone prompt", file=sys.stderr)
+    print(f"→ Building voice clone prompt ({backend})", file=sys.stderr)
     t1 = time.perf_counter()
     voice_clone_prompt = build_voice_clone_prompt(
         model,

@@ -54,6 +54,24 @@ def load_json(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def selected_tts_backend() -> str:
+    value = os.environ.get("FLAMING_HORSE_TTS_BACKEND", "qwen").strip().lower()
+    if value not in {"qwen", "mlx"}:
+        raise ValueError(
+            f"Invalid FLAMING_HORSE_TTS_BACKEND={value!r}. Expected 'qwen' or 'mlx'."
+        )
+    return value
+
+
+def selected_mlx_model_id(default_model_id: str) -> str:
+    override = os.environ.get("FLAMING_HORSE_MLX_MODEL_ID", "").strip()
+    if override:
+        return override
+    if default_model_id.startswith("mlx-community/"):
+        return default_model_id
+    return "mlx-community/Qwen3-TTS-12Hz-0.6B-Base-4bit"
+
+
 def _hf_repo_id_to_cache_dirname(model_id: str) -> str | None:
     # HuggingFace hub cache layout:
     #   <HF_HOME>/hub/models--ORG--REPO
@@ -151,11 +169,12 @@ def main() -> int:
         print(f"ERROR: qwen_python not found: {python_path}", file=sys.stderr)
         return 2
 
+    backend = selected_tts_backend()
     model_id = cfg.get("model_id", "Qwen/Qwen3-TTS-12Hz-1.7B-Base")
     device = cfg.get("device", "cpu")
     dtype_str = cfg.get("dtype", "float32")
 
-    if device != "cpu" or dtype_str != "float32":
+    if backend == "qwen" and (device != "cpu" or dtype_str != "float32"):
         print(
             "ERROR: This repo requires CPU float32 for Qwen voice clone. "
             f"Found device={device!r} dtype={dtype_str!r} in voice_clone_config.json",
@@ -208,39 +227,47 @@ def main() -> int:
         print(f"ERROR: Empty ref text: {ref_text}", file=sys.stderr)
         return 2
 
-    # Reliability: this repo assumes the model is already installed/cached locally.
-    # Do not attempt to download weights during build/warmup.
-    model_source: str
-    model_id_path = Path(str(model_id))
-    if isinstance(model_id, str) and model_id_path.exists():
-        model_source = str(model_id_path)
-        model_display = model_source
-    else:
-        snap = (
-            find_hf_snapshot_dir(str(model_id)) if isinstance(model_id, str) else None
-        )
-        if snap is None:
-            hf_home = Path(
-                os.environ.get("HF_HOME", str(Path.home() / ".cache" / "huggingface"))
+    # Reliability: qwen backend assumes model is already installed/cached locally.
+    # For mlx backend, mediator chooses model via env/config at runtime.
+    model_source = str(model_id)
+    model_display = str(model_id)
+    if backend == "mlx":
+        model_display = selected_mlx_model_id(str(model_id))
+    if backend == "qwen":
+        model_id_path = Path(str(model_id))
+        if isinstance(model_id, str) and model_id_path.exists():
+            model_source = str(model_id_path)
+            model_display = model_source
+        else:
+            snap = (
+                find_hf_snapshot_dir(str(model_id))
+                if isinstance(model_id, str)
+                else None
             )
-            expected = _hf_repo_id_to_cache_dirname(str(model_id))
-            expected_path = (
-                (hf_home / "hub" / expected) if expected else (hf_home / "hub")
-            )
-            print(
-                "ERROR: Qwen model snapshot not found in local HuggingFace cache.",
-                file=sys.stderr,
-            )
-            print(f"  Model id: {model_id}", file=sys.stderr)
-            print(f"  Looked under: {expected_path}", file=sys.stderr)
-            print(
-                "  Fix: run your model download/setup step outside the build, then retry.",
-                file=sys.stderr,
-            )
-            return 2
+            if snap is None:
+                hf_home = Path(
+                    os.environ.get(
+                        "HF_HOME", str(Path.home() / ".cache" / "huggingface")
+                    )
+                )
+                expected = _hf_repo_id_to_cache_dirname(str(model_id))
+                expected_path = (
+                    (hf_home / "hub" / expected) if expected else (hf_home / "hub")
+                )
+                print(
+                    "ERROR: Qwen model snapshot not found in local HuggingFace cache.",
+                    file=sys.stderr,
+                )
+                print(f"  Model id: {model_id}", file=sys.stderr)
+                print(f"  Looked under: {expected_path}", file=sys.stderr)
+                print(
+                    "  Fix: run your model download/setup step outside the build, then retry.",
+                    file=sys.stderr,
+                )
+                return 2
 
-        model_source = str(snap)
-        model_display = f"{model_id} (cached)"
+            model_source = str(snap)
+            model_display = f"{model_id} (cached)"
 
     payload = {
         "model_source": model_source,
@@ -251,7 +278,7 @@ def main() -> int:
         "ref_text": ref_text_str,
     }
 
-    print("→ Preparing Qwen voice (CPU float32)")
+    print(f"→ Preparing voice backend: {backend}")
     print(f"  Python: {python_path}")
     print(f"  Model:  {model_display}")
     print(f"  Ref:    {ref_audio.name} + {ref_text.name}")
@@ -328,7 +355,7 @@ def main() -> int:
     }
 
     ready_path.write_text(json.dumps(ready, indent=2) + "\n", encoding="utf-8")
-    print(f"✓ Qwen voice prepared: {ready_path}")
+    print(f"✓ Voice backend prepared ({backend}): {ready_path}")
     return 0
 
 
