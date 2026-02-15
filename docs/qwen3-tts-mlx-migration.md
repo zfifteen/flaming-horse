@@ -111,6 +111,19 @@ Note: the directory name `voiceovers/qwen` is legacy in the current pipeline and
 
 Migration is functionally complete for flaming-horse MLX integration and validated with a real generated video including audio.
 
+## Mediator Backend Flag (Step 2)
+
+The pipeline workers now route synthesis through `scripts/qwen_tts_mediator.py`, which supports backend selection via:
+
+- `FLAMING_HORSE_TTS_BACKEND=qwen` (default)
+- `FLAMING_HORSE_TTS_BACKEND=mlx`
+
+Optional MLX overrides:
+
+- `FLAMING_HORSE_MLX_PYTHON` (default: `/Users/velocityworks/qwen3-tts-local/mlx_env312/bin/python`)
+- `FLAMING_HORSE_MLX_MODEL_ID` (default: `mlx-community/Qwen3-TTS-12Hz-0.6B-Base-4bit`)
+- `FLAMING_HORSE_MLX_SERVICE_SCRIPT` (default: repo `flaming_horse_voice/mlx_tts_service.py`)
+
 If we want to finalize cleanup next, recommended follow-ups are:
 
 1. Rename legacy `media/voiceovers/qwen` path to a neutral path (`voiceovers/primary` or `voiceovers/mlx`) to match runtime behavior.
