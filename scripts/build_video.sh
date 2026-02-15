@@ -20,6 +20,20 @@ PROJECT_DEFAULT_NAME="${PROJECT_DEFAULT_NAME:-default_video}"
 MAX_RUNS="${MAX_RUNS:-50}"
 PHASE_RETRY_LIMIT="${PHASE_RETRY_LIMIT:-3}"
 PHASE_RETRY_BACKOFF_SECONDS="${PHASE_RETRY_BACKOFF_SECONDS:-2}"
+PARALLEL_RENDERS="${PARALLEL_RENDERS:-0}"  # 0 = auto-detect, -1 = disable, N = use N jobs
+
+# Auto-detect number of CPU cores for parallel rendering
+if [[ "$PARALLEL_RENDERS" -eq 0 ]]; then
+    # Use 75% of available cores, minimum 1, maximum 4
+    if command -v nproc &> /dev/null; then
+        NCORES=$(nproc)
+    else
+        NCORES=2
+    fi
+    PARALLEL_RENDERS=$((NCORES * 3 / 4))
+    [[ $PARALLEL_RENDERS -lt 1 ]] && PARALLEL_RENDERS=1
+    [[ $PARALLEL_RENDERS -gt 4 ]] && PARALLEL_RENDERS=4
+fi
 
 # Force offline mode for all HuggingFace/Transformers usage in this pipeline.
 HF_HUB_OFFLINE="${HF_HUB_OFFLINE:-1}"
@@ -133,28 +147,47 @@ trap release_lock EXIT INT TERM
 
 # ─── State Management ────────────────────────────────────────────────
 
+# State cache variables (populated by load_state_cache)
+STATE_PHASE=""
+STATE_RUN_COUNT=""
+STATE_NEEDS_REVIEW=""
+STATE_CURRENT_SCENE_INDEX=""
+STATE_CACHE_VALID="0"
+
+load_state_cache() {
+  # Load state once and cache in shell variables to reduce subprocess spawning
+  eval "$(python3 "${SCRIPT_DIR}/state_cache_helper.py" load "${STATE_FILE}")"
+}
+
+invalidate_state_cache() {
+  # Invalidate cache when state file changes externally
+  eval "$(python3 "${SCRIPT_DIR}/state_cache_helper.py" invalidate)"
+}
+
 get_phase() {
-  normalize_state_json >/dev/null 2>&1 || true
-  python3 -c "import json; print(json.load(open('${STATE_FILE}'))['phase'])"
+  # Use cached value if available, otherwise read from file
+  if [[ "$STATE_CACHE_VALID" == "1" ]]; then
+    echo "$STATE_PHASE"
+  else
+    normalize_state_json >/dev/null 2>&1 || true
+    python3 -c "import json; print(json.load(open('${STATE_FILE}'))['phase'])"
+  fi
 }
 
 get_run_count() {
-  normalize_state_json >/dev/null 2>&1 || true
-  python3 -c "import json; print(json.load(open('${STATE_FILE}'))['run_count'])"
+  # Use cached value if available, otherwise read from file
+  if [[ "$STATE_CACHE_VALID" == "1" ]]; then
+    echo "$STATE_RUN_COUNT"
+  else
+    normalize_state_json >/dev/null 2>&1 || true
+    python3 -c "import json; print(json.load(open('${STATE_FILE}'))['run_count'])"
+  fi
 }
 
 increment_run_count() {
   normalize_state_json >/dev/null 2>&1 || true
-  python3 <<EOF
-import json
-from datetime import datetime
-with open('${STATE_FILE}', 'r') as f:
-    state = json.load(f)
-state['run_count'] += 1
-state['updated_at'] = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
-with open('${STATE_FILE}', 'w') as f:
-    json.dump(state, f, indent=2)
-EOF
+  # Use helper to increment and reload cache
+  eval "$(python3 "${SCRIPT_DIR}/state_cache_helper.py" increment "${STATE_FILE}")"
 }
 
 backup_state() {
@@ -646,12 +679,12 @@ validate_scene_runtime() {
 }
 
 ensure_qwen_cache_index() {
-  local cache_index="${PROJECT_DIR}/media/voiceovers/qwen/cache.json"
-  if [[ -f "$cache_index" ]]; then
+  # Check if cache is valid before regenerating
+  if python3 "${SCRIPT_DIR}/voice_cache_validator.py" "$PROJECT_DIR" > >(tee -a "$LOG_FILE") 2>&1; then
     return 0
   fi
 
-  echo "→ Voice cache index missing; generating cache before runtime validation..." | tee -a "$LOG_FILE"
+  echo "→ Voice cache needs regeneration; running precache..." | tee -a "$LOG_FILE"
   if ! python3 "${SCRIPT_DIR}/precache_voiceovers_qwen.py" "$PROJECT_DIR" \
     > >(tee -a "$LOG_FILE") \
     2> >(tee -a "$ERROR_LOG" | tee -a "$LOG_FILE" >&2); then
@@ -659,6 +692,7 @@ ensure_qwen_cache_index() {
     return 1
   fi
 
+  local cache_index="${PROJECT_DIR}/media/voiceovers/qwen/cache.json"
   if [[ ! -f "$cache_index" ]]; then
     echo "✗ ERROR: Precache finished but cache index still missing: $cache_index" | tee -a "$LOG_FILE"
     return 1
@@ -1827,6 +1861,59 @@ PY
   return 0
 }
 
+
+# Parallel scene rendering coordinator
+render_scenes_parallel() {
+  local scene_lines="$1"
+  
+  if [[ $PARALLEL_RENDERS -le 1 ]]; then
+    echo "→ Parallel rendering disabled (PARALLEL_RENDERS=$PARALLEL_RENDERS)" | tee -a "$LOG_FILE"
+    return 1  # Fall back to sequential
+  fi
+  
+  if ! command -v parallel &> /dev/null; then
+    echo "→ GNU parallel not available, falling back to sequential rendering" | tee -a "$LOG_FILE"
+    return 1
+  fi
+  
+  echo "→ Rendering scenes in parallel (max $PARALLEL_RENDERS concurrent jobs)" | tee -a "$LOG_FILE"
+  
+  # Create job list file
+  local job_list="${PROJECT_DIR}/.render_jobs.txt"
+  : > "$job_list"
+  
+  while IFS='|' read -r scene_id scene_file scene_class est_duration; do
+    [[ -n "$scene_id" ]] || continue
+    echo "${PROJECT_DIR}|${scene_id}|${scene_file}|${scene_class}|${est_duration}" >> "$job_list"
+  done <<< "$scene_lines"
+  
+  # Run parallel rendering
+  local worker="${SCRIPT_DIR}/render_scene_worker.sh"
+  local failed=0
+  
+  if ! parallel --colsep '|' -j "$PARALLEL_RENDERS" --halt soon,fail=1 \
+    "$worker" {1} {2} {3} {4} {5} :::: "$job_list" \
+    > >(tee -a "$LOG_FILE") 2> >(tee -a "$ERROR_LOG" | tee -a "$LOG_FILE" >&2); then
+    echo "❌ Parallel rendering failed for one or more scenes" | tee -a "$LOG_FILE" >&2
+    failed=1
+  fi
+  
+  rm -f "$job_list"
+  
+  if [[ $failed -eq 1 ]]; then
+    return 1
+  fi
+  
+  # Update state for all rendered scenes
+  while IFS='|' read -r scene_id scene_file scene_class est_duration; do
+    [[ -n "$scene_id" ]] || continue
+    update_state_rendered "$scene_id" "$scene_class" "$est_duration"
+    echo "✓ Parallel render complete: $scene_id" | tee -a "$LOG_FILE"
+  done <<< "$scene_lines"
+  
+  return 0
+}
+
 handle_final_render() {
   echo "🎬 Final render with cached voiceover (backend: ${FLAMING_HORSE_TTS_BACKEND:-qwen})..." | tee -a "$LOG_FILE"
   export MANIM_VOICE_PROD=1
@@ -2099,9 +2186,15 @@ with open("${STATE_FILE}", "w") as f:
 PY
   }
 
-  echo "→ Rendering scenes sequentially (cached voice backend: ${FLAMING_HORSE_TTS_BACKEND:-qwen})" | tee -a "$LOG_FILE"
+  echo "→ Rendering scenes (parallel mode: ${PARALLEL_RENDERS} jobs, backend: ${FLAMING_HORSE_TTS_BACKEND:-qwen})" | tee -a "$LOG_FILE"
 
-  while IFS='|' read -r scene_id scene_file scene_class est_duration; do
+  # Try parallel rendering first, fall back to sequential if unavailable
+  if render_scenes_parallel "$scene_lines"; then
+    echo "✓ Parallel rendering completed successfully" | tee -a "$LOG_FILE"
+  else
+    echo "→ Using sequential rendering (fallback)" | tee -a "$LOG_FILE"
+    
+    while IFS='|' read -r scene_id scene_file scene_class est_duration; do
     [[ -n "$scene_id" ]] || continue
 
     # Pre-render syntax gate with self-healing.
@@ -2293,6 +2386,7 @@ PY
     update_state_rendered "$scene_id" "$scene_class" "$est_duration"
     echo "✓ Rendered + verified: $scene_id" | tee -a "$LOG_FILE"
   done <<< "$scene_lines"
+  fi  # End of parallel/sequential rendering block
 
   # Advance to assemble
   python3 - <<PY
@@ -2549,6 +2643,9 @@ while [[ $iteration -lt $MAX_RUNS ]]; do
       exit 1
     fi
 
+    # Load state into cache to reduce subprocess spawning
+    load_state_cache
+
     if ! validate_state; then
       echo "❌ State validation failed. Restoring backup..." >&2
       [[ -f "$STATE_BACKUP" ]] && cp "$STATE_BACKUP" "$STATE_FILE"
@@ -2583,10 +2680,12 @@ while [[ $iteration -lt $MAX_RUNS ]]; do
         break
       fi
 
+      # Invalidate cache after phase execution (state may have changed)
+      invalidate_state_cache
       normalize_state_json || true
-      local fail_needs_review
-      fail_needs_review=$(python3 -c "import json; print(json.load(open('${STATE_FILE}'))['flags'].get('needs_human_review', False))")
-      if [[ "$fail_needs_review" == "True" ]]; then
+      load_state_cache
+      
+      if [[ "$STATE_NEEDS_REVIEW" == "True" ]]; then
         break
       fi
 
@@ -2611,10 +2710,11 @@ while [[ $iteration -lt $MAX_RUNS ]]; do
         echo "❌ Phase $current_phase failed (non-agent phase)." | tee -a "$LOG_FILE"
       fi
 
+      invalidate_state_cache
       normalize_state_json || true
-      local needs_review_fail
-      needs_review_fail=$(python3 -c "import json; print(json.load(open('${STATE_FILE}'))['flags'].get('needs_human_review', False))")
-      if [[ "$needs_review_fail" == "True" ]]; then
+      load_state_cache
+      
+      if [[ "$STATE_NEEDS_REVIEW" == "True" ]]; then
         echo "⚠️  Human review required. Pausing build loop." | tee -a "$LOG_FILE"
         echo "Check $STATE_FILE for details" | tee -a "$LOG_FILE"
         exit 0
@@ -2624,6 +2724,7 @@ while [[ $iteration -lt $MAX_RUNS ]]; do
     fi
 
     # Post-phase: normalize state and deterministically apply phase transition.
+    invalidate_state_cache
     if ! normalize_state_json; then
       echo "❌ Phase produced an invalid/un-normalizable state file; restoring last backup." | tee -a "$LOG_FILE" >&2
       [[ -f "$STATE_BACKUP" ]] && cp "$STATE_BACKUP" "$STATE_FILE"
@@ -2639,10 +2740,8 @@ while [[ $iteration -lt $MAX_RUNS ]]; do
     
     increment_run_count
     
-    local needs_review
-    needs_review=$(python3 -c "import json; print(json.load(open('${STATE_FILE}'))['flags'].get('needs_human_review', False))")
-    
-    if [[ "$needs_review" == "True" ]]; then
+    # Check if human review needed (using cached value from increment)
+    if [[ "$STATE_NEEDS_REVIEW" == "True" ]]; then
       echo "⚠️  Human review required. Pausing build loop." | tee -a "$LOG_FILE"
       echo "Check $STATE_FILE for details" | tee -a "$LOG_FILE"
       exit 0
