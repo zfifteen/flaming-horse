@@ -24,10 +24,10 @@ def polished_fade_in(mobject, lag_ratio=0.2, scale_factor=1.1, glow=False):
     """Smooth reveal with initial scale pop and optional glow."""
     if glow:
         mobject.set_stroke(width=3, opacity=0.5)  # Subtle outline
-    return AnimationGroup(
-        FadeIn(mobject, lag_ratio=lag_ratio),
+    return LaggedStart(
+        FadeIn(mobject),
         mobject.animate.scale(scale_factor).set_run_time(0.5).scale(1/scale_factor),  # Quick scale effect
-        rate_func=there_and_back_with_pause  # Smooth curve
+        lag_ratio=lag_ratio,
     )
 
 def adaptive_title_position(title, content_group, max_shift=0.5):
@@ -45,5 +45,5 @@ def adaptive_title_position(title, content_group, max_shift=0.5):
 ```
 
 - 3D Guidelines: Prefer for spatial topics (e.g., geometry); limit to 1-2 moving objects. Use `self.set_camera_orientation(phi=75 * DEGREES, theta=-45 * DEGREES)` in a `ThreeDScene` for subtle depth without complexity.
-- Text Rules: Cap `Write()` at 1.5s; use `lag_ratio=0.15` for staggered reveals. For lists, `FadeIn(VGroup(*bullets), lag_ratio=0.3)`.
+- Text Rules: Cap `Write()` at 1.5s; for staggered reveals use `LaggedStart(*[FadeIn(b) for b in bullets], lag_ratio=0.15)`.
 - For transitions: Mandate 0.5-1s crossfades between elements using `FadeTransform` or `polished_fade_in()`.

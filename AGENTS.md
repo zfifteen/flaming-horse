@@ -200,10 +200,10 @@ def harmonious_color(base_color, variations=3, lightness_shift=0.1):
 def polished_fade_in(mobject, lag_ratio=0.2, scale_factor=1.1, glow=False):
     if glow:
         mobject.set_stroke(width=3, opacity=0.5)
-    return AnimationGroup(
-        FadeIn(mobject, lag_ratio=lag_ratio),
+    return LaggedStart(
+        FadeIn(mobject),
         mobject.animate.scale(scale_factor).set_run_time(0.5).scale(1/scale_factor),
-        rate_func=there_and_back_with_pause
+        lag_ratio=lag_ratio,
     )
 
 def adaptive_title_position(title, content_group, max_shift=0.5):
@@ -396,7 +396,7 @@ play_next(self, beats, Create(diagram))
 play_text_next(self, beats, FadeIn(key_point))
 ```
 
-- ✅ For bullet lists, prefer `FadeIn(..., lag_ratio=...)` over `Write`
+- ✅ For staggered reveals, use `LaggedStart(FadeIn(a), FadeIn(b), ..., lag_ratio=0.15)`
 
 ### Content Density Per Scene
 - ❌ NEVER place more than 5 primary visual elements in one voiceover block
@@ -428,7 +428,7 @@ Always include these functions in scene files for polished aesthetics (see refer
 - `polished_fade_in()`: Smooth reveals with scale pop.
 - `adaptive_title_position()`: Dynamic title shifting.
 - 3D Guidelines: Prefer for spatial topics; limit to 1-2 moving objects. Use `self.set_camera_orientation(phi=75 * DEGREES, theta=-45 * DEGREES)` in a `ThreeDScene`.
-- Text Rules: Cap `Write()` at 1.5s; use `lag_ratio=0.15` for staggered reveals. For lists, `FadeIn(VGroup(*bullets), lag_ratio=0.3)`.
+- Text Rules: Cap `Write()` at 1.5s; for staggered reveals use `LaggedStart(*[FadeIn(b) for b in bullets], lag_ratio=0.15)`.
 
 ---
 
