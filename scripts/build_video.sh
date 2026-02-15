@@ -99,6 +99,7 @@ OPENCODE_SESSION_ID=""
 PROMPTS_DIR="${SCRIPT_DIR}/../prompts"
 PHASE_PROMPT_MAIN_TEMPLATE="${PROMPTS_DIR}/phase_prompt.md"
 PHASE_PROMPT_TEMPLATE="${PROMPTS_DIR}/phase_prompt_instructions.md"
+PHASE_NARRATION_TEMPLATE="${PROMPTS_DIR}/phase_narration.md"
 PHASE_BUILD_SCENES_TEMPLATE="${PROMPTS_DIR}/phase_build_scenes.md"
 SCENE_FIX_TEMPLATE="${PROMPTS_DIR}/scene_fix_prompt.md"
 SCENE_QC_TEMPLATE="${PROMPTS_DIR}/scene_qc_prompt.md"
@@ -748,6 +749,18 @@ PY
   local build_target_scene_class=""
   local build_target_narration_key=""
   local -a build_scene_file_arg=()
+  local -a narration_file_arg=()
+  if [[ "$phase" == "narration" ]]; then
+    if [[ ! -f "$PHASE_NARRATION_TEMPLATE" ]]; then
+      echo "❌ Missing prompt template: $PHASE_NARRATION_TEMPLATE" | tee -a "$LOG_FILE" >&2
+      return 1
+    fi
+    phase_specific_instruction="$(cat "$PHASE_NARRATION_TEMPLATE")"
+    if [[ -f "plan.json" ]]; then
+      narration_file_arg=(--file "plan.json")
+    fi
+  fi
+
   if [[ "$phase" == "build_scenes" ]]; then
     if [[ ! -f "$PHASE_BUILD_SCENES_TEMPLATE" ]]; then
       echo "❌ Missing prompt template: $PHASE_BUILD_SCENES_TEMPLATE" | tee -a "$LOG_FILE" >&2
@@ -882,6 +895,7 @@ PY
     "${opencode_session_args[@]}" \
     --file "$prompt_file" \
     --file "$STATE_FILE" \
+    "${narration_file_arg[@]}" \
     "${build_scene_file_arg[@]}" \
     "${retry_context_arg[@]}" \
     -- \
@@ -1381,6 +1395,7 @@ PY
     > >(tee -a "$LOG_FILE") \
     2> >(tee -a "$ERROR_LOG" | tee -a "$LOG_FILE" >&2)
 import json
+import re
 from pathlib import Path
 
 plan = json.loads(Path('plan.json').read_text(encoding='utf-8'))
