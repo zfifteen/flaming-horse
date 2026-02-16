@@ -13,7 +13,7 @@
 - ✅ **Model:** `Qwen/Qwen3-TTS-12Hz-1.7B-Base` (voice clone).
 - ✅ **Device/Dtype:** CPU `float32` for stability.
 - ✅ **Reference assets:** `assets/voice_ref/ref.wav` + `assets/voice_ref/ref.txt` per project.
-- ❌ **NEVER** call ElevenLabs in this repo.
+- ❌ **NEVER** use any network TTS service (e.g., ElevenLabs, Google TTS, Azure TTS).
 - ❌ **NEVER** create fallback code patterns.
 
 **If cached audio is missing, the build MUST fail and instruct to run the precache step.**

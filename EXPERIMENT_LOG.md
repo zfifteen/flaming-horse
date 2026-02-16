@@ -1,5 +1,7 @@
 # Experiment Attempt Log
 
+> **Note:** This is a historical experiment log. References to "ElevenLabs" in this document describe issues that were identified during the audit and have since been addressed. This log is preserved for historical reference.
+
 **Date:** 2026-02-16  
 **Task:** End-to-end pipeline validation with trial division topic  
 **Status:** ❌ Blocked by missing dependencies  

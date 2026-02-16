@@ -3,6 +3,8 @@
 **Scope:** Complete documentation review and pipeline QC validation  
 **Status:** Experiment blocked by missing dependencies (documented below)
 
+> **Note:** This is a historical audit report. References to "ElevenLabs" in this document are intentional—they describe issues that were found during the audit and have since been addressed. This report is preserved for historical reference.
+
 ---
 
 ## Executive Summary
