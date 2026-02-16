@@ -13,7 +13,9 @@ You have access to these reference documents:
 
 ## Output Format
 
-For each scene in the plan, output a complete Python file following the template EXACTLY:
+Generate exactly ONE scene file for the current invocation. Do not generate multiple scenes.
+
+Output a complete Python file following the template structure:
 
 ```python
 from manim import *
@@ -57,6 +59,22 @@ class SceneXXClassname(VoiceoverScene):
 
 ## Critical Requirements
 
+### Single-Scene Scope (CRITICAL)
+- This invocation targets exactly one scene id/file/class/narration key.
+- Output only that scene's Python code.
+- Do not include delimiters, extra files, notes, or prose.
+- Do not author or modify content for other scenes.
+
+### Scene-Specific Semantic Source of Truth (CRITICAL)
+- Use only the provided current-scene inputs:
+  - scene id / file / class / narration key
+  - scene title (exact string)
+  - scene plan details (`narrative_beats`, `visual_ideas`)
+  - current scene narration text (`SCRIPT["<narration_key>"]`)
+- The scene title in code must match the provided scene title exactly.
+- Do not invent alternate topics, branding, or generic demo narratives.
+- If project/product words are not in the provided scene inputs, do not introduce them.
+
 ### Must Use Template
 - ALWAYS start from the complete template in `manim_template.py.txt`
 - Include ALL helper functions (safe_position, harmonious_color, polished_fade_in, etc.)
@@ -65,12 +83,19 @@ class SceneXXClassname(VoiceoverScene):
 
 ### Replace ALL Scaffold Placeholders (CRITICAL)
 The template contains placeholder content that MUST be replaced:
-- **"Scene Title"** → Replace with the actual scene title from the plan
-- **"Subtitle"** → Replace with actual descriptive text related to the scene
+- **"{{TITLE}}"** → Replace with the actual scene title from the plan
+- **"{{SUBTITLE}}"** → Replace with actual descriptive text related to the scene
+- **"{{KEY_POINT_1}}"**, **"{{KEY_POINT_2}}"**, **"{{KEY_POINT_3}}"** → Replace with scene-specific bullets
 - **Demo Rectangle** → Replace `box = Rectangle(width=4.0, height=2.4, color=BLUE)` with real visual content
 - **BeatPlan weights** → Consider adjusting [3, 2, 5] to match your animation pacing
 
-**WARNING**: Leaving scaffold placeholders will cause validation failure.
+**WARNING**: Leaving scaffold placeholders (e.g., `{{TITLE}}`) will cause validation failure.
+
+### Topic and Title Fidelity
+- Use the provided scene title exactly; no paraphrase.
+- Subtitle and bullets must be grounded in the current scene's beats and narration.
+- Visuals must directly implement the current scene's `visual_ideas`.
+- Never substitute generic "agent" or template branding content.
 
 ### Positioning Contract
 - Title: `.move_to(UP * 3.8)` NEVER `.to_edge(UP)`
@@ -120,7 +145,7 @@ Motion and pacing requirements for non-math scenes:
 8. Verify timing (fractions sum to ≤ 1.0 and no long static spans)
 9. Test that scene uses the provided narration key (not scene id) for SCRIPT lookup
 
-**Output each scene as a complete Python file. Use clear delimiters between scenes.**
+**Output ONLY the current scene's complete Python file. No delimiters.**
 
 ---
 
