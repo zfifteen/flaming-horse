@@ -265,8 +265,8 @@ class Scene01Intro(VoiceoverScene):
         # Timing is deterministic via BeatPlan helper slots.
         
         with self.voiceover(text=SCRIPT["intro"]) as tracker:
-            num_beats = max(10, min(22, int(np.ceil(tracker.duration / 3.0))))
-            beats = BeatPlan(tracker.duration, [1] * num_beats)
+            # Example cadence: fixed 10 micro-beats (within 8-12 target)
+            beats = BeatPlan(tracker.duration, [1] * 10)
 
             # Title (ALWAYS use UP * 3.8, NEVER .to_edge(UP)); Adaptive (New)
             title = Text("{{TITLE}}", font_size=48, weight=BOLD, color=blues[0])
@@ -288,14 +288,17 @@ class Scene01Intro(VoiceoverScene):
 
             diagram = RoundedRectangle(width=5.2, height=3.2, corner_radius=0.2, color=blues[2]).move_to(RIGHT * 3.2 + DOWN * 0.4)
             callout = SurroundingRectangle(bullet_2, color=YELLOW, buff=0.15)
+            panel_label = Text("{{VISUAL_ANCHOR}}", font_size=24, color=blues[1]).next_to(diagram, UP, buff=0.2)
+            safe_position(panel_label)
 
             play_text_next(self, beats, FadeIn(bullet_1))
             play_text_next(self, beats, FadeIn(bullet_2))
             play_text_next(self, beats, FadeIn(bullet_3))
-            play_next(self, beats, FadeOut(subtitle), FadeOut(bullet_1), FadeOut(bullet_2), FadeOut(bullet_3))
             play_next(self, beats, Create(diagram, rate_func=smooth))
+            play_text_next(self, beats, FadeIn(panel_label))
             play_next(self, beats, FadeIn(callout), max_run_time=0.8)
             play_next(self, beats, FadeOut(callout), max_run_time=0.8)
+            play_next(self, beats, FadeOut(subtitle), FadeOut(bullet_1), FadeOut(bullet_2), FadeOut(bullet_3), FadeOut(panel_label))
 ```
 
 See reference_docs/visual_helpers.md for more on enhanced helpers and aesthetics.
@@ -373,12 +376,13 @@ with self.voiceover(text=SCRIPT["demo"]) as tracker:  # 10 seconds
 
 # CORRECT:
 with self.voiceover(text=SCRIPT["demo"]) as tracker:  # 10 seconds
-    self.play(Write(title), run_time=tracker.duration * 0.2)   # 2s (20%)
-    self.play(FadeIn(obj), run_time=tracker.duration * 0.25)    # 2.5s (25%)
-    self.play(obj.animate.shift(RIGHT * 0.8), run_time=tracker.duration * 0.2)
-    self.play(Indicate(obj), run_time=tracker.duration * 0.15)
-    self.play(FadeIn(callout), run_time=tracker.duration * 0.2)
-    # Total = 1.0 = 100% ✓ Perfect sync
+    beats = BeatPlan(tracker.duration, [0.2, 0.25, 0.2, 0.15, 0.2])
+    play_text_next(self, beats, Write(title))
+    play_next(self, beats, FadeIn(obj))
+    play_next(self, beats, obj.animate.shift(RIGHT * 0.8))
+    play_next(self, beats, Indicate(obj))
+    play_next(self, beats, FadeIn(callout))
+    # Total fractions = 1.0 = 100% ✓ Perfect sync
 ```
 
 ### 6. Configuration Lock
