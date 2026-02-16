@@ -145,6 +145,39 @@ def sanitize_code(code: str) -> str:
     return code.strip()
 
 
+def has_scaffold_artifacts(code: str) -> bool:
+    """
+    Check if code contains scaffold placeholders or demo code.
+    
+    Args:
+        code: Python code string
+        
+    Returns:
+        True if scaffold artifacts are found
+    """
+    # Forbidden placeholder text
+    forbidden_literals = [
+        '"Scene Title"',
+        "'Scene Title'",
+        '"Subtitle"',
+        "'Subtitle'",
+    ]
+    
+    for literal in forbidden_literals:
+        if literal in code:
+            return True
+    
+    # Check for demo Rectangle from scaffold template
+    # Pattern: box = Rectangle(width=4.0, height=2.4, ...
+    if re.search(
+        r"box\s*=\s*Rectangle\(\s*width\s*=\s*4(?:\.0)?,\s*height\s*=\s*2\.4",
+        code
+    ):
+        return True
+    
+    return False
+
+
 def verify_python_syntax(code: str) -> bool:
     """
     Verify that code is syntactically valid Python.
@@ -255,6 +288,9 @@ def parse_build_scenes_response(response_text: str) -> Optional[str]:
             continue
         if not all(imp in candidate for imp in required_imports):
             continue
+        # NEW: Reject code with scaffold placeholders
+        if has_scaffold_artifacts(candidate):
+            continue
         return candidate
 
     # Fallback: try raw/single-block extraction.
@@ -265,6 +301,9 @@ def parse_build_scenes_response(response_text: str) -> Optional[str]:
     if not verify_python_syntax(code):
         return None
     if not all(imp in code for imp in required_imports):
+        return None
+    # NEW: Reject code with scaffold placeholders
+    if has_scaffold_artifacts(code):
         return None
     return code
 
@@ -320,6 +359,10 @@ def parse_scene_repair_response(response_text: str) -> Optional[str]:
     code = sanitize_code(code)
 
     if not verify_python_syntax(code):
+        return None
+    
+    # NEW: Reject repaired code that still has scaffold placeholders
+    if has_scaffold_artifacts(code):
         return None
 
     return code

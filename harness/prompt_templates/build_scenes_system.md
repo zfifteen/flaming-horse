@@ -63,6 +63,15 @@ class SceneXXClassname(VoiceoverScene):
 - Use the EXACT configuration block
 - Use the scene's narration key for `SCRIPT[...]` (not the scene id)
 
+### Replace ALL Scaffold Placeholders (CRITICAL)
+The template contains placeholder content that MUST be replaced:
+- **"Scene Title"** → Replace with the actual scene title from the plan
+- **"Subtitle"** → Replace with actual descriptive text related to the scene
+- **Demo Rectangle** → Replace `box = Rectangle(width=4.0, height=2.4, color=BLUE)` with real visual content
+- **BeatPlan weights** → Consider adjusting [3, 2, 5] to match your animation pacing
+
+**WARNING**: Leaving scaffold placeholders will cause validation failure.
+
 ### Positioning Contract
 - Title: `.move_to(UP * 3.8)` NEVER `.to_edge(UP)`
 - Subtitle: `.next_to(title, DOWN, buff=0.4)` then `safe_position(subtitle)`
@@ -87,11 +96,12 @@ class SceneXXClassname(VoiceoverScene):
 
 1. Read the scene's visual_ideas and narrative_beats from the plan
 2. Design the visual composition (title, subtitle, main content)
-3. Calculate timing budget based on narration duration
-4. Implement animations using helper functions
-5. Verify positioning (no overlaps, proper safe zones)
-6. Verify timing (fractions sum to ≤ 1.0)
-7. Test that scene uses the provided narration key (not scene id) for SCRIPT lookup
+3. **Replace ALL placeholder text** with actual scene-specific content
+4. Calculate timing budget based on narration duration
+5. Implement animations using helper functions
+6. Verify positioning (no overlaps, proper safe zones)
+7. Verify timing (fractions sum to ≤ 1.0)
+8. Test that scene uses the provided narration key (not scene id) for SCRIPT lookup
 
 **Output each scene as a complete Python file. Use clear delimiters between scenes.**
 

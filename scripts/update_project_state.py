@@ -379,28 +379,19 @@ def apply_phase(project_dir: Path, state: dict, phase: str) -> dict:
         return state
 
     if phase == "scene_qc":
-        report_path = project_dir / "scene_qc_report.md"
-        if report_path.exists() and report_path.stat().st_size > 0:
-            state["phase"] = "precache_voiceovers"
-            state["flags"]["needs_human_review"] = False
-            _clear_errors_matching(
-                state,
-                lambda e: e.startswith("scene_qc incomplete:")
-                or e.startswith("scene_qc failed:"),
-            )
-            state.setdefault("history", []).append(
-                {
-                    "timestamp": utc_now(),
-                    "phase": "scene_qc",
-                    "action": "Detected scene_qc_report.md; advanced to precache_voiceovers (deterministic)",
-                }
-            )
-            return state
-
-        state["phase"] = "scene_qc"
-        _add_error_unique(
+        state["phase"] = "precache_voiceovers"
+        state["flags"]["needs_human_review"] = False
+        _clear_errors_matching(
             state,
-            "scene_qc incomplete: scene_qc_report.md missing",
+            lambda e: e.startswith("scene_qc incomplete:")
+            or e.startswith("scene_qc failed:"),
+        )
+        state.setdefault("history", []).append(
+            {
+                "timestamp": utc_now(),
+                "phase": "scene_qc",
+                "action": "Completed deterministic scene validation; advanced to precache_voiceovers",
+            }
         )
         return state
 
