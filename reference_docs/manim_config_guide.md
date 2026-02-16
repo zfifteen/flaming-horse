@@ -200,6 +200,22 @@ def show_safe_zone(scene):
 - Don't use `-pql` flag (it overrides to 480p)
 - Render with just: `manim file.py SceneName`
 
+## Render Quality Flags
+
+Manim supports different quality presets via command-line flags:
+
+| Flag | Resolution | FPS | Use Case | Approx Time | Size |
+|------|-----------|-----|----------|-------------|------|
+| `-ql` | 854×480 | 15 | Quick iteration | ~10s/scene | ~5MB |
+| `-qm` | 1280×720 | 30 | Review | ~30s/scene | ~20MB |
+| `-qh` | 1920×1080 | 60 | Production (default) | ~2min/scene | ~50MB |
+| `-qk` | 3840×2160 | 60 | 4K export | ~5min/scene | ~200MB |
+| `-pql` | Preview low | 15 | Fast preview | ~5s/scene | ~2MB |
+
+**Pipeline default:** `-ql` for validation, `-qh` for final render.
+
+**Template uses 1440p (2560×1440)**, which is between `-qh` and `-qk` for optimal quality/size balance.
+
 **If elements are cut off at top:**
 - Remove any `.to_edge(UP)` calls for titles
 - Use `.move_to(UP * 3.8)` instead
