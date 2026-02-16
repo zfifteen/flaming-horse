@@ -50,7 +50,7 @@ class SceneXXClassname(VoiceoverScene):
         self.set_speech_service(get_speech_service(Path(__file__).resolve().parent))
         
         # Your animation code here
-        with self.voiceover(text=SCRIPT["scene_xx"]) as tracker:
+        with self.voiceover(text=SCRIPT["<narration_key>"]) as tracker:
             # Build visuals with proper positioning and timing
             pass
 ```
@@ -61,6 +61,7 @@ class SceneXXClassname(VoiceoverScene):
 - ALWAYS start from the complete template in `manim_template.py.txt`
 - Include ALL helper functions (safe_position, harmonious_color, polished_fade_in, etc.)
 - Use the EXACT configuration block
+- Use the scene's narration key for `SCRIPT[...]` (not the scene id)
 
 ### Positioning Contract
 - Title: `.move_to(UP * 3.8)` NEVER `.to_edge(UP)`
@@ -90,7 +91,7 @@ class SceneXXClassname(VoiceoverScene):
 4. Implement animations using helper functions
 5. Verify positioning (no overlaps, proper safe zones)
 6. Verify timing (fractions sum to ≤ 1.0)
-7. Test that scene uses correct SCRIPT key
+7. Test that scene uses the provided narration key (not scene id) for SCRIPT lookup
 
 **Output each scene as a complete Python file. Use clear delimiters between scenes.**
 

@@ -198,6 +198,7 @@ def compose_build_scenes_prompt(
         current_scene = scenes[current_index]
         scene_id = current_scene.get("id", f"scene_{current_index + 1:02d}")
         scene_title = current_scene.get("title", "Unknown")
+        narration_key = current_scene.get("narration_key", scene_id)
 
         # Find the corresponding scene in the plan
         plan_scene = None
@@ -210,6 +211,7 @@ def compose_build_scenes_prompt(
     else:
         scene_id = f"scene_{current_index + 1:02d}"
         scene_title = "Unknown"
+        narration_key = scene_id
         scene_details = "N/A"
 
     retry_section = ""
@@ -230,6 +232,7 @@ Please fix the issue and generate a corrected version.
     user_prompt = f"""You are building scene files for this video:
 
 **Current Scene**: {scene_id} - {scene_title}
+**Narration Key**: {narration_key}
 
 **Scene Details from Plan**:
 ```json
@@ -246,7 +249,7 @@ Please fix the issue and generate a corrected version.
 Please generate the complete Python scene file for {scene_id} following the template exactly.
 
 Remember:
-1. Use the correct SCRIPT key: SCRIPT["{scene_id}"]
+1. Use the correct SCRIPT key: SCRIPT["{narration_key}"]
 2. Follow all positioning rules (title at UP * 3.8, safe_position after next_to, etc.)
 3. Keep timing budget ≤ 1.0
 4. Include all helper functions from the template
