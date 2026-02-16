@@ -22,3 +22,30 @@ MANDATORY: ALWAYS follow the scene examples syntax from `reference_docs/manim_te
 - NEVER enable optional alignment extras.
 - Mentally validate: does the code import manim correctly and run without NameError?
 - Layout contract: Title at UP * 3.8, subtitle directly below, graphs/diagrams moved DOWN * 0.6 to 1.2, no .to_edge(...) for titles/labels, safe_layout for 2+ siblings, safe_position after .next_to().
+
+SEMANTIC VALIDATION REQUIREMENTS:
+
+Your scene MUST pass these validation checks:
+
+1. **Non-empty construct() body**: The construct() method must contain substantive animation logic, not just `pass` or empty body. Include actual self.play(), self.wait(), and mobject creation.
+
+2. **Valid narration_text**: Must assign non-empty narration_text string with actual narration content. This is the voiceover text for the scene.
+
+3. **Proper timing flow**: Include self.wait() calls between animation sequences for pacing. Don't chain self.play() calls without timing.
+
+4. **No placeholder code**: Remove all TODO/FIXME comments from construct() body. Implement actual animations.
+
+5. **Valid animations**: Ensure all self.play() calls have valid animation arguments. No empty self.play().
+
+6. **Syntax correctness**: Code must parse without SyntaxError. Test mentally before finalizing.
+
+Common validation failures to avoid:
+- Empty construct() or only `pass`
+- Missing narration_text assignment
+- narration_text = "" (empty string)
+- No self.wait() calls (animations need timing)
+- self.play() with no arguments
+- TODO/FIXME placeholders in construct()
+- Syntax errors from incomplete edits
+
+Validation runs automatically after build. Fix issues proactively to avoid self-heal loop.
