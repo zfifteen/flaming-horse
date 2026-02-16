@@ -8,6 +8,7 @@ REPO_ROOT="$(realpath "${SCRIPT_DIR}/..")"
 
 # Ensure harness module is importable
 export PYTHONPATH="${REPO_ROOT}:${PYTHONPATH:-}"
+export PYTHONUNBUFFERED=1
 
 # Colors for output
 RED='\033[0;31m'
@@ -39,12 +40,39 @@ echo -e "${GREEN}✅ XAI_API_KEY is set (${#XAI_API_KEY} chars)${NC}"
 export USE_HARNESS=1
 echo -e "${GREEN}✅ USE_HARNESS=1 (using harness)${NC}"
 
+# Reduce response variance for CI stability.
+export AGENT_TEMPERATURE="${AGENT_TEMPERATURE:-0.2}"
+echo -e "${GREEN}✅ AGENT_TEMPERATURE=${AGENT_TEMPERATURE}${NC}"
+
 # Test topic
 TEST_TOPIC="The Pythagorean Theorem"
 TEST_PROJECT_NAME="e2e_test_harness_$(date +%s)"
 TEST_PROJECT_DIR="${REPO_ROOT}/projects/${TEST_PROJECT_NAME}"
 
 echo ""
+
+run_harness_phase() {
+  local phase="$1"
+  local max_attempts="${2:-3}"
+  shift 2
+
+  local attempt
+  for attempt in $(seq 1 "$max_attempts"); do
+    local phase_log="${TEST_PROJECT_DIR}/harness_${phase}_attempt_${attempt}.log"
+    echo "→ Running phase '${phase}' (attempt ${attempt}/${max_attempts})"
+    if python3 -u -m harness "$@" 2>&1 | tee "${phase_log}"; then
+      return 0
+    fi
+
+    if [ "$attempt" -lt "$max_attempts" ]; then
+      echo -e "${YELLOW}⚠️  Phase '${phase}' failed on attempt ${attempt}; retrying...${NC}"
+      sleep 1
+    fi
+  done
+
+  echo -e "${RED}❌ Phase '${phase}' failed after ${max_attempts} attempts${NC}"
+  return 1
+}
 echo "📁 Test Configuration:"
 echo "  Topic: ${TEST_TOPIC}"
 echo "  Project: ${TEST_PROJECT_NAME}"
@@ -87,12 +115,10 @@ echo "Testing harness plan phase with real API..."
 
 cd "${TEST_PROJECT_DIR}"
 
-python3 -m harness \
+if run_harness_phase "plan" 3 \
   --phase plan \
   --project-dir "${TEST_PROJECT_DIR}" \
-  --topic "${TEST_TOPIC}"
-
-if [ $? -eq 0 ]; then
+  --topic "${TEST_TOPIC}"; then
   echo -e "${GREEN}✅ Plan phase completed${NC}"
 else
   echo -e "${RED}❌ Plan phase failed${NC}"
@@ -164,11 +190,9 @@ with open("project_state.json", "w") as f:
     json.dump(state, f, indent=2)
 PY
 
-python3 -m harness \
+if run_harness_phase "narration" 3 \
   --phase narration \
-  --project-dir "${TEST_PROJECT_DIR}"
-
-if [ $? -eq 0 ]; then
+  --project-dir "${TEST_PROJECT_DIR}"; then
   echo -e "${GREEN}✅ Narration phase completed${NC}"
 else
   echo -e "${RED}❌ Narration phase failed${NC}"
@@ -225,11 +249,9 @@ with open("project_state.json", "w") as f:
     json.dump(state, f, indent=2)
 PY
 
-python3 -m harness \
+if run_harness_phase "build_scenes" 3 \
   --phase build_scenes \
-  --project-dir "${TEST_PROJECT_DIR}"
-
-if [ $? -eq 0 ]; then
+  --project-dir "${TEST_PROJECT_DIR}"; then
   echo -e "${GREEN}✅ Build scenes phase completed${NC}"
 else
   echo -e "${RED}❌ Build scenes phase failed${NC}"

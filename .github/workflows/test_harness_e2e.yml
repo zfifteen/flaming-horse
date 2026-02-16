@@ -56,6 +56,8 @@ jobs:
             projects/e2e_test_harness_*/narration_script.py
             projects/e2e_test_harness_*/scene_*.py
             projects/e2e_test_harness_*/project_state.json
+            projects/e2e_test_harness_*/debug_response_*.txt
+            projects/e2e_test_harness_*/harness_*.log
           retention-days: 7
       
       - name: Test summary
