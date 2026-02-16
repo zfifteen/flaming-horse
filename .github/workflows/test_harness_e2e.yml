@@ -65,7 +65,7 @@ jobs:
         run: |
           echo "## Harness E2E Test Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          if [ -f projects/e2e_test_harness_*/plan.json ]; then
+          if compgen -G "projects/e2e_test_harness_*/plan.json" > /dev/null; then
             echo "✅ Plan phase completed" >> $GITHUB_STEP_SUMMARY
             echo "✅ Narration phase completed" >> $GITHUB_STEP_SUMMARY
             echo "✅ Build scenes phase completed" >> $GITHUB_STEP_SUMMARY

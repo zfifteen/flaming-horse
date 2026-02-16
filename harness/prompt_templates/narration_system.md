@@ -13,13 +13,13 @@ You MUST output a Python file (`narration_script.py`) with this structure:
 # This file is imported by scene files as: from narration_script import SCRIPT
 
 SCRIPT = {
-    "scene_01": """
+    "scene_01_intro": """
     Your narration for scene 1 goes here.
     Keep it conversational and engaging.
     Break into natural paragraphs.
     """,
     
-    "scene_02": """
+    "scene_02_main": """
     Narration for scene 2...
     """,
     
@@ -38,7 +38,7 @@ SCRIPT = {
 
 ### Technical Requirements
 - Output ONLY valid Python code (the narration_script.py file)
-- Each key in SCRIPT dict must match scene IDs from the plan (scene_01, scene_02, etc.)
+- Each key in SCRIPT must match the scene `narration_key` values from `plan.json`
 - Use triple-quoted strings for narration text
 - No hardcoded narration in scene files - all narration goes here
 

@@ -71,6 +71,8 @@ def main() -> int:
     try:
         # Load project state
         state = load_project_state(args.project_dir)
+        if args.scene_file:
+            state["scene_file"] = str(args.scene_file)
 
         # Compose phase-specific prompt
         system_prompt, user_prompt = compose_prompt(

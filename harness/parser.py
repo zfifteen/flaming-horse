@@ -232,13 +232,12 @@ def parse_narration_response(response_text: str) -> Optional[str]:
     return code
 
 
-def parse_build_scenes_response(response_text: str, scene_id: str) -> Optional[str]:
+def parse_build_scenes_response(response_text: str) -> Optional[str]:
     """
     Parse build_scenes phase response to extract scene file.
 
     Args:
         response_text: Model response
-        scene_id: Expected scene ID
 
     Returns:
         Python code string or None if parsing failed
@@ -379,7 +378,7 @@ def parse_and_write_artifacts(
             scene_id = current_scene.get("id", f"scene_{current_index + 1:02d}")
             scene_file_name = current_scene.get("file", f"{scene_id}.py")
 
-            code = parse_build_scenes_response(response_text, scene_id)
+            code = parse_build_scenes_response(response_text)
             if not code:
                 print(f"❌ Failed to parse {scene_file_name} from response")
                 return False
@@ -432,20 +431,28 @@ def parse_and_write_artifacts(
                 print("❌ Failed to parse repaired scene from response")
                 return False
 
-            # The scene file path should be provided in the state or as a parameter
-            # For now, we'll need to determine it from the current scene index
-            scenes = state.get("scenes", [])
-            current_index = state.get("current_scene_index", 0)
+            scene_file = None
+            explicit_scene_file = state.get("scene_file")
+            if isinstance(explicit_scene_file, str) and explicit_scene_file:
+                explicit_path = Path(explicit_scene_file)
+                scene_file = (
+                    explicit_path
+                    if explicit_path.is_absolute()
+                    else project_dir / explicit_path
+                )
+            else:
+                scenes = state.get("scenes", [])
+                current_index = state.get("current_scene_index", 0)
 
-            if current_index >= len(scenes):
-                print("❌ No scene to repair")
-                return False
+                if current_index >= len(scenes):
+                    print("❌ No scene to repair")
+                    return False
 
-            current_scene = scenes[current_index]
-            scene_file_name = current_scene.get(
-                "file", f"scene_{current_index + 1:02d}.py"
-            )
-            scene_file = project_dir / scene_file_name
+                current_scene = scenes[current_index]
+                scene_file_name = current_scene.get(
+                    "file", f"scene_{current_index + 1:02d}.py"
+                )
+                scene_file = project_dir / scene_file_name
 
             scene_file.write_text(code)
             print(f"✅ Wrote repaired {scene_file}")

@@ -6,6 +6,9 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(realpath "${SCRIPT_DIR}/..")"
 
+cd "${REPO_ROOT}"
+export PYTHONPATH="${REPO_ROOT}:${PYTHONPATH:-}"
+
 echo "🧪 Harness Integration Test (Mock Mode)"
 echo "========================================"
 echo ""

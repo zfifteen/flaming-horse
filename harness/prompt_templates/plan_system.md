@@ -15,8 +15,9 @@ You MUST output a JSON object with this exact structure:
   "target_duration_seconds": 180,
   "scenes": [
     {
-      "id": "scene_01",
+      "id": "scene_01_intro",
       "title": "Scene title",
+      "narration_key": "scene_01_intro",
       "description": "What this scene covers",
       "estimated_duration_seconds": 30,
       "narrative_beats": ["Beat 1", "Beat 2"],
@@ -31,6 +32,8 @@ You MUST output a JSON object with this exact structure:
 - Create 4-8 scenes for a complete video
 - Each scene should be 20-45 seconds
 - Total duration should match target (typically 120-240 seconds)
+- Scene `id` must follow `scene_XX_slug` (e.g., `scene_01_intro`)
+- Include `narration_key` for every scene (typically same as `id`)
 - Narrative beats should be specific and actionable
 - Visual ideas should reference specific Manim elements (Text, Circle, Graph, MathTex, etc.)
 - For non-mathematical topics, prefer charts, graphs, and text-based visuals over geometric shapes

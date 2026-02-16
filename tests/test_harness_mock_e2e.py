@@ -21,13 +21,13 @@ from harness.parser import (
     parse_plan_response,
     parse_narration_response,
     parse_build_scenes_response,
-    parse_and_write_artifacts
+    parse_and_write_artifacts,
 )
 
 
 def create_mock_plan_response():
     """Create a mock response for the plan phase."""
-    return '''
+    return """
 Here is the video plan:
 
 ```json
@@ -71,7 +71,7 @@ Here is the video plan:
   ]
 }
 ```
-'''
+"""
 
 
 def create_mock_narration_response():
@@ -113,7 +113,7 @@ SCRIPT = {
 
 def create_mock_scene_response():
     """Create a mock response for the build_scenes phase."""
-    return '''
+    return """
 ```python
 from manim import *
 import numpy as np
@@ -161,21 +161,21 @@ class Scene01Introduction(VoiceoverScene):
             self.play(Create(triangle), run_time=tracker.duration * 0.3)
             self.wait(tracker.duration * 0.1)
 ```
-'''
+"""
 
 
 def test_plan_phase():
     """Test plan phase with mock response."""
     print("Testing plan phase...")
-    
+
     response = create_mock_plan_response()
     plan = parse_plan_response(response)
-    
+
     assert plan is not None, "Failed to parse plan"
     assert "title" in plan, "Plan missing title"
     assert "scenes" in plan, "Plan missing scenes"
     assert len(plan["scenes"]) == 4, f"Expected 4 scenes, got {len(plan['scenes'])}"
-    
+
     print("✅ Plan phase parsing works")
     return plan
 
@@ -183,20 +183,20 @@ def test_plan_phase():
 def test_narration_phase():
     """Test narration phase with mock response."""
     print("Testing narration phase...")
-    
+
     response = create_mock_narration_response()
     code = parse_narration_response(response)
-    
+
     assert code is not None, "Failed to parse narration"
     assert "SCRIPT = {" in code, "Narration missing SCRIPT dict"
-    assert 'scene_01' in code, "Narration missing scene_01"
-    
+    assert "scene_01" in code, "Narration missing scene_01"
+
     # Verify it's valid Python
     try:
-        compile(code, '<string>', 'exec')
+        compile(code, "<string>", "exec")
     except SyntaxError as e:
         raise AssertionError(f"Narration code has syntax error: {e}")
-    
+
     print("✅ Narration phase parsing works")
     return code
 
@@ -204,35 +204,35 @@ def test_narration_phase():
 def test_build_scenes_phase():
     """Test build_scenes phase with mock response."""
     print("Testing build_scenes phase...")
-    
+
     response = create_mock_scene_response()
-    code = parse_build_scenes_response(response, "scene_01")
-    
+    code = parse_build_scenes_response(response)
+
     assert code is not None, "Failed to parse scene"
     assert "from manim import" in code, "Scene missing manim import"
     assert "VoiceoverScene" in code, "Scene missing VoiceoverScene"
     assert "from narration_script import SCRIPT" in code, "Scene missing SCRIPT import"
-    
+
     # Verify it's valid Python
     try:
-        compile(code, '<string>', 'exec')
+        compile(code, "<string>", "exec")
     except SyntaxError as e:
         raise AssertionError(f"Scene code has syntax error: {e}")
-    
+
     print("✅ Build scenes phase parsing works")
     return code
 
 
 def test_full_pipeline():
     """Test full pipeline with mock responses."""
-    print("\n" + "="*50)
+    print("\n" + "=" * 50)
     print("Mock-based End-to-End Test")
-    print("="*50 + "\n")
-    
+    print("=" * 50 + "\n")
+
     # Create temporary project directory
     with tempfile.TemporaryDirectory() as tmpdir:
         project_dir = Path(tmpdir)
-        
+
         # Initialize project state
         state = {
             "project_name": "mock_test",
@@ -247,17 +247,17 @@ def test_full_pipeline():
             "current_scene_index": 0,
             "errors": [],
             "history": [],
-            "flags": {"needs_human_review": False, "dry_run": False}
+            "flags": {"needs_human_review": False, "dry_run": False},
         }
-        
+
         state_file = project_dir / "project_state.json"
         state_file.write_text(json.dumps(state, indent=2))
-        
+
         # Test plan phase
         plan = test_plan_phase()
         plan_file = project_dir / "plan.json"
         plan_file.write_text(json.dumps(plan, indent=2))
-        
+
         # Update state for narration
         state["phase"] = "narration"
         state["scenes"] = [
@@ -266,35 +266,35 @@ def test_full_pipeline():
                 "title": scene["title"],
                 "file": f"{scene['id']}.py",
                 "class_name": "",
-                "status": "pending"
+                "status": "pending",
             }
             for scene in plan["scenes"]
         ]
         state_file.write_text(json.dumps(state, indent=2))
-        
+
         # Test narration phase
         narration = test_narration_phase()
         narration_file = project_dir / "narration_script.py"
         narration_file.write_text(narration)
-        
+
         # Update state for build_scenes
         state["phase"] = "build_scenes"
         state["current_scene_index"] = 0
         state_file.write_text(json.dumps(state, indent=2))
-        
+
         # Test build_scenes phase
         scene_code = test_build_scenes_phase()
         scene_file = project_dir / "scene_01.py"
         scene_file.write_text(scene_code)
-        
+
         # Verify all files exist
         assert plan_file.exists(), "plan.json not created"
         assert narration_file.exists(), "narration_script.py not created"
         assert scene_file.exists(), "scene_01.py not created"
-        
-        print("\n" + "="*50)
+
+        print("\n" + "=" * 50)
         print("✅ All mock tests passed!")
-        print("="*50)
+        print("=" * 50)
         print("\nArtifacts created:")
         print(f"  - plan.json ({plan_file.stat().st_size} bytes)")
         print(f"  - narration_script.py ({narration_file.stat().st_size} bytes)")
@@ -315,5 +315,6 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"\n❌ Unexpected error: {e}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)

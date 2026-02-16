@@ -99,7 +99,8 @@ class SceneXXClassname(VoiceoverScene):
 
 ## Scene File Naming Convention
 
-- Scene ID `scene_01` → File `scene_01_intro.py` → Class `Scene01Intro`
-- Scene ID `scene_02` → File `scene_02_main.py` → Class `Scene02Main`
+- Scene ID `scene_01_intro` → File `scene_01_intro.py` → Class `Scene01Intro`
+- Scene ID `scene_02_main` → File `scene_02_main.py` → Class `Scene02Main`
 
-Use descriptive suffixes based on the scene's purpose (intro, main, conclusion, etc.)
+The filename should match the scene ID with a `.py` extension (`${scene_id}.py`).
+Include a descriptive slug in scene IDs based on the scene purpose (intro, main, conclusion, etc.).

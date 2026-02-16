@@ -109,7 +109,7 @@ python3 -m harness \
 - `XAI_API_KEY`: xAI API key for authentication
 
 ### Optional
-- `AGENT_MODEL`: Model to use (default: `xai/grok-4-1-fast`)
+- `AGENT_MODEL`: Model to use (default: `grok-code-fast-1`)
 - `USE_HARNESS`: Set to `1` to use harness, `0` for OpenCode (default: `1`)
 
 ## Exit Codes
