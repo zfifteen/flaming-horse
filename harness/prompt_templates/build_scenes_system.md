@@ -98,6 +98,7 @@ The template contains placeholder content that MUST be replaced:
 - Never substitute generic "agent" or template branding content.
 
 ### Positioning Contract
+- Ensure all text and animations are bounded within the video frame.
 - Title: `.move_to(UP * 3.8)` NEVER `.to_edge(UP)`
 - Subtitle: `.next_to(title, DOWN, buff=0.4)` then `safe_position(subtitle)`
 - Content: Offset downward (e.g., `.move_to(DOWN * 0.6)`)

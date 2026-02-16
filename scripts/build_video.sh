@@ -15,7 +15,6 @@ if [[ -f "${ENV_FILE}" ]]; then
 fi
 
 AGENT_MODEL="${AGENT_MODEL:-xai/grok-4-1-fast}"
-USE_HARNESS="${USE_HARNESS:-1}"  # 1=use new harness, 0=use OpenCode
 PROJECTS_BASE_DIR="${PROJECTS_BASE_DIR:-projects}"
 PROJECT_DEFAULT_NAME="${PROJECT_DEFAULT_NAME:-default_video}"
 MAX_RUNS="${MAX_RUNS:-50}"
@@ -93,7 +92,6 @@ STATE_BACKUP="${PROJECT_DIR}/.state_backup.json"
 LOCK_FILE="${PROJECT_DIR}/.build.lock"
 LOG_FILE="${PROJECT_DIR}/build.log"
 ERROR_LOG="${PROJECT_DIR}/errors.log"
-OPENCODE_SESSION_ID=""
 
 
 # Prompt templates (relative to script location)
@@ -242,43 +240,6 @@ normalize_state_json() {
     --project-dir "${PROJECT_DIR}" \
     --mode normalize \
     >/dev/null
-}
-
-extract_opencode_session_id() {
-  local output_file="$1"
-  python3 - "$output_file" <<'PY'
-import json
-import sys
-
-path = sys.argv[1]
-with open(path, "r", encoding="utf-8", errors="replace") as f:
-    for raw in f:
-        line = raw.strip()
-        if not line or not line.startswith("{"):
-            continue
-        try:
-            event = json.loads(line)
-        except Exception:
-            continue
-        session_id = event.get("sessionID")
-        if isinstance(session_id, str) and session_id.startswith("ses_"):
-            print(session_id)
-            break
-PY
-}
-
-capture_opencode_session_id_if_missing() {
-  local output_file="$1"
-  if [[ -n "${OPENCODE_SESSION_ID}" ]]; then
-    return 0
-  fi
-
-  local parsed_session_id
-  parsed_session_id="$(extract_opencode_session_id "$output_file")"
-  if [[ -n "$parsed_session_id" ]]; then
-    OPENCODE_SESSION_ID="$parsed_session_id"
-    echo "🔗 OpenCode session: ${OPENCODE_SESSION_ID}" | tee -a "$LOG_FILE"
-  fi
 }
 
 apply_state_phase() {
@@ -805,229 +766,38 @@ PY
   # Change to project directory for agent execution
   cd "$PROJECT_DIR"
 
-  local phase_specific_instruction=""
-  local build_target_scene_id=""
-  local build_target_scene_file=""
-  local build_target_scene_class=""
-  local build_target_narration_key=""
-  local -a build_scene_file_arg=()
-  local -a narration_file_arg=()
-  if [[ "$phase" == "narration" ]]; then
-    if [[ ! -f "$PHASE_NARRATION_TEMPLATE" ]]; then
-      echo "❌ Missing prompt template: $PHASE_NARRATION_TEMPLATE" | tee -a "$LOG_FILE" >&2
-      return 1
-    fi
-    phase_specific_instruction="$(cat "$PHASE_NARRATION_TEMPLATE")"
-    if [[ -f "plan.json" ]]; then
-      narration_file_arg=(--file "plan.json")
-    fi
-  fi
-
-  if [[ "$phase" == "build_scenes" ]]; then
-    if [[ ! -f "$PHASE_BUILD_SCENES_TEMPLATE" ]]; then
-      echo "❌ Missing prompt template: $PHASE_BUILD_SCENES_TEMPLATE" | tee -a "$LOG_FILE" >&2
-      return 1
-    fi
-
-    local build_scene_meta
-    build_scene_meta=$(python3 - <<PY
-import json
-import re
-
-def camel_from_scene_id(scene_id: str) -> str:
-    m_simple = re.match(r"^scene_(\d{2})$", scene_id)
-    if m_simple:
-        return f"Scene{m_simple.group(1)}"
-    m = re.match(r"^scene_(\d{2})_([a-z0-9_]+)$", scene_id)
-    if not m:
-        return ""
-    num = m.group(1)
-    slug = m.group(2)
-    parts = [p for p in slug.split("_") if p]
-    title = "".join(p.capitalize() for p in parts)
-    return f"Scene{num}{title}" if title else f"Scene{num}"
-
-state = json.load(open("${STATE_FILE}", "r"))
-idx = int(state.get("current_scene_index") or 0)
-scenes = state.get("scenes") or []
-if not isinstance(scenes, list) or idx >= len(scenes):
-    print("|||")
-    raise SystemExit(0)
-
-scene = scenes[idx] if isinstance(scenes[idx], dict) else {}
-scene_id = str(scene.get("id") or "")
-scene_file = f"{scene_id}.py" if scene_id else ""
-scene_class = str(scene.get("class_name") or "")
-if not scene_class:
-    scene_class = camel_from_scene_id(scene_id)
-narration_key = str(scene.get("narration_key") or scene_id)
-print(f"{scene_id}|{scene_file}|{scene_class}|{narration_key}")
-PY
-)
-    IFS='|' read -r build_target_scene_id build_target_scene_file build_target_scene_class build_target_narration_key <<< "$build_scene_meta"
-
-    local rendered_build_template=".agent_prompt_${phase}.build.md"
-    render_template_file \
-      "$PHASE_BUILD_SCENES_TEMPLATE" \
-      "$rendered_build_template" \
-      "TARGET_SCENE_ID=${build_target_scene_id}" \
-      "TARGET_SCENE_FILE=${build_target_scene_file}" \
-      "TARGET_SCENE_CLASS=${build_target_scene_class}" \
-      "TARGET_NARRATION_KEY=${build_target_narration_key}"
-    phase_specific_instruction="$(cat "$rendered_build_template")"
-    rm -f "$rendered_build_template"
-
-    if [[ -n "$build_target_scene_file" && -f "$build_target_scene_file" ]]; then
-      build_scene_file_arg=(--file "$build_target_scene_file")
-    fi
-  fi
-
   local retry_context_file
   retry_context_file="$(get_retry_context_file "$phase")"
-  local retry_context_notice=""
-  local -a retry_context_arg=()
+  
+  echo "Using Python harness (direct xAI API)" | tee -a "$LOG_FILE"
+
+  local -a harness_args=(
+    --phase "$phase"
+    --project-dir "$PROJECT_DIR"
+  )
+
+  if [[ -n "$topic" ]]; then
+    harness_args+=(--topic "$topic")
+  fi
+
   if [[ -s "$retry_context_file" ]]; then
-    retry_context_notice=$'RETRY CONTEXT:\n- A retry context file is attached. Read it first and fix the exact failure before any new changes.\n'
-    retry_context_arg=(--file "$retry_context_file")
+    local retry_context
+    retry_context="$(cat "$retry_context_file")"
+    harness_args+=(--retry-context "$retry_context")
   fi
-  
-  # Create a temporary prompt file
-  local prompt_file=".agent_prompt_${phase}.md"
-  if [[ ! -f "$PHASE_PROMPT_MAIN_TEMPLATE" ]]; then
-    echo "❌ Missing prompt template: $PHASE_PROMPT_MAIN_TEMPLATE" | tee -a "$LOG_FILE" >&2
+
+  python3 -m harness "${harness_args[@]}" \
+    > >(tee -a "$LOG_FILE") \
+    2> >(tee -a "$LOG_FILE" >&2)
+
+  local exit_code=$?
+
+  if [[ $exit_code -ne 0 ]]; then
+    echo "❌ Harness invocation failed with exit code: $exit_code" | tee -a "$LOG_FILE"
     return 1
   fi
-  if [[ ! -f "$PHASE_PROMPT_TEMPLATE" ]]; then
-    echo "❌ Missing prompt template: $PHASE_PROMPT_TEMPLATE" | tee -a "$LOG_FILE" >&2
-    return 1
-  fi
 
-  local rendered_phase_template=".agent_prompt_${phase}.instructions.md"
-  render_template_file \
-    "$PHASE_PROMPT_TEMPLATE" \
-    "$rendered_phase_template" \
-    "PHASE=${phase}" \
-    "SCAFFOLD_PATH=${SCRIPT_DIR}/scaffold_scene.py"
-  local phase_instructions
-  phase_instructions="$(cat "$rendered_phase_template")"
-  rm -f "$rendered_phase_template"
-
-  local files_list
-  files_list="$(ls -1 "$PROJECT_DIR" 2>/dev/null || echo "  (empty)")"
-
-  PHASE_PROMPT_MAIN_TEMPLATE_PATH="$PHASE_PROMPT_MAIN_TEMPLATE" \
-  PHASE="$phase" \
-  PROJECT_DIR="$PROJECT_DIR" \
-  REPO_ROOT_HINT="${SCRIPT_DIR}/.." \
-  SCAFFOLD_PATH="${SCRIPT_DIR}/scaffold_scene.py" \
-  FILES_LIST="$files_list" \
-  TOPIC="$topic" \
-  PHASE_INSTRUCTIONS="$phase_instructions" \
-  PHASE_SPECIFIC_REMINDER="$phase_specific_instruction" \
-  RETRY_CONTEXT_NOTICE="$retry_context_notice" \
-  python3 - <<'PY' > "$prompt_file"
-from pathlib import Path
-import os
-
-text = Path(os.environ["PHASE_PROMPT_MAIN_TEMPLATE_PATH"]).read_text(encoding="utf-8")
-for key in [
-    "PHASE",
-    "PROJECT_DIR",
-    "REPO_ROOT_HINT",
-    "SCAFFOLD_PATH",
-    "FILES_LIST",
-    "TOPIC",
-    "PHASE_INSTRUCTIONS",
-    "PHASE_SPECIFIC_REMINDER",
-    "RETRY_CONTEXT_NOTICE",
-]:
-    text = text.replace("{{" + key + "}}", os.environ.get(key, ""))
-print(text, end="")
-PY
-  
-  # Invoke agent - use harness or OpenCode based on USE_HARNESS env var
-  if [[ "${USE_HARNESS}" == "1" ]]; then
-    # NEW: Use Python harness for direct xAI API integration
-    echo "Using Python harness (direct xAI API)" | tee -a "$LOG_FILE"
-    
-    # Build harness arguments
-    local -a harness_args=(
-      --phase "$phase"
-      --project-dir "$PROJECT_DIR"
-    )
-    
-    # Add topic if provided (for plan phase)
-    if [[ -n "$topic" ]]; then
-      harness_args+=(--topic "$topic")
-    fi
-    
-    # Add retry context if available
-    if [[ -s "$retry_context_file" ]]; then
-      local retry_context
-      retry_context="$(cat "$retry_context_file")"
-      harness_args+=(--retry-context "$retry_context")
-    fi
-    
-    # For scene_repair phase, add scene file path
-    if [[ "$phase" == "scene_repair" && -n "$build_target_scene_file" && -f "$build_target_scene_file" ]]; then
-      harness_args+=(--scene-file "$build_target_scene_file")
-    fi
-    
-    # Invoke harness
-    python3 -m harness "${harness_args[@]}" \
-      > >(tee -a "$LOG_FILE") \
-      2> >(tee -a "$LOG_FILE" >&2)
-    
-    local exit_code=$?
-    
-    # Clean up prompt file
-    rm -f "$prompt_file"
-    
-    if [[ $exit_code -ne 0 ]]; then
-      echo "❌ Harness invocation failed with exit code: $exit_code" | tee -a "$LOG_FILE"
-      return 1
-    fi
-    
-    echo "[Run $run_num] Harness completed phase: $phase" | tee -a "$LOG_FILE"
-  else
-    # OLD: Use OpenCode (legacy path for gradual migration)
-    echo "Using OpenCode (legacy)" | tee -a "$LOG_FILE"
-    
-    local -a opencode_session_args=()
-    if [[ -n "${OPENCODE_SESSION_ID}" ]]; then
-      opencode_session_args=(--session "${OPENCODE_SESSION_ID}")
-    else
-      opencode_session_args=(--format json)
-    fi
-    local opencode_output_file
-    opencode_output_file="$(mktemp)"
-
-    opencode run --agent manim-ce-scripting-expert --model "${AGENT_MODEL}" \
-      "${opencode_session_args[@]}" \
-      --file "$prompt_file" \
-      --file "$STATE_FILE" \
-      "${narration_file_arg[@]}" \
-      "${build_scene_file_arg[@]}" \
-      "${retry_context_arg[@]}" \
-      -- \
-      "Read the first attached file (.agent_prompt_${phase}.md) which contains your complete instructions. Execute the ${phase} phase as described. The current project state is also attached." \
-      > >(tee -a "$LOG_FILE" | tee -a "$opencode_output_file") \
-      2> >(tee -a "$LOG_FILE" | tee -a "$opencode_output_file" >&2)
-    
-    # Clean up prompt file
-    rm -f "$prompt_file"
-    
-    local exit_code=${PIPESTATUS[0]}
-    capture_opencode_session_id_if_missing "$opencode_output_file"
-    rm -f "$opencode_output_file"
-    
-    if [[ $exit_code -ne 0 ]]; then
-      echo "❌ Agent invocation failed with exit code: $exit_code" | tee -a "$LOG_FILE"
-      return 1
-    fi
-    
-    echo "[Run $run_num] Agent completed phase: $phase" | tee -a "$LOG_FILE"
-  fi
+  echo "[Run $run_num] Harness completed phase: $phase" | tee -a "$LOG_FILE"
 }
 
 scene_python_syntax_ok() {
@@ -1275,88 +1045,25 @@ invoke_scene_fix_agent() {
 
   cd "$PROJECT_DIR"
 
-  local prompt_file=".agent_prompt_fix_${scene_id}.md"
-  if [[ ! -f "$SCENE_FIX_TEMPLATE" ]]; then
-    echo "❌ Missing prompt template: $SCENE_FIX_TEMPLATE" | tee -a "$LOG_FILE" >&2
-    return 1
-  fi
-  SCENE_FIX_TEMPLATE_PATH="$SCENE_FIX_TEMPLATE" \
-  SCENE_ID="$scene_id" \
-  SCENE_FILE="$scene_file" \
-  SCENE_CLASS="$scene_class" \
-  ATTEMPT="$attempt" \
-  PHASE_RETRY_LIMIT="$PHASE_RETRY_LIMIT" \
-  FAILURE_REASON="$failure_reason" \
-  python3 - <<'PY' > "$prompt_file"
-from pathlib import Path
-import os
+  echo "Using Python harness for scene repair" | tee -a "$LOG_FILE"
 
-text = Path(os.environ["SCENE_FIX_TEMPLATE_PATH"]).read_text(encoding="utf-8")
-for key in [
-    "SCENE_ID",
-    "SCENE_FILE",
-    "SCENE_CLASS",
-    "ATTEMPT",
-    "PHASE_RETRY_LIMIT",
-    "FAILURE_REASON",
-]:
-    text = text.replace("{{" + key + "}}", os.environ.get(key, ""))
-print(text, end="")
-PY
-
-  # Invoke agent for scene repair - use harness or OpenCode
-  if [[ "${USE_HARNESS}" == "1" ]]; then
-    # NEW: Use Python harness for direct xAI API integration
-    echo "Using Python harness for scene repair" | tee -a "$LOG_FILE"
-    
-    local error_excerpt
-    error_excerpt="$(extract_recent_error_excerpt "$scene_file")"
-    local retry_context="${failure_reason}
+  local error_excerpt
+  error_excerpt="$(extract_recent_error_excerpt "$scene_file")"
+  local retry_context="${failure_reason}
 
 Error details:
 ${error_excerpt}"
-    
-    # Invoke harness for scene_repair
-    python3 -m harness \
-      --phase scene_repair \
-      --project-dir "$PROJECT_DIR" \
-      --scene-file "$scene_file" \
-      --retry-context "$retry_context" \
-      > >(tee -a "$LOG_FILE") \
-      2> >(tee -a "$LOG_FILE" >&2)
-    
-    local exit_code=$?
-    rm -f "$prompt_file"
-    return $exit_code
-  else
-    # OLD: Use OpenCode (legacy path)
-    echo "Using OpenCode for scene repair (legacy)" | tee -a "$LOG_FILE"
-    
-    local -a opencode_session_args=()
-    if [[ -n "${OPENCODE_SESSION_ID}" ]]; then
-      opencode_session_args=(--session "${OPENCODE_SESSION_ID}")
-    else
-      opencode_session_args=(--format json)
-    fi
-    local opencode_output_file
-    opencode_output_file="$(mktemp)"
 
-    opencode run --agent manim-ce-scripting-expert --model "${AGENT_MODEL}" \
-      "${opencode_session_args[@]}" \
-      --file "$prompt_file" \
-      --file "$STATE_FILE" \
-      --file "$scene_file" \
-      -- \
-      "Repair ${scene_file} for final_render. Execute only that targeted fix." \
-      > >(tee -a "$LOG_FILE" | tee -a "$opencode_output_file") \
-      2> >(tee -a "$LOG_FILE" | tee -a "$opencode_output_file" >&2)
+  python3 -m harness \
+    --phase scene_repair \
+    --project-dir "$PROJECT_DIR" \
+    --scene-file "$scene_file" \
+    --retry-context "$retry_context" \
+    > >(tee -a "$LOG_FILE") \
+    2> >(tee -a "$LOG_FILE" >&2)
 
-    local exit_code=${PIPESTATUS[0]}
-    capture_opencode_session_id_if_missing "$opencode_output_file"
-    rm -f "$opencode_output_file"
-    rm -f "$prompt_file"
-    return $exit_code
-  fi
+  local exit_code=$?
+  return $exit_code
 }
 
 repair_scene_until_valid() {
@@ -1922,84 +1629,20 @@ PY
     "STATE_FILE=${STATE_FILE}" \
     "SCENE_FILES=${qc_scene_files}"
 
-  # Invoke agent for scene QC - use harness or OpenCode
-  if [[ "${USE_HARNESS}" == "1" ]]; then
-    # NEW: Use Python harness for direct xAI API integration
-    echo "Using Python harness for scene QC" | tee -a "$LOG_FILE"
-    
-    # Invoke harness for scene_qc
-    python3 -m harness \
-      --phase scene_qc \
-      --project-dir "$PROJECT_DIR" \
-      > >(tee -a "$LOG_FILE") \
-      2> >(tee -a "$LOG_FILE" >&2)
-    
-    local exit_code=$?
-    rm -f "$prompt_file"
-    
-    if [[ $exit_code -ne 0 ]]; then
-      echo "❌ Scene QC harness failed with exit code: $exit_code" | tee -a "$LOG_FILE"
-      return 1
-    fi
-  else
-    # OLD: Use OpenCode (legacy path)
-    echo "Using OpenCode for scene QC (legacy)" | tee -a "$LOG_FILE"
-    
-    local -a opencode_session_args=()
-    if [[ -n "${OPENCODE_SESSION_ID}" ]]; then
-      opencode_session_args=(--session "${OPENCODE_SESSION_ID}")
-    else
-      opencode_session_args=(--format json)
-    fi
-    local opencode_output_file
-    opencode_output_file="$(mktemp)"
+  echo "Using Python harness for scene QC" | tee -a "$LOG_FILE"
 
-    opencode run --agent manim-ce-scripting-expert --model "${AGENT_MODEL}" \
-      "${opencode_session_args[@]}" \
-      --file "$prompt_file" \
-      --file "$STATE_FILE" \
-      -- \
-      "Read .agent_prompt_scene_qc.md and execute the QC pass. Patch the scene files listed from project_state.json and write scene_qc_report.md." \
-      > >(tee -a "$LOG_FILE" | tee -a "$opencode_output_file") \
-      2> >(tee -a "$LOG_FILE" | tee -a "$opencode_output_file" >&2)
+  python3 -m harness \
+    --phase scene_qc \
+    --project-dir "$PROJECT_DIR" \
+    > >(tee -a "$LOG_FILE") \
+    2> >(tee -a "$LOG_FILE" >&2)
 
-    local exit_code=${PIPESTATUS[0]}
-    capture_opencode_session_id_if_missing "$opencode_output_file"
-    rm -f "$opencode_output_file"
-    if [[ $exit_code -ne 0 ]]; then
-      # Some environments do not expose the pinned xai model to opencode.
-      # Fallback to the user's default configured model for this QC pass.
-      if tail -n 120 "$LOG_FILE" | grep -q "ProviderModelNotFoundError"; then
-        echo "⚠ Requested model unavailable for scene_qc; retrying with default model..." | tee -a "$LOG_FILE"
-        local -a fallback_session_args=()
-        if [[ -n "${OPENCODE_SESSION_ID}" ]]; then
-          fallback_session_args=(--session "${OPENCODE_SESSION_ID}")
-        else
-          fallback_session_args=(--format json)
-        fi
-        local fallback_output_file
-        fallback_output_file="$(mktemp)"
+  local exit_code=$?
+  rm -f "$prompt_file"
 
-        opencode run --agent manim-ce-scripting-expert \
-          "${fallback_session_args[@]}" \
-          --file "$prompt_file" \
-          --file "$STATE_FILE" \
-          -- \
-          "Read .agent_prompt_scene_qc.md and execute the QC pass. Patch the scene files listed from project_state.json and write scene_qc_report.md." \
-          > >(tee -a "$LOG_FILE" | tee -a "$fallback_output_file") \
-          2> >(tee -a "$LOG_FILE" | tee -a "$fallback_output_file" >&2)
-        exit_code=${PIPESTATUS[0]}
-        capture_opencode_session_id_if_missing "$fallback_output_file"
-        rm -f "$fallback_output_file"
-      fi
-    fi
-
-    rm -f "$prompt_file"
-
-    if [[ $exit_code -ne 0 ]]; then
-      echo "❌ Scene QC agent failed with exit code: $exit_code" | tee -a "$LOG_FILE"
-      return 1
-    fi
+  if [[ $exit_code -ne 0 ]]; then
+    echo "❌ Scene QC harness failed with exit code: $exit_code" | tee -a "$LOG_FILE"
+    return 1
   fi
 
   if [[ ! -s "scene_qc_report.md" ]]; then

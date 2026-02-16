@@ -1,8 +1,7 @@
 """
 Prompt composer for the Flaming Horse agent harness.
 
-Assembles phase-specific prompts from modular documentation,
-reducing context window waste compared to OpenCode.
+Assembles phase-specific prompts from modular documentation.
 """
 
 import json

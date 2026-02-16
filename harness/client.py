@@ -1,8 +1,7 @@
 """
 xAI API client for the Flaming Horse agent harness.
 
-Provides direct integration with xAI's chat completions API,
-bypassing OpenCode's overhead.
+Provides direct integration with xAI's chat completions API.
 """
 
 import os

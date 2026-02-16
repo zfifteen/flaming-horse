@@ -165,7 +165,7 @@ An internal infrastructure error interrupted workflow.
 
 **Specific instances:**
 
-- **What's new? session**: The error "reasoning part reasoning-9aa9cae5-3e57-ae85-a34d-df6f85c905c6 not found" appeared during execution, requiring the user to say "try again." This appears to be an OpenCode/infrastructure issue rather than an agent logic error.[^2]
+- **What's new? session**: The error "reasoning part reasoning-9aa9cae5-3e57-ae85-a34d-df6f85c905c6 not found" appeared during execution, requiring the user to say "try again." This appears to be an infrastructure issue rather than an agent logic error.[^2]
 
 ***
 
@@ -222,4 +222,3 @@ The agent doesn't properly detect or set up the ElevenLabs API key, leading to s
 [^2]: http://127.0.0.1:52872/L1VzZXJzL3ZlbG9jaXR5d29ya3MvSWRlYVByb2plY3RzL2ZsYW1pbmctaG9yc2U/session/ses_3b22490efffePnaKpblQSTo6ea
 
 [^3]: http://127.0.0.1:52872/L1VzZXJzL3ZlbG9jaXR5d29ya3MvSWRlYVByb2plY3RzL2ZsYW1pbmctaG9yc2U/session/ses_3b4588956ffeOoP1ELVMYKhzme
-

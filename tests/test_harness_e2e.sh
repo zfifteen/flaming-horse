@@ -36,10 +36,6 @@ fi
 
 echo -e "${GREEN}✅ XAI_API_KEY is set (${#XAI_API_KEY} chars)${NC}"
 
-# Check USE_HARNESS
-export USE_HARNESS=1
-echo -e "${GREEN}✅ USE_HARNESS=1 (using harness)${NC}"
-
 # Reduce response variance for CI stability.
 export AGENT_TEMPERATURE="${AGENT_TEMPERATURE:-0.2}"
 echo -e "${GREEN}✅ AGENT_TEMPERATURE=${AGENT_TEMPERATURE}${NC}"

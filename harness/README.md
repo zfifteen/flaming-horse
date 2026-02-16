@@ -1,14 +1,14 @@
 # Flaming Horse Agent Harness
 
-A domain-specific agent execution environment that replaces OpenCode, giving the model the ability to write Manim code files while remaining under the orchestrator's deterministic control.
+A domain-specific agent execution environment that gives the model the ability to write Manim code files while remaining under the orchestrator's deterministic control.
 
 ## Overview
 
-The harness provides direct xAI API integration for the Flaming Horse video production pipeline, eliminating the context window waste and behavioral drift introduced by OpenCode's general-purpose agent wrapper.
+The harness provides direct xAI API integration for the Flaming Horse video production pipeline with phase-scoped prompts and deterministic orchestration.
 
 ### Key Benefits
 
-1. **Reduced Context Window Waste**: Eliminates 15-20K+ tokens of OpenCode overhead per invocation
+1. **Reduced Context Window Waste**: Removes large generic wrapper overhead per invocation
 2. **Phase-Specific Prompts**: Only includes documentation relevant to the current phase
 3. **Deterministic Control**: Orchestrator remains in bash, harness is just a tool
 4. **Direct API Access**: No intermediate layers between our prompts and the model
@@ -50,10 +50,9 @@ The harness consists of four core components:
 
 ### From Bash Orchestrator
 
-The harness is invoked by `build_video.sh` when `USE_HARNESS=1`:
+The harness is invoked directly by `build_video.sh`:
 
 ```bash
-export USE_HARNESS=1
 ./scripts/build_video.sh projects/my_video --topic "My Topic"
 ```
 
@@ -110,7 +109,6 @@ python3 -m harness \
 
 ### Optional
 - `AGENT_MODEL`: Model to use (default: `grok-code-fast-1`)
-- `USE_HARNESS`: Set to `1` to use harness, `0` for OpenCode (default: `1`)
 
 ## Exit Codes
 
@@ -155,23 +153,15 @@ The harness only:
 5. Writes artifacts to disk
 6. Exits with status code
 
-## Gradual Migration Strategy
+## Adoption Status
 
-The harness can coexist with OpenCode during migration:
-
-1. **Phase 1**: Test harness with `USE_HARNESS=1` on new projects
-2. **Phase 2**: Validate token reduction and output quality
-3. **Phase 3**: Enable harness by default (`USE_HARNESS=1`)
-4. **Phase 4**: Keep OpenCode as fallback for edge cases
-5. **Phase 5**: Remove OpenCode dependencies entirely
-
-Set `USE_HARNESS=0` to revert to OpenCode if needed.
+The harness is the single supported runner for phase execution.
 
 ## Token Reduction Examples
 
 Measured savings per phase (approximate):
 
-| Phase | OpenCode Overhead | Harness System Prompt | Reduction |
+| Phase | Prior Baseline | Harness System Prompt | Reduction |
 |---|---|---|---|
 | plan | ~45K tokens | ~19K tokens | **~58%** |
 | narration | ~45K tokens | ~20K tokens | **~56%** |

@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - copilot/replace-opencode-with-xai-api
+      - main
     paths:
       - 'harness/**'
       - 'tests/test_harness_e2e.sh'

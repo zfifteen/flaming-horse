@@ -52,13 +52,13 @@ env:
 After committing the workflow file, you can:
 
 **Option A: Automatic trigger**
-- Push to the branch `copilot/replace-opencode-with-xai-api`
+- Push to the branch `main`
 - The workflow will run automatically
 
 **Option B: Manual trigger**
 - Go to: `Actions` tab → `Harness End-to-End Test` workflow
 - Click "Run workflow"
-- Select branch: `copilot/replace-opencode-with-xai-api`
+- Select branch: `main`
 - Click "Run workflow"
 
 ### 3. For Local Testing
@@ -69,7 +69,6 @@ Create a `.env` file in the repo root (NOT committed to git):
 ```bash
 XAI_API_KEY=your_actual_xai_key_here
 AGENT_MODEL=xai/grok-4-1-fast
-USE_HARNESS=1
 ```
 
 Then run:

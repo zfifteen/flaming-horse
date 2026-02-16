@@ -20,7 +20,7 @@
   - Scenes: 5 scenes (valid count)
   - All required fields present (title, description, scenes, etc.)
   - Estimated duration: 180 seconds
-- **Token Efficiency**: ~5K tokens sent vs ~12.5K with OpenCode (60% reduction)
+- **Token Efficiency**: ~5K tokens sent vs ~12.5K with prior baseline (60% reduction)
 
 ### ✅ Narration Phase - PASSED  
 - **Status**: SUCCESS
@@ -32,7 +32,7 @@
   - All scenes have complete narration
   - Natural, engaging voiceover text
   - Proper timing and pacing
-- **Token Efficiency**: ~5K tokens sent vs ~12.5K with OpenCode (60% reduction)
+- **Token Efficiency**: ~5K tokens sent vs ~12.5K with prior baseline (60% reduction)
 
 ### ⚠️ Build Scenes Phase - PARTIALLY PASSED
 - **Status**: API call succeeded, code generation incomplete
@@ -77,7 +77,7 @@
 ## Token Usage Analysis
 
 ### Measured (Approximate)
-| Phase | System Prompt | User Prompt | Total Sent | OpenCode Equivalent | Savings |
+| Phase | System Prompt | User Prompt | Total Sent | Prior Baseline | Savings |
 |---|---|---|---|---|---|
 | Plan | ~5K tokens | ~120 tokens | ~5.1K | ~12.5K | 59% |
 | Narration | ~5K tokens | ~1K tokens | ~6K | ~12.5K | 52% |
@@ -87,7 +87,7 @@
 - Plan phase: Minimal user context needed (just topic)
 - Narration phase: Includes full plan in user prompt
 - Build scenes: Largest system prompt (includes template, config, helpers)
-- All phases show significant reduction vs OpenCode baseline
+- All phases show significant reduction vs prior baseline
 
 ## Production Readiness Assessment
 
@@ -105,7 +105,7 @@
 3. **Scene Repair**: Dedicated phase for fixing broken scenes
 4. **State Management**: Orchestrator tracks progress
 
-### 📊 Performance vs OpenCode
+### 📊 Performance vs Prior Baseline
 - **Token Efficiency**: 40-60% improvement ✅
 - **Output Quality**: Comparable (with validation)
 - **Speed**: Similar (API latency dominates)
@@ -133,7 +133,7 @@ From original issue, final check:
 1. ✅ Use harness for plan phase (perfect results)
 2. ✅ Use harness for narration phase (perfect results)
 3. ✅ Use harness for build_scenes with validation (as designed)
-4. ✅ Keep USE_HARNESS=1 as default
+4. ✅ Use `build_video.sh` as the default entry point
 
 ### For Future Enhancement
 1. Add temperature tuning per phase (lower for code generation)
@@ -154,4 +154,4 @@ All three phases tested successfully. The build_scenes phase had expected code g
 - ✅ Build scenes phase: API working, validation gates needed (as designed)
 - ✅ All acceptance criteria met
 
-**The harness successfully replaces OpenCode and is ready for production use.**
+**The harness is ready for production use.**
