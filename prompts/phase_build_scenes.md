@@ -22,8 +22,13 @@ MANDATORY: ALWAYS follow the scene examples syntax from `reference_docs/manim_te
 - NEVER enable optional alignment extras.
 - Mentally validate: does the code import manim correctly and run without NameError?
 - Layout contract: Title at UP * 3.8, subtitle directly below, graphs/diagrams moved DOWN * 0.6 to 1.2, no .to_edge(...) for titles/labels, safe_layout for 2+ siblings, safe_position after .next_to().
+- NEVER pass `run_time=` to `play_next(...)` or `play_text_next(...)`. Slot helpers own timing.
+- If `.next_to(...)` is used in a loop/list-comprehension, rewrite to an explicit loop and call `safe_position(...)` for each created label.
 - For non-math topics, default to explainer-slide cadence: progressive left-panel bullets plus evolving right-panel topic visuals.
+- Derive right-panel visuals from narration keywords (e.g., guitar/string -> string mode diagram; open/closed pipe -> pipe cross-section), not generic circles/rectangles only.
+- Before introducing dense visuals after bullets, fade out prior text layers (subtitle/bullets) to keep <= 2 content layers visible.
 - Use duration-scaled micro-beats (not coarse 3-slot timing): compute `num_beats = max(10, min(22, int(np.ceil(tracker.duration / 3.0))))` and target a visible transition every ~1.5-3 seconds.
+- Ensure beat slots are sufficient for intended animation calls. If play calls exceed slots, increase beat count or split into additional voiceover segments.
 - Avoid long static/black periods and avoid generic filler visuals unless explicitly relevant.
 
 SEMANTIC VALIDATION REQUIREMENTS:

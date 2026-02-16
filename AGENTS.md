@@ -7,13 +7,14 @@ This file references modular docs:
 - reference_docs/phase_narration.md: Script/timing rules
 - reference_docs/phase_scenes.md: Build/render guidelines
 - reference_docs/visual_helpers.md: Code snippets for aesthetics
+- reference_docs/topic_visual_patterns.md: Topic-to-visual mapping patterns
 - tests/README.md: Unit test instructions
 
 For full phase details, see the modular docs above.
 
-**Version:** 2.3  
+**Version:** 2.4  
 **Last Updated:** 2026-02-16  
-**Changes:** Root-cause-first troubleshooting policy; guardrails/validations treated as last-resort containment only.  
+**Changes:** Root-cause-first troubleshooting policy; guardrails/validations treated as last-resort containment only; tightened scene template timing/layout contracts.  
 **Purpose:** Instructions for automated agents building Manim voiceover videos
 
 ---
@@ -264,12 +265,13 @@ class Scene01Intro(VoiceoverScene):
         # Timing is deterministic via BeatPlan helper slots.
         
         with self.voiceover(text=SCRIPT["intro"]) as tracker:
-            beats = BeatPlan(tracker.duration, [1, 1, 1, 1, 1, 1, 1, 1, 1, 1])
+            num_beats = max(10, min(22, int(np.ceil(tracker.duration / 3.0))))
+            beats = BeatPlan(tracker.duration, [1] * num_beats)
 
             # Title (ALWAYS use UP * 3.8, NEVER .to_edge(UP)); Adaptive (New)
             title = Text("{{TITLE}}", font_size=48, weight=BOLD, color=blues[0])
             title = adaptive_title_position(title, None)  # No content yet
-            play_text_next(self, beats, Write(title, run_time=1.5))  # Cap at 1.5s (New)
+            play_text_next(self, beats, Write(title))  # Text helper caps at 1.5s
             
             # Subtitle with safe positioning
             subtitle = Text("{{SUBTITLE}}", font_size=32, color=blues[1])
@@ -290,6 +292,7 @@ class Scene01Intro(VoiceoverScene):
             play_text_next(self, beats, FadeIn(bullet_1))
             play_text_next(self, beats, FadeIn(bullet_2))
             play_text_next(self, beats, FadeIn(bullet_3))
+            play_next(self, beats, FadeOut(subtitle), FadeOut(bullet_1), FadeOut(bullet_2), FadeOut(bullet_3))
             play_next(self, beats, Create(diagram, rate_func=smooth))
             play_next(self, beats, FadeIn(callout), max_run_time=0.8)
             play_next(self, beats, FadeOut(callout), max_run_time=0.8)
@@ -350,6 +353,7 @@ See reference_docs/visual_helpers.md for more on enhanced helpers and aesthetics
 - ✅ Example: `0.4 + 0.3 + 0.3 = 1.0` ✓ Perfect sync
 - ✅ **ALWAYS** use scaffold timing helpers (`BeatPlan`, `play_next`, `play_text_next`) instead of raw `self.wait(...)`/`run_time` math
 - ❌ **NEVER** write expressions that can evaluate to zero/negative waits (e.g. `a - a`)
+- ❌ **NEVER** pass `run_time=` to `play_next(...)`/`play_text_next(...)`; slot helpers are the single timing source
 ### Sync Enhancements (New)
 - For Qwen caching: In scaffold, add precache check:
   ```python
@@ -392,6 +396,7 @@ with self.voiceover(text=SCRIPT["demo"]) as tracker:  # 10 seconds
 ### 8. Positioning and Overlap Prevention
 - ❌ **NEVER** place multiple elements at ORIGIN without explicit offsets
 - ❌ **NEVER** use `.next_to()` without immediately calling `safe_position()`
+- ❌ **NEVER** keep `.next_to(...)` inside list comprehensions/loops without explicit per-item `safe_position(...)`
 - ✅ **ALWAYS** call `safe_layout(*elements)` on any VGroup with 2+ sibling elements
 - ✅ **ALWAYS** use explicit coordinates: `element.move_to(UP * 2 + LEFT * 3)`
 
@@ -440,6 +445,7 @@ play_text_next(self, beats, FadeIn(key_point))
 ### Content Density Per Scene
 - ✅ For non-math topics, prefer high-information explainer slides over sparse minimal scenes
 - ✅ Use progressive bullet reveals plus evolving right-panel visuals
+- ✅ Derive right-panel visuals from narration keywords (see `reference_docs/topic_visual_patterns.md`)
 - ✅ If content is too dense for one block, split into multiple voiceover segments
 - ✅ Remove (FadeOut/Transform) previous elements before introducing new ones
 

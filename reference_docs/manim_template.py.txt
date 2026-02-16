@@ -13,6 +13,7 @@ Render with: manim <filename>.py YourSceneName
 
 from manim import *
 import numpy as np
+import colorsys
 
 # ── Voiceover Imports ──────────────────────────────────────────────
 from pathlib import Path
@@ -30,14 +31,14 @@ config.pixel_width = 2560
 
 
 # ── Safe Positioning Helpers ───────────────────────────────────────
-def safe_position(mobject, max_y=4.0, min_y=-4.0):
+def safe_position(mobject, max_y=3.8, min_y=-3.8, buff=0.2):
     """
     Clamp mobject to safe vertical zone to prevent clipping.
 
     Args:
         mobject: The Manim mobject to check and adjust
-        max_y: Maximum safe y-coordinate (default 4.0)
-        min_y: Minimum safe y-coordinate (default -4.0)
+        max_y: Maximum safe y-coordinate (default 3.8)
+        min_y: Minimum safe y-coordinate (default -3.8)
 
     Returns:
         The adjusted mobject (for chaining)
@@ -45,23 +46,23 @@ def safe_position(mobject, max_y=4.0, min_y=-4.0):
     top = mobject.get_top()[1]
     bottom = mobject.get_bottom()[1]
 
-    if top > max_y:
-        mobject.shift(DOWN * (top - max_y))
-    elif bottom < min_y:
-        mobject.shift(UP * (min_y - bottom))
+    if top > max_y - buff:
+        mobject.shift(DOWN * (top - (max_y - buff)))
+    if bottom < min_y + buff:
+        mobject.shift(UP * ((min_y + buff) - bottom))
 
     return mobject
 
 
-def safe_layout(*mobjects, min_horizontal_spacing=0.5, max_y=4.0, min_y=-4.0):
+def safe_layout(*mobjects, min_horizontal_spacing=0.5, max_y=3.8, min_y=-3.8):
     """
     Ensure multiple mobjects don't overlap and stay within safe bounds.
 
     Args:
         *mobjects: Variable number of mobjects to validate
         min_horizontal_spacing: Minimum x-axis gap between elements (default 0.5)
-        max_y: Maximum safe y-coordinate (default 4.0)
-        min_y: Minimum safe y-coordinate (default -4.0)
+        max_y: Maximum safe y-coordinate (default 3.8)
+        min_y: Minimum safe y-coordinate (default -3.8)
 
     Returns:
         List of adjusted mobjects
@@ -89,6 +90,40 @@ def safe_layout(*mobjects, min_horizontal_spacing=0.5, max_y=4.0, min_y=-4.0):
                 mob_b.shift(RIGHT * (overlap + min_horizontal_spacing))
 
     return list(mobjects)
+
+
+# ── Visual Helpers ────────────────────────────────────────────────
+def harmonious_color(base_color, variations=3, lightness_shift=0.1):
+    """Generate cohesive color variants from a base color."""
+    rgb = np.array(base_color.to_rgb())
+    h, l, s = colorsys.rgb_to_hls(*rgb)
+    palette = []
+    for i in range(variations):
+        h_shift = i * (360 / variations) / 360
+        new_h = (h + h_shift) % 1
+        new_l = min(1.0, max(0.0, l + lightness_shift * i))
+        new_r, new_g, new_b = colorsys.hls_to_rgb(new_h, new_l, s)
+        palette.append([new_r, new_g, new_b, 1.0])
+    return palette
+
+
+def polished_fade_in(mobject, lag_ratio=0.2, scale_factor=1.1, glow=False):
+    """Smooth reveal with optional glow and a quick scale pop."""
+    if glow:
+        mobject.set_stroke(width=3, opacity=0.5)
+    return LaggedStart(
+        FadeIn(mobject),
+        mobject.animate.scale(scale_factor).set_run_time(0.5).scale(1 / scale_factor),
+        lag_ratio=lag_ratio,
+    )
+
+
+def adaptive_title_position(title, content_group, max_shift=0.5):
+    """Shift title up slightly when content is tall."""
+    content_height = content_group.height if content_group else 0
+    shift_y = min(max_shift, max(0, content_height - 2.0))
+    title.move_to(UP * (3.8 + shift_y))
+    return title
 
 
 # ── Timing Helpers ────────────────────────────────────────────────
@@ -129,6 +164,9 @@ def play_in_slot(scene, slot, *animations, max_run_time=None, min_run_time=0.3, 
     """Play one beat slot and fill unused time with wait."""
     if not animations:
         return
+
+    if "run_time" in play_kwargs:
+        raise ValueError("Do not pass run_time to play_next/play_text_next; timing must come from BeatPlan slots.")
 
     slot = max(0.0, float(slot))
     if slot <= 0:
@@ -216,14 +254,15 @@ class YourSceneName(VoiceoverScene):  # Replace with your scene name
             beats = BeatPlan(tracker.duration, weights)
 
             # Title (ALWAYS use UP * 3.8, NEVER .to_edge(UP))
-            title = Text("{{TITLE}}", font_size=48, weight=BOLD)
-            title.move_to(UP * 3.8)
+            blues = harmonious_color(BLUE, variations=3)
+            title = Text("{{TITLE}}", font_size=48, weight=BOLD, color=blues[0])
+            title = adaptive_title_position(title, None)
             play_text_next(self, beats, Write(title))
 
-            subtitle = Text("{{SUBTITLE}}", font_size=32, color=BLUE)
+            subtitle = Text("{{SUBTITLE}}", font_size=32, color=blues[1])
             subtitle.next_to(title, DOWN, buff=0.4)
             safe_position(subtitle)
-            play_text_next(self, beats, FadeIn(subtitle))
+            play_text_next(self, beats, polished_fade_in(subtitle, lag_ratio=0.1))
 
             # Explainer-slide cadence: progressive bullets (left panel)
             bullet_1 = Text("{{KEY_POINT_1}}", font_size=28).move_to(LEFT * 4.8 + UP * 1.6)
@@ -242,18 +281,34 @@ class YourSceneName(VoiceoverScene):  # Replace with your scene name
             play_text_next(self, beats, FadeIn(bullet_1))
             play_text_next(self, beats, FadeIn(bullet_2))
             play_text_next(self, beats, FadeIn(bullet_3))
+
+            # REQUIRED cleanup before dense visuals.
+            play_next(self, beats, FadeOut(subtitle), FadeOut(bullet_1), FadeOut(bullet_2), FadeOut(bullet_3))
             play_next(self, beats, Create(panel, rate_func=smooth))
             play_next(self, beats, FadeIn(marker), FadeIn(marker_label))
             play_next(self, beats, marker.animate.shift(RIGHT * 1.2))
             play_next(self, beats, marker.animate.shift(LEFT * 2.0))
             play_next(self, beats, marker.animate.shift(RIGHT * 0.8))
 
-            callout = SurroundingRectangle(bullet_2, color=YELLOW, buff=0.12)
+            # Pattern: If you attach labels in a loop, always call safe_position in the loop.
+            node_left = Dot(LEFT * 0.8 + DOWN * 1.8, color=RED)
+            node_right = Dot(RIGHT * 0.8 + DOWN * 1.8, color=RED)
+            node_labels = []
+            for node in [node_left, node_right]:
+                label = Text("Node", font_size=20)
+                label.next_to(node, DOWN, buff=0.2)
+                safe_position(label)
+                node_labels.append(label)
+            safe_layout(node_left, node_right)
+            safe_layout(*node_labels)
+            play_next(self, beats, FadeIn(node_left), FadeIn(node_right))
+            play_text_next(self, beats, LaggedStart(*[FadeIn(label) for label in node_labels], lag_ratio=0.15))
+
+            callout = SurroundingRectangle(marker_label, color=YELLOW, buff=0.12)
             play_next(self, beats, FadeIn(callout), max_run_time=0.8)
             play_next(self, beats, FadeOut(callout), max_run_time=0.8)
 
-            play_next(self, beats, FadeOut(marker), FadeOut(marker_label), FadeOut(panel))
-            play_next(self, beats, FadeOut(bullet_1), FadeOut(bullet_2), FadeOut(bullet_3))
+            play_next(self, beats, FadeOut(marker), FadeOut(marker_label), FadeOut(panel), FadeOut(node_left), FadeOut(node_right), FadeOut(*node_labels))
 
 
 # ── Example: Multiple Elements Layout ──────────────────────────────
@@ -284,7 +339,7 @@ class SafePositioningExample(VoiceoverScene):
                 that won't overlap or clip at the edges."""
 
         with self.voiceover(text=narration) as tracker:
-            play_text_in_slot(self, Write(title), tracker.duration * 0.3)
+            play_text_in_slot(self, tracker.duration * 0.3, Write(title))
             self.play(
                 *[Write(elem) for elem in elements],
                 run_time=tracker.duration * 0.7
@@ -323,6 +378,6 @@ class SafePositioningExample(VoiceoverScene):
 # POSITION VALIDATION:
 #   - After any .next_to() call, use safe_position() to validate bounds
 #   - Check positions with .get_top()[1] and .get_bottom()[1]
-#   - Top edge should not exceed 4.0 (frame edge is at 5.0)
-#   - Bottom edge should not go below -4.0 (frame edge is at -5.0)
+#   - Top edge should not exceed 3.8 with buff=0.2 (frame edge is at 5.0)
+#   - Bottom edge should not go below -3.8 with buff=0.2 (frame edge is at -5.0)
 # ============================================================================

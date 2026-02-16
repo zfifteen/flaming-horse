@@ -19,6 +19,8 @@
    - Use the full narration duration with staged visual beats; avoid long tail idle waits.
    - Prefer duration-scaled micro-beats per scene: `num_beats = max(10, min(22, int(np.ceil(tracker.duration / 3.0))))`.
    - Fixed 8-12 beats is only acceptable for short scenes; longer narration must use proportionally more beats.
+   - Beat slot count must be sufficient for animation call count; if slots are exhausted, increase beat count or split into multiple voiceover blocks.
+   - Never pass `run_time=` into `play_next(...)` or `play_text_next(...)`; slot helpers are the timing source.
    - If deviation >10% in dry-run, rebalance beat slots and flag in state.
 4. Keep the generated boilerplate structure unchanged unless absolutely necessary
 5. Update scene status to `'built'` AND persist required render metadata into state:
@@ -40,9 +42,11 @@ Update state: `scene['validation_passed'] = True` only if all checks pass.
 - Subtitle must be `.next_to(title, DOWN, buff=0.4)` and then `safe_position(subtitle)`.
 - Graphs/diagrams must be offset downward (e.g., `DOWN * 0.6` to `DOWN * 1.2`) to avoid title overlap.
 - Labels must attach to nearby elements (e.g., `label.next_to(curve.get_end(), UP, buff=0.2)`), then `safe_position(label)`.
+- Do not use `.next_to(...)` inside list comprehensions unless each element is subsequently passed through `safe_position(...)` explicitly.
 - After positioning, run `safe_layout(...)` for any group of 2+ elements.
 - ❌ NEVER use `.to_edge(...)` for titles or labels (causes clipping/edge drift).
 - For non-math topics, default to explainer-slide layout: left-panel progressive bullets + right-panel evolving topic visual.
+- Derive right-panel visuals from narration keywords; use `reference_docs/topic_visual_patterns.md` patterns.
 - Ensure a visible transition every ~1.5-3 seconds; avoid static black intervals.
 
 ---

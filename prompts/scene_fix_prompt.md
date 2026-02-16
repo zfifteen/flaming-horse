@@ -48,6 +48,9 @@ INSTRUCTIONS:
 9. Verify `self.voiceover(...)` uses the scene's actual narration key from `project_state.json` (never hardcode/guess keys)
 10. Rebalance BeatPlan weights/count so visual state changes continue throughout the narration (no late-only clustering)
 11. If failure indicates low visual quality or under-animation, perform a substantial in-slot rewrite (still preserving narration intent)
+12. Never pass `run_time=` to `play_next(...)`/`play_text_next(...)`; timing must come from beat slots.
+13. If `.next_to(...)` appears in a loop/list-comprehension, rewrite to an explicit loop and call `safe_position(...)` for each element.
+14. Before introducing dense visuals after bullets/text, fade out older section content to maintain <=2 simultaneous content layers.
 
 SELF-HEAL OPTIMIZATION:
 This is attempt {{ATTEMPT}} of {{PHASE_RETRY_LIMIT}}. The self-heal loop will:
