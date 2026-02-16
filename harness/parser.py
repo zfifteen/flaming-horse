@@ -64,7 +64,8 @@ def extract_python_code_blocks(text: str) -> List[Tuple[str, str]]:
         List of (filename_hint, code) tuples
     """
     # Pattern for code blocks with optional filename hints
-    pattern = r'```python\s*(?:#\s*(.+?\.py))?\s*\n(.*?)```'
+    # More flexible - allows optional whitespace and newline
+    pattern = r'```python\s*(?:#\s*(.+?\.py)\s*)?(.*?)```'
     matches = re.findall(pattern, text, re.DOTALL | re.IGNORECASE)
     
     results = []
