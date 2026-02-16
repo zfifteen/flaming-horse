@@ -1,0 +1,19 @@
+{
+  "project_name": "e2e_test_harness_1771206108",
+  "topic": "The Pythagorean Theorem",
+  "phase": "plan",
+  "created_at": "2026-02-16T01:41:48Z",
+  "updated_at": "2026-02-16T01:41:48Z",
+  "run_count": 0,
+  "plan_file": "plan.json",
+  "narration_file": "narration_script.py",
+  "voice_config_file": null,
+  "scenes": [],
+  "current_scene_index": 0,
+  "errors": [],
+  "history": [],
+  "flags": {
+    "needs_human_review": false,
+    "dry_run": false
+  }
+}

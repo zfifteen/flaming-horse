@@ -1,0 +1,87 @@
+{
+  "title": "Unlocking the Pythagorean Theorem",
+  "description": "An educational video explaining the Pythagorean Theorem, from its historical origins to visual proofs and real-world applications, using animated diagrams and step-by-step demonstrations.",
+  "target_duration_seconds": 180,
+  "scenes": [
+    {
+      "id": "scene_01",
+      "title": "Introduction to Pythagoras and the Theorem",
+      "description": "Introduce Pythagoras, the ancient Greek mathematician, and state the theorem clearly.",
+      "estimated_duration_seconds": 30,
+      "narrative_beats": [
+        "Who was Pythagoras and his contributions to mathematics.",
+        "State the theorem: In a right triangle, the square of the hypotenuse equals the sum of the squares of the other two sides.",
+        "Explain key terms: right triangle, hypotenuse, legs."
+      ],
+      "visual_ideas": [
+        "Display a timeline showing Pythagoras' era with Text labels.",
+        "Show a right triangle with labeled sides using Triangle and Text.",
+        "Animate the appearance of the equation: MathTex(r\"a^2 + b^2 = c^2\")."
+      ]
+    },
+    {
+      "id": "scene_02",
+      "title": "Visual Proof with Squares",
+      "description": "Demonstrate the theorem visually by constructing squares on each side of a right triangle.",
+      "estimated_duration_seconds": 40,
+      "narrative_beats": [
+        "Draw a right triangle and build squares on each side.",
+        "Rearrange the squares from the legs to fit into the hypotenuse square.",
+        "Show how the areas match, proving the theorem."
+      ],
+      "visual_ideas": [
+        "Create a right triangle with Square objects on each side.",
+        "Use FadeIn and Transform animations to rearrange the smaller squares.",
+        "Highlight area equivalence with color changes and Text overlays."
+      ]
+    },
+    {
+      "id": "scene_03",
+      "title": "Step-by-Step Calculation Example",
+      "description": "Work through a numerical example to calculate the hypotenuse using the theorem.",
+      "estimated_duration_seconds": 35,
+      "narrative_beats": [
+        "Present a sample right triangle with given leg lengths.",
+        "Apply the formula step by step: substitute values, calculate squares, sum them.",
+        "Verify the result by squaring the hypotenuse."
+      ],
+      "visual_ideas": [
+        "Show a Triangle with labeled lengths (e.g., a=3, b=4).",
+        "Display MathTex equations progressively: MathTex(r\"3^2 + 4^2 = 9 + 16 = 25\"), then MathTex(r\"5^2 = 25\").",
+        "Animate the calculation steps with Write animations."
+      ]
+    },
+    {
+      "id": "scene_04",
+      "title": "Real-World Applications",
+      "description": "Explore practical uses of the Pythagorean Theorem in everyday life and fields like engineering.",
+      "estimated_duration_seconds": 35,
+      "narrative_beats": [
+        "Discuss distance calculation in navigation or construction.",
+        "Show an example: finding the distance between two points.",
+        "Highlight its role in architecture, such as roof design."
+      ],
+      "visual_ideas": [
+        "Illustrate a coordinate plane with points and a right triangle using Graph and Line.",
+        "Demonstrate a ladder against a wall scenario with Triangle and measurements.",
+        "Use Text and icons for applications like maps or buildings."
+      ]
+    },
+    {
+      "id": "scene_05",
+      "title": "Conclusion and Extensions",
+      "description": "Summarize the theorem's importance and mention related concepts like the Pythagorean triples.",
+      "estimated_duration_seconds": 30,
+      "narrative_beats": [
+        "Recap the theorem and its proof.",
+        "Introduce Pythagorean triples as special integer solutions.",
+        "Encourage further exploration of geometry."
+      ],
+      "visual_ideas": [
+        "Fade in a summary Text with the theorem equation.",
+        "Show a table of triples using Tex for formatting.",
+        "End with a geometric pattern or spiral related to Pythagoras."
+      ]
+    }
+  ]
+}

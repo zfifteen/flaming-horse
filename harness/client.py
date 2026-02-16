@@ -21,13 +21,13 @@ class XAIClient:
         
         Args:
             api_key: xAI API key (defaults to XAI_API_KEY env var)
-            model: Model to use (defaults to AGENT_MODEL env var or grok-2-1212)
+            model: Model to use (defaults to AGENT_MODEL env var or grok-code-fast-1)
         """
         self.api_key = api_key or os.getenv("XAI_API_KEY")
         if not self.api_key:
             raise ValueError("XAI_API_KEY environment variable not set")
         
-        self.model = model or os.getenv("AGENT_MODEL", "grok-2-1212")
+        self.model = model or os.getenv("AGENT_MODEL", "grok-code-fast-1")
         self.base_url = "https://api.x.ai/v1"
         self.max_retries = 3
         self.retry_delay = 2.0
