@@ -220,14 +220,14 @@ Generate:
 For current scene (tracked by `current_scene_index`):
 
 - Generate `scene_XX_name.py` using VoiceoverScene + template config
-- Test render with gTTS (`MANIM_VOICE_PROD` unset)
+- Render with cached Qwen voice (precached audio required)
 - If successful: mark scene `status: built`, increment index, stay in `build_scenes`
 - If all scenes built: advance to `final_render`
 
 
 ### Phase: `final_render`
 
-Re-render all scenes with `MANIM_VOICE_PROD=1` (cached Qwen voice)
+Re-render all scenes at production quality with `MANIM_VOICE_PROD=1` (cached Qwen voice, higher resolution/framerate)
 
 ### Phase: `assemble`
 
