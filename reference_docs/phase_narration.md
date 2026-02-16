@@ -26,6 +26,15 @@ SCRIPT = {
 
 **Output 2:** None (cached Qwen configuration lives in `voice_clone_config.json`)
 
+## Voice Cache Optimization
+
+After generating `narration_script.py`, the precache step:
+1. Computes SHA256 hash of narration_script.py
+2. Compares to `.cache_hash` file in project
+3. Skips regeneration if hash matches (saves 2-5 minutes)
+
+**Agent action:** None required. Orchestrator handles cache validation automatically.
+
 **State Update:**
 ```python
 state['narration_file'] = 'narration_script.py'
