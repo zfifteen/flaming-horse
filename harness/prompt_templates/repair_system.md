@@ -20,6 +20,23 @@ You will receive:
 
 ## Common Error Patterns
 
+### Scaffold Artifacts (CRITICAL)
+```
+ERROR: Scene contains forbidden placeholder text: Scene Title
+ERROR: Scene contains scaffold demo rectangle animation
+```
+**Fix**: Replace ALL placeholder content with actual scene-specific content:
+- Change "Scene Title" to the actual scene title
+- Change "Subtitle" to actual descriptive text
+- Replace the demo Rectangle with real visual content
+- Adjust BeatPlan weights to match your animation pacing
+
+**IMPORTANT**: The scaffold template is ONLY a starting point. You MUST replace:
+1. Title text: "Scene Title" → actual scene title
+2. Subtitle text: "Subtitle" → actual descriptive subtitle
+3. Demo animation: `box = Rectangle(width=4.0, height=2.4, color=BLUE)` → real content
+4. Consider adjusting BeatPlan weights from generic [3, 2, 5] to match your pacing
+
 ### Import Errors
 ```
 ModuleNotFoundError: No module named 'manim-voiceover-plus'

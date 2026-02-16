@@ -614,6 +614,44 @@ validate_voiceover_sync() {
   return 0
 }
 
+validate_scene_semantics() {
+  local scene_file="$1"
+  
+  echo "→ Validating semantic quality in ${scene_file}..." | tee -a "$LOG_FILE"
+  
+  # Define forbidden placeholder literals that indicate scaffold code wasn't replaced
+  local forbidden_literals=(
+    "Scene Title"
+    "Subtitle"
+  )
+  
+  # Check for placeholder text
+  for literal in "${forbidden_literals[@]}"; do
+    if grep -F "\"$literal\"" "$scene_file" >/dev/null 2>&1; then
+      echo "✗ ERROR: Scene contains forbidden placeholder text: $literal" | tee -a "$LOG_FILE"
+      echo "This indicates the scaffold template was not properly replaced with actual content." | tee -a "$LOG_FILE"
+      return 1
+    fi
+  done
+  
+  # Check for scaffold demo rectangle animation (exact pattern from template)
+  if grep -Eq "box[[:space:]]*=[[:space:]]*Rectangle\([[:space:]]*width[[:space:]]*=[[:space:]]*4(\.0)?,[[:space:]]*height[[:space:]]*=[[:space:]]*2\.4" "$scene_file"; then
+    echo "✗ ERROR: Scene contains scaffold demo rectangle animation" | tee -a "$LOG_FILE"
+    echo "The demo Rectangle from the template must be replaced with actual visual content." | tee -a "$LOG_FILE"
+    return 1
+  fi
+  
+  # Check for generic BeatPlan weights [3, 2, 5] from scaffold
+  if grep -Eq "BeatPlan\(tracker\.duration,[[:space:]]*\[3,[[:space:]]*2,[[:space:]]*5\]" "$scene_file"; then
+    echo "⚠ WARNING: Scene uses generic BeatPlan weights [3, 2, 5] from scaffold" | tee -a "$LOG_FILE"
+    echo "Consider adjusting weights to match the actual visual pacing." | tee -a "$LOG_FILE"
+    # Don't fail - this is just a warning
+  fi
+  
+  echo "✓ Semantic quality validation passed" | tee -a "$LOG_FILE"
+  return 0
+}
+
 validate_scene_runtime() {
   local scene_file="$1"
   local scene_class="$2"
@@ -1317,6 +1355,7 @@ repair_scene_until_valid() {
     if validate_scene_template_structure "$scene_file" && \
        validate_scene_imports "$scene_file" && \
        validate_voiceover_sync "$scene_file" && \
+       validate_scene_semantics "$scene_file" && \
        validate_scene_runtime "$scene_file" "$scene_class"; then
       echo "✓ Self-heal reset produced a valid scene file: ${scene_file}" | tee -a "$LOG_FILE"
       return 0
@@ -1344,6 +1383,11 @@ repair_scene_until_valid() {
 
     if ! validate_voiceover_sync "$scene_file"; then
       reason="Scene failed voiceover sync validation after repair."
+      continue
+    fi
+    
+    if ! validate_scene_semantics "$scene_file"; then
+      reason="Scene failed semantic quality validation after repair."
       continue
     fi
 
@@ -1721,11 +1765,7 @@ PY
   local new_scene="$scene_file"
   echo "→ Target scene file: $new_scene" | tee -a "$LOG_FILE"
 
-  if ! ensure_qwen_cache_index; then
-    echo "✗ Cannot runtime-validate scenes without cached voice data" | tee -a "$LOG_FILE" >&2
-    return 1
-  fi
-
+  # VALIDATION GATE 0: Check template structure first (before TTS cache)
   if ! validate_scene_template_structure "$new_scene"; then
     echo "✗ Template structure validation failed for $new_scene. Attempting self-heal..." | tee -a "$LOG_FILE"
     local template_reason
@@ -1749,6 +1789,12 @@ PY
     fi
   fi
 
+  # Generate TTS cache AFTER basic validations pass (optimization)
+  if ! ensure_qwen_cache_index; then
+    echo "✗ Cannot runtime-validate scenes without cached voice data" | tee -a "$LOG_FILE" >&2
+    return 1
+  fi
+
   # VALIDATION GATE 1: Check imports
   if ! validate_scene_imports "$new_scene"; then
     echo "✗ Import validation failed for $new_scene. Attempting self-heal..." | tee -a "$LOG_FILE"
@@ -1767,6 +1813,17 @@ PY
     sync_reason=$(extract_recent_error_excerpt "$new_scene")
     if ! repair_scene_until_valid "$scene_id" "$new_scene" "$scene_class" "$sync_reason"; then
       echo "✗ Self-heal failed after sync error in $new_scene" | tee -a "$LOG_FILE" >&2
+      return 1
+    fi
+  fi
+  
+  # VALIDATION GATE 3: Check semantic quality (no scaffold artifacts)
+  if ! validate_scene_semantics "$new_scene"; then
+    echo "✗ Semantic quality validation failed for $new_scene. Attempting self-heal..." | tee -a "$LOG_FILE"
+    local semantic_reason
+    semantic_reason=$(extract_recent_error_excerpt "$new_scene")
+    if ! repair_scene_until_valid "$scene_id" "$new_scene" "$scene_class" "$semantic_reason"; then
+      echo "✗ Self-heal failed after semantic validation error in $new_scene" | tee -a "$LOG_FILE" >&2
       return 1
     fi
   fi
