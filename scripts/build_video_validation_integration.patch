@@ -1,0 +1,103 @@
+# Patch to integrate semantic validation into build_video.sh
+# This documents the changes needed in the scene_qc phase section
+
+# Add near the top of build_video.sh, after other configuration variables (around line 30):
+
+# Scene QC configuration
+SCENE_QC_MAX_ATTEMPTS="${SCENE_QC_MAX_ATTEMPTS:-15}"
+SCENE_QC_BACKOFF_BASE="${SCENE_QC_BACKOFF_BASE:-2}"
+export SCENE_QC_MAX_ATTEMPTS
+export SCENE_QC_BACKOFF_BASE
+
+# Source validation helpers (add after prompt templates definition, around line 110):
+
+# Validation helpers
+SCENE_VALIDATION_HELPERS="${SCRIPT_DIR}/scene_validation.sh"
+if [[ -f "${SCENE_VALIDATION_HELPERS}" ]]; then
+  # shellcheck disable=SC1090
+  source "${SCENE_VALIDATION_HELPERS}"
+else
+  echo "⚠️  Warning: scene_validation.sh not found, semantic validation disabled" >&2
+fi
+
+# In the scene_qc phase handling (search for 'scene_qc)' case statement):
+# Replace the existing scene_qc phase logic with:
+
+  scene_qc)
+    echo "🔍 Phase: scene_qc - Validating scene rendering" | tee -a "$LOG_FILE"
+
+    # First, validate scene_files consistency
+    if command -v validate_scene_files_consistency >/dev/null 2>&1; then
+      if ! validate_scene_files_consistency "$PROJECT_DIR"; then
+        echo "⚠️  scene_files consistency check failed, but continuing..." | tee -a "$LOG_FILE"
+      fi
+    fi
+
+    # Get current scene index from state
+    CURRENT_SCENE_INDEX=$(python3 -c "import json; print(json.load(open('${STATE_FILE}'))['current_scene_index'])")
+    SCENE_FILE="${PROJECT_DIR}/scenes/scene_${CURRENT_SCENE_INDEX}.py"
+    SCENE_CLASS="Scene${CURRENT_SCENE_INDEX}"
+
+    echo "Validating scene ${CURRENT_SCENE_INDEX}..." | tee -a "$LOG_FILE"
+
+    # Run semantic validation if available
+    SEMANTIC_VALIDATION_PASSED=false
+    if command -v validate_scene_semantics >/dev/null 2>&1; then
+      if validate_scene_semantics "$PROJECT_DIR" "$CURRENT_SCENE_INDEX"; then
+        echo "✅ Semantic validation passed" | tee -a "$LOG_FILE"
+        SEMANTIC_VALIDATION_PASSED=true
+      else
+        echo "❌ Semantic validation failed" | tee -a "$LOG_FILE"
+        # Attempt self-heal with optimization
+        if command -v self_heal_scene_with_optimization >/dev/null 2>&1; then
+          echo "🔄 Attempting optimized self-heal..." | tee -a "$LOG_FILE"
+          if self_heal_scene_with_optimization "$PROJECT_DIR" "$CURRENT_SCENE_INDEX"; then
+            echo "✅ Scene healed successfully" | tee -a "$LOG_FILE"
+            SEMANTIC_VALIDATION_PASSED=true
+          else
+            echo "❌ Self-heal failed after max attempts" | tee -a "$LOG_FILE"
+          fi
+        fi
+      fi
+    else
+      echo "⚠️  Semantic validation not available" | tee -a "$LOG_FILE"
+      SEMANTIC_VALIDATION_PASSED=true  # Skip if not available
+    fi
+
+    # Only proceed to render test if semantic validation passed
+    if [[ "$SEMANTIC_VALIDATION_PASSED" == "true" ]]; then
+      # Existing render validation logic...
+      # (keep the existing manim render test code here)
+      echo "🎬 Testing scene render..." | tee -a "$LOG_FILE"
+      
+      # Render test logic continues as before
+      # ...
+    else
+      echo "❌ Cannot proceed to render test - semantic validation failed" | tee -a "$LOG_FILE"
+      # Record error and transition to error or retry phase
+      python3 "${SCRIPT_DIR}/update_project_state.py" \
+        --project-dir "${PROJECT_DIR}" \
+        --mode error \
+        --message "Scene ${CURRENT_SCENE_INDEX} failed semantic validation" \
+        >/dev/null
+      exit 1
+    fi
+    ;;
+
+# Documentation of semantic validation checks performed:
+#
+# 1. Syntax validation: Ensures Python syntax is valid
+# 2. narration_text presence: Checks for non-empty narration_text assignment
+# 3. construct() validation: Ensures construct() method exists with substantive body
+# 4. Import validation: Verifies required Manim imports are present
+# 5. Scene class validation: Confirms proper Scene class definition
+# 6. Animation validation: Detects empty self.play() calls
+# 7. Timing validation: Checks for self.wait() calls after animations
+# 8. Placeholder detection: Identifies TODO/FIXME comments in construct()
+#
+# Self-heal optimization features:
+# - Early termination when no changes detected between attempts
+# - Exponential backoff with configurable base (default 2 seconds)
+# - Maximum attempt limit configurable via SCENE_QC_MAX_ATTEMPTS
+# - SHA256 hash tracking to detect convergence
+# - Detailed logging of validation failures and repair attempts
