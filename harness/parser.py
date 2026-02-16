@@ -5,6 +5,7 @@ Extracts artifacts from model responses and writes them to disk.
 """
 
 import json
+import ast
 import re
 from pathlib import Path
 from typing import Dict, Any, Optional, List, Tuple
@@ -21,21 +22,29 @@ def extract_json_block(text: str) -> Optional[str]:
     Returns:
         JSON string or None if not found
     """
-    # First, try to find JSON in code blocks
-    code_block_pattern = r"```(?:json)?\s*\n(.*?)\n```"
+    decoder = json.JSONDecoder()
+
+    # First, try to find JSON in fenced code blocks.
+    # Allow optional language and tolerate extra prose around JSON.
+    code_block_pattern = r"```(?:json)?\s*(.*?)```"
     matches = re.findall(code_block_pattern, text, re.DOTALL)
 
     if matches:
         for match in matches:
             # Try to parse it to verify it's valid JSON
+            cleaned = match.strip()
             try:
-                json.loads(match)
-                return match
+                json.loads(cleaned)
+                return cleaned
             except json.JSONDecodeError:
-                continue
+                # Try extracting first valid JSON value if extra text exists.
+                try:
+                    obj, _ = decoder.raw_decode(cleaned)
+                    return json.dumps(obj)
+                except json.JSONDecodeError:
+                    continue
 
-    # If no code block, try to find raw JSON
-    # Look for text starting with { and ending with }
+    # If no code block, try regex-based raw JSON slices.
     json_pattern = r"\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}"
     matches = re.findall(json_pattern, text, re.DOTALL)
 
@@ -46,7 +55,18 @@ def extract_json_block(text: str) -> Optional[str]:
         except json.JSONDecodeError:
             continue
 
-    # Last resort: try to parse the whole text
+    # Last resort: scan for first decodable object from any '{'.
+    for idx, ch in enumerate(text):
+        if ch != "{":
+            continue
+        try:
+            obj, _ = decoder.raw_decode(text[idx:])
+            if isinstance(obj, (dict, list)):
+                return json.dumps(obj)
+        except json.JSONDecodeError:
+            continue
+
+    # Final fallback: try to parse the whole text
     try:
         json.loads(text.strip())
         return text.strip()
@@ -157,15 +177,31 @@ def parse_plan_response(response_text: str) -> Optional[Dict[str, Any]]:
         return None
 
     try:
-        plan = json.loads(json_text)
+        try:
+            plan = json.loads(json_text)
+        except json.JSONDecodeError:
+            # Fallback for near-JSON payloads with single quotes/trailing commas.
+            plan = ast.literal_eval(json_text)
 
-        # Basic validation
-        required_keys = ["title", "scenes"]
-        if not all(key in plan for key in required_keys):
+        # Basic validation, with support for wrapped payloads.
+        if "title" not in plan or "scenes" not in plan:
+            for wrapper_key in ("plan", "video_plan", "result"):
+                wrapped = plan.get(wrapper_key)
+                if (
+                    isinstance(wrapped, dict)
+                    and "title" in wrapped
+                    and "scenes" in wrapped
+                ):
+                    plan = wrapped
+                    break
+            else:
+                return None
+
+        if not isinstance(plan.get("scenes"), list):
             return None
 
         return plan
-    except json.JSONDecodeError:
+    except (json.JSONDecodeError, SyntaxError, ValueError):
         return None
 
 
