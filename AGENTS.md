@@ -11,9 +11,9 @@ This file references modular docs:
 
 For full phase details, see the modular docs above.
 
-**Version:** 2.2  
-**Last Updated:** 2026-02-14  
-**Changes:** Visual polish, validation enhancements, modularization per agent_improvements.md.  
+**Version:** 2.3  
+**Last Updated:** 2026-02-16  
+**Changes:** Root-cause-first troubleshooting policy; guardrails/validations treated as last-resort containment only.  
 **Purpose:** Instructions for automated agents building Manim voiceover videos
 
 ---
@@ -52,6 +52,32 @@ You are an incremental video production agent that:
 4. Advances to next phase on success
 5. Logs all decisions to `history` array
 6. Generates production-ready Manim code
+
+---
+
+## 🚨 ROOT-CAUSE-FIRST TROUBLESHOOTING POLICY
+
+When debugging, repairing, or responding to failures, follow this priority order:
+
+1. **Identify root cause first** (where failure originates), not just symptom location.
+2. **Fix the source mechanism** (prompt ambiguity, phase logic, state transitions, architecture, data flow).
+3. **Use guardrails/validations only as last resort**, and only when immediate containment is required.
+
+### Mandatory Debugging Behavior
+
+- ✅ **ALWAYS** trace the first bad step in the causal chain before proposing fixes.
+- ✅ **ALWAYS** explain why existing logic allowed the failure to pass through.
+- ✅ **ALWAYS** prefer simplification/clarification of core logic over layering new checks.
+- ❌ **NEVER** default to adding validation gates as the primary fix.
+- ❌ **NEVER** treat symptom checks as equivalent to a root-cause fix.
+
+### If a Guardrail Is Temporarily Needed
+
+- Allowed only when root fix cannot land immediately in the same pass.
+- Must be documented as **temporary containment**, not final resolution.
+- Must include removal condition tied to the root-cause fix.
+
+This repo's debugging standard is: **Root cause first. Guardrails last.**
 
 ---
 
@@ -241,21 +267,21 @@ class Scene01Intro(VoiceoverScene):
             beats = BeatPlan(tracker.duration, [1, 1, 1, 1, 1, 1, 1, 1, 1, 1])
 
             # Title (ALWAYS use UP * 3.8, NEVER .to_edge(UP)); Adaptive (New)
-            title = Text("Your Title", font_size=48, weight=BOLD, color=blues[0])
+            title = Text("{{TITLE}}", font_size=48, weight=BOLD, color=blues[0])
             title = adaptive_title_position(title, None)  # No content yet
             play_text_next(self, beats, Write(title, run_time=1.5))  # Cap at 1.5s (New)
             
             # Subtitle with safe positioning
-            subtitle = Text("Subtitle", font_size=32, color=blues[1])
+            subtitle = Text("{{SUBTITLE}}", font_size=32, color=blues[1])
             subtitle.next_to(title, DOWN, buff=0.4)
             safe_position(subtitle)  # ALWAYS call after .next_to()
             play_text_next(self, beats, polished_fade_in(subtitle, lag_ratio=0.1))  # Polished (New)
             
             # Explainer-slide cadence: progressive bullets + evolving right-panel visual
-            bullet_1 = Text("Key point one", font_size=28).move_to(LEFT * 4.8 + UP * 1.6)
-            bullet_2 = Text("Key point two", font_size=28).next_to(bullet_1, DOWN, aligned_edge=LEFT, buff=0.3)
+            bullet_1 = Text("{{KEY_POINT_1}}", font_size=28).move_to(LEFT * 4.8 + UP * 1.6)
+            bullet_2 = Text("{{KEY_POINT_2}}", font_size=28).next_to(bullet_1, DOWN, aligned_edge=LEFT, buff=0.3)
             safe_position(bullet_2)
-            bullet_3 = Text("Key point three", font_size=28).next_to(bullet_2, DOWN, aligned_edge=LEFT, buff=0.3)
+            bullet_3 = Text("{{KEY_POINT_3}}", font_size=28).next_to(bullet_2, DOWN, aligned_edge=LEFT, buff=0.3)
             safe_position(bullet_3)
 
             diagram = RoundedRectangle(width=5.2, height=3.2, corner_radius=0.2, color=blues[2]).move_to(RIGHT * 3.2 + DOWN * 0.4)
@@ -514,6 +540,17 @@ When `needs_human_review = True`:
 ```
 "Render failed"
 ```
+
+### Root Cause Analysis Requirement (Troubleshooting/Debug)
+
+Before implementing any fix for failed phases/scenes, perform and record:
+
+1. **Failure origin**: the earliest point where behavior diverged from intent.
+2. **Causal chain**: how the error propagated through phase logic.
+3. **Primary fix**: change that eliminates the source mechanism.
+4. **Containment status**: whether any temporary guardrail was added, and explicit removal trigger.
+
+Do not stop at detection-level explanations (e.g., "validation failed"). Explain the mechanism that produced invalid output.
 
 ### Visual-Specific Errors (New)
 If validation detects overlaps/desyncs:

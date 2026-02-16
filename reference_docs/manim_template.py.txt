@@ -150,12 +150,12 @@ class YourSceneName(VoiceoverScene):  # Replace with your scene name
 
 with self.voiceover(text=SCRIPT["intro"]) as tracker:
     # Title (ALWAYS use UP * 3.8, NEVER .to_edge(UP))
-    title = Text("Your Scene Title", font_size=48, weight=BOLD)
+    title = Text("{{TITLE}}", font_size=48, weight=BOLD)
     title.move_to(UP * 3.8)
     play_text_in_slot(self, Write(title), tracker.duration * 0.4)
 
             # Subtitle with safe positioning
-    subtitle = Text("Your Subtitle Here", font_size=32, color=BLUE)
+    subtitle = Text("{{SUBTITLE}}", font_size=32, color=BLUE)
     subtitle.next_to(title, DOWN, buff=0.3)
     safe_position(subtitle)  # CRITICAL: Validate after .next_to()
     play_text_in_slot(self, FadeIn(subtitle), tracker.duration * 0.3)
