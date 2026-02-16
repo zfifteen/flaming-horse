@@ -44,7 +44,7 @@ For non-mathematical topics, each scene should be planned as a high-information 
 
 - Include 3-5 bullet points that can be revealed progressively.
 - Include a right-side visual sequence that evolves at least 2-4 times during the scene.
-- Plan 8-12 micro-beats per scene (title/subtitle, bullets, visual transitions, recap).
+- Plan duration-scaled micro-beats per scene (about one visual state change every ~1.5-3 seconds, so longer scenes require more than 12 beats).
 - Ensure no long static periods; assume a visible transition every ~1.5-3 seconds.
 - Prefer topic-specific visuals (timelines, flowcharts, witness/event cards, comparison panels, evidence callouts).
 - Avoid generic filler visuals (single circle/ellipse/equation) unless the topic explicitly requires them.

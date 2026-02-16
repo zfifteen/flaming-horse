@@ -613,13 +613,6 @@ validate_scene_semantics() {
     return 1
   fi
   
-  # Check for generic BeatPlan weights [3, 2, 5] from scaffold
-  if grep -Eq "BeatPlan\(tracker\.duration,[[:space:]]*\[3,[[:space:]]*2,[[:space:]]*5\]" "$scene_file"; then
-    echo "⚠ WARNING: Scene uses generic BeatPlan weights [3, 2, 5] from scaffold" | tee -a "$LOG_FILE"
-    echo "Consider adjusting weights to match the actual visual pacing." | tee -a "$LOG_FILE"
-    # Don't fail - this is just a warning
-  fi
-  
   echo "✓ Semantic quality validation passed" | tee -a "$LOG_FILE"
   return 0
 }

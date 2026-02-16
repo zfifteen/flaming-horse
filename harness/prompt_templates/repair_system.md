@@ -50,7 +50,7 @@ ERROR: Scene contains scaffold demo rectangle animation
 2. Subtitle text: "{{SUBTITLE}}" → actual descriptive subtitle
 3. Bullet text: "{{KEY_POINT_1}}"... → actual bullets
 3. Demo animation: `box = Rectangle(width=4.0, height=2.4, color=BLUE)` → real content
-4. Consider adjusting BeatPlan weights from generic [3, 2, 5] to match your pacing
+4. Replace coarse BeatPlan allocations with duration-scaled micro-beats (target a visible state change every ~1.5-3 seconds)
 
 ### Import Errors
 ```

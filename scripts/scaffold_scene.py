@@ -141,7 +141,9 @@ class {class_name}(VoiceoverScene):
 
         with self.voiceover(text=SCRIPT["{narration_key}"]) as tracker:
             # SLOT_START:scene_body
-            beats = BeatPlan(tracker.duration, [4, 3, 3])
+            # MANDATORY: replace with duration-scaled micro-beats during scene authoring.
+            # Coarse 3-slot timing causes sparse scenes and late animation clustering.
+            beats = BeatPlan(tracker.duration, [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1])
 
             title = Text("{{{{TITLE}}}}", font_size=48, weight=BOLD)
             title.move_to(UP * 3.8)
@@ -162,7 +164,6 @@ class {class_name}(VoiceoverScene):
             play_text_next(self, beats, FadeIn(bullet_2))
             play_text_next(self, beats, FadeIn(bullet_3))
 
-            self.wait(tracker.duration * 0.1)
             # SLOT_END:scene_body
 """
 

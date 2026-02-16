@@ -23,18 +23,18 @@ MANDATORY: ALWAYS follow the scene examples syntax from `reference_docs/manim_te
 - Mentally validate: does the code import manim correctly and run without NameError?
 - Layout contract: Title at UP * 3.8, subtitle directly below, graphs/diagrams moved DOWN * 0.6 to 1.2, no .to_edge(...) for titles/labels, safe_layout for 2+ siblings, safe_position after .next_to().
 - For non-math topics, default to explainer-slide cadence: progressive left-panel bullets plus evolving right-panel topic visuals.
-- Target 8-12 micro-beats per scene (not 3 coarse beats), with a visible transition every ~1.5-3 seconds.
+- Use duration-scaled micro-beats (not coarse 3-slot timing): compute `num_beats = max(10, min(22, int(np.ceil(tracker.duration / 3.0))))` and target a visible transition every ~1.5-3 seconds.
 - Avoid long static/black periods and avoid generic filler visuals unless explicitly relevant.
 
 SEMANTIC VALIDATION REQUIREMENTS:
 
 Your scene MUST pass these validation checks:
 
-1. **Non-empty construct() body**: The construct() method must contain substantive animation logic, not just `pass` or empty body. Include actual self.play(), self.wait(), and mobject creation.
+1. **Non-empty construct() body**: The construct() method must contain substantive animation logic, not just `pass` or empty body. Include real mobject creation and BeatPlan-driven animation calls.
 
 2. **Valid narration wiring**: Use `with self.voiceover(text=SCRIPT["{{TARGET_NARRATION_KEY}}"]) as tracker:` and keep `SCRIPT` imported from `narration_script.py`.
 
-3. **Proper timing flow**: Include self.wait() calls between animation sequences for pacing. Don't chain self.play() calls without timing.
+3. **Proper timing flow**: Use BeatPlan helpers (`play_next`, `play_text_next`) for pacing and slot-filling. Avoid standalone long `self.wait()` blocks that create static/black intervals.
 
 4. **No placeholder code**: Remove all TODO/FIXME comments from construct() body. Implement actual animations.
 
@@ -46,7 +46,7 @@ Common validation failures to avoid:
 - Empty construct() or only `pass`
 - Missing `SCRIPT` import
 - Voiceover not using `SCRIPT[...]` narration key
-- No self.wait() calls (animations need timing)
+- Coarse timing with long waits or too few beat slots for narration length
 - self.play() with no arguments
 - TODO/FIXME placeholders in construct()
 - Syntax errors from incomplete edits

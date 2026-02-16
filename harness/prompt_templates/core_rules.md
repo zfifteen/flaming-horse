@@ -116,5 +116,6 @@ The intent of this system is to generate videos from a single prompt without app
 ### Continuous Motion Standard
 - ❌ NEVER leave long static/black intervals where little changes on screen
 - ✅ Target a visible visual state change every ~1.5-3 seconds
+- ✅ Derive BeatPlan density from narration duration (at least `ceil(duration/3)` beats, clamped to practical range)
 - ✅ For non-math topics, default to explainer-slide cadence: title/subtitle, progressive bullets, evolving diagram, recap/callout
 - ❌ Avoid generic filler visuals (single circle/ellipse/equation) unless explicitly topic-relevant

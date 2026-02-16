@@ -87,7 +87,7 @@ The template contains placeholder content that MUST be replaced:
 - **"{{SUBTITLE}}"** → Replace with actual descriptive text related to the scene
 - **"{{KEY_POINT_1}}"**, **"{{KEY_POINT_2}}"**, **"{{KEY_POINT_3}}"** → Replace with scene-specific bullets
 - **Demo Rectangle** → Replace `box = Rectangle(width=4.0, height=2.4, color=BLUE)` with real visual content
-- **BeatPlan weights** → Consider adjusting [3, 2, 5] to match your animation pacing
+- **BeatPlan weights** → MANDATORY: replace generic weights with scene-specific micro-beats using the duration formula below; never ship a 3-beat layout for full narration
 
 **WARNING**: Leaving scaffold placeholders (e.g., `{{TITLE}}`) will cause validation failure.
 
@@ -111,6 +111,14 @@ The template contains placeholder content that MUST be replaced:
 - Text animations capped at 1.5s
 - Do not leave long tail idle time; use the full tracker duration with staged beats
 
+### Beat Density Contract (CRITICAL)
+
+- Compute beat count from narration duration: `num_beats = max(10, min(22, int(np.ceil(tracker.duration / 3.0))))`
+- This enforces at least one visible state change every ~3 seconds and prevents sparse late-only animation
+- Build `BeatPlan` with `num_beats` entries (mostly `1`, with `2` for heavier moments)
+- For long scenes (>45s), increase beat count beyond 12; fixed 8-12 is not enough
+- Do not use generic examples like `[3, 2, 5]` or other coarse 3-slot allocations
+
 ### Visual Quality
 - Use `harmonious_color()` for color palettes
 - Use `polished_fade_in()` for smooth reveals
@@ -129,7 +137,7 @@ When the topic is non-mathematical, default each scene to a slide-style explaine
 
 Motion and pacing requirements for non-math scenes:
 
-- Plan 8-12 micro-beats per scene (`BeatPlan` should reflect this cadence)
+- Plan duration-scaled micro-beats (`BeatPlan` count from duration formula above)
 - Keep a visible state change every ~1.5-3 seconds
 - Avoid long black/static stretches
 - Avoid placeholder visuals (single late circle/ellipse/equation) unless explicitly relevant
@@ -139,7 +147,7 @@ Motion and pacing requirements for non-math scenes:
 1. Read the scene's visual_ideas and narrative_beats from the plan
 2. Design the visual composition (title, subtitle, main content)
 3. **Replace ALL placeholder text** with actual scene-specific content
-4. For non-math topics, explicitly map to explainer-slide layout and 8-12 micro-beats
+4. For non-math topics, explicitly map to explainer-slide layout and duration-scaled micro-beats
 5. Calculate timing budget based on narration duration
 6. Implement animations using helper functions
 7. Verify positioning (no overlaps, proper safe zones)

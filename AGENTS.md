@@ -427,7 +427,9 @@ safe_layout(label1, label2, label3)  # MANDATORY for siblings
 Recommended pattern:
 
 ```python
-beats = BeatPlan(tracker.duration, [3, 2, 5])
+# Duration-scaled micro-beats (no coarse 3-slot timing)
+num_beats = max(10, min(22, int(np.ceil(tracker.duration / 3.0))))
+beats = BeatPlan(tracker.duration, [1] * num_beats)
 play_text_next(self, beats, Write(title))
 play_next(self, beats, Create(diagram))
 play_text_next(self, beats, FadeIn(key_point))

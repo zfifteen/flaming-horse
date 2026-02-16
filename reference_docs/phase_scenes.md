@@ -17,7 +17,8 @@
 3. Fill in animations inside the scaffolded `# TODO: Add animations here` block
    - Parse narration beats: Use `BeatPlan(tracker.duration, [beat_durations])` where durations = tracker.duration * (words_per_beat / total_words).
    - Use the full narration duration with staged visual beats; avoid long tail idle waits.
-   - Prefer 8-12 micro-beats per scene (title/subtitle, progressive bullets, evolving visual transitions, recap callout).
+   - Prefer duration-scaled micro-beats per scene: `num_beats = max(10, min(22, int(np.ceil(tracker.duration / 3.0))))`.
+   - Fixed 8-12 beats is only acceptable for short scenes; longer narration must use proportionally more beats.
    - If deviation >10% in dry-run, rebalance beat slots and flag in state.
 4. Keep the generated boilerplate structure unchanged unless absolutely necessary
 5. Update scene status to `'built'` AND persist required render metadata into state:
