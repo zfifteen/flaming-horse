@@ -1,7 +1,17 @@
 """
-Voice configuration for ElevenLabs TTS
-LOCKED - Do not modify after narration phase
+DEPRECATED: Legacy ElevenLabs voice configuration
+
+This file is from the matrix-multiplication project created before the migration
+to Qwen voice clone (February 2026). It is preserved for historical reference only.
+
+The project has been completed and this configuration is no longer used.
+
+Current voice policy: All new projects use local Qwen voice clone with cached audio.
+See docs/VOICE_POLICY.md for current requirements.
 """
+
+# Historical ElevenLabs configuration (no longer used)
+# The following configuration was used during the ElevenLabs era:
 
 from elevenlabs import VoiceSettings
 

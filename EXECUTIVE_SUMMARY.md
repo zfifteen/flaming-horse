@@ -1,5 +1,7 @@
 # Documentation Audit - Executive Summary
 
+> **Note:** This is a historical audit report. References to "ElevenLabs" in this document describe issues that were identified and subsequently resolved. This report is preserved for historical reference and to document the cleanup process.
+
 **Project:** Flaming Horse Video Production System  
 **Task:** Documentation audit and end-to-end pipeline QC smoke test  
 **Date:** 2026-02-16  

@@ -254,6 +254,12 @@
       "phase": "assemble",
       "action": "Assembled final_video.mp4 from rendered scenes",
       "details": "ffmpeg concat filter n=6 with aresample=async=1:first_pts=0; re-encoded H.264/AAC."
+    },
+    {
+      "timestamp": "2026-02-16T03:56:47Z",
+      "phase": "complete",
+      "action": "Legacy project note",
+      "details": "This project was created before the migration to Qwen voice clone (Feb 2026). Historical references to 'ElevenLabs' in the history array reflect the voice service that was used at the time. The project is complete and serves as a historical reference. All new projects use local Qwen voice clone."
     }
   ],
   "flags": {
