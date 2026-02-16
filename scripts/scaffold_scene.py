@@ -141,20 +141,26 @@ class {class_name}(VoiceoverScene):
 
         with self.voiceover(text=SCRIPT["{narration_key}"]) as tracker:
             # SLOT_START:scene_body
-            beats = BeatPlan(tracker.duration, [3, 2, 5])
+            beats = BeatPlan(tracker.duration, [4, 3, 3])
 
-            title = Text("Scene Title", font_size=48, weight=BOLD)
+            title = Text("{{{{TITLE}}}}", font_size=48, weight=BOLD)
             title.move_to(UP * 3.8)
             play_text_next(self, beats, Write(title))
 
-            subtitle = Text("Subtitle", font_size=32)
+            subtitle = Text("{{{{SUBTITLE}}}}", font_size=32)
             subtitle.next_to(title, DOWN, buff=0.4)
             safe_position(subtitle)
             play_text_next(self, beats, FadeIn(subtitle))
 
-            box = Rectangle(width=4.0, height=2.4, color=BLUE)
-            box.move_to(DOWN * 0.8)
-            play_next(self, beats, Create(box, rate_func=smooth))
+            bullet_1 = Text("{{{{KEY_POINT_1}}}}", font_size=28).move_to(LEFT * 4.8 + UP * 1.6)
+            bullet_2 = Text("{{{{KEY_POINT_2}}}}", font_size=28).next_to(bullet_1, DOWN, aligned_edge=LEFT, buff=0.3)
+            safe_position(bullet_2)
+            bullet_3 = Text("{{{{KEY_POINT_3}}}}", font_size=28).next_to(bullet_2, DOWN, aligned_edge=LEFT, buff=0.3)
+            safe_position(bullet_3)
+
+            play_text_next(self, beats, FadeIn(bullet_1))
+            play_text_next(self, beats, FadeIn(bullet_2))
+            play_text_next(self, beats, FadeIn(bullet_3))
 
             self.wait(tracker.duration * 0.1)
             # SLOT_END:scene_body

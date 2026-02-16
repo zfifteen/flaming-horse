@@ -129,7 +129,26 @@ release_lock() {
   echo "🔓 Lock released" | tee -a "$LOG_FILE"
 }
 
-trap release_lock EXIT INT TERM
+on_exit() {
+  local exit_code=$?
+  release_lock
+
+  if [[ $exit_code -ne 0 ]]; then
+    play_error_sound
+    return
+  fi
+
+  # Also notify on logical failures that intentionally exit 0 for human review.
+  if [[ -f "$STATE_FILE" ]]; then
+    local needs_review
+    needs_review=$(python3 -c "import json; print(json.load(open('${STATE_FILE}')).get('flags', {}).get('needs_human_review', False))" 2>/dev/null || echo "False")
+    if [[ "$needs_review" == "True" ]]; then
+      play_error_sound
+    fi
+  fi
+}
+
+trap on_exit EXIT INT TERM
 
 
 # ─── State Management ────────────────────────────────────────────────
@@ -619,20 +638,12 @@ validate_scene_semantics() {
   
   echo "→ Validating semantic quality in ${scene_file}..." | tee -a "$LOG_FILE"
   
-  # Define forbidden placeholder literals that indicate scaffold code wasn't replaced
-  local forbidden_literals=(
-    "Scene Title"
-    "Subtitle"
-  )
-  
-  # Check for placeholder text
-  for literal in "${forbidden_literals[@]}"; do
-    if grep -F "\"$literal\"" "$scene_file" >/dev/null 2>&1; then
-      echo "✗ ERROR: Scene contains forbidden placeholder text: $literal" | tee -a "$LOG_FILE"
-      echo "This indicates the scaffold template was not properly replaced with actual content." | tee -a "$LOG_FILE"
-      return 1
-    fi
-  done
+  # Check for placeholder tokens like {{TITLE}} that indicate scaffold code wasn't replaced
+  if grep -Eq "\{\{[^}]+\}\}" "$scene_file"; then
+    echo "✗ ERROR: Scene contains unresolved placeholder tokens (e.g., {{TITLE}})" | tee -a "$LOG_FILE"
+    echo "This indicates the scaffold template was not properly replaced with actual content." | tee -a "$LOG_FILE"
+    return 1
+  fi
   
   # Check for scaffold demo rectangle animation (exact pattern from template)
   if grep -Eq "box[[:space:]]*=[[:space:]]*Rectangle\([[:space:]]*width[[:space:]]*=[[:space:]]*4(\.0)?,[[:space:]]*height[[:space:]]*=[[:space:]]*2\.4" "$scene_file"; then
@@ -705,6 +716,18 @@ ensure_qwen_cache_index() {
 
   echo "✓ Voice cache index ready for runtime validation" | tee -a "$LOG_FILE"
   return 0
+}
+
+runtime_validate_scene_with_preconditions() {
+  local scene_file="$1"
+  local scene_class="$2"
+
+  if ! ensure_qwen_cache_index; then
+    echo "✗ Cannot runtime-validate scenes without cached voice data" | tee -a "$LOG_FILE" >&2
+    return 1
+  fi
+
+  validate_scene_runtime "$scene_file" "$scene_class"
 }
 
 # ─── Agent Invocation ────────────────────────────────────────────────
@@ -1356,7 +1379,7 @@ repair_scene_until_valid() {
        validate_scene_imports "$scene_file" && \
        validate_voiceover_sync "$scene_file" && \
        validate_scene_semantics "$scene_file" && \
-       validate_scene_runtime "$scene_file" "$scene_class"; then
+       runtime_validate_scene_with_preconditions "$scene_file" "$scene_class"; then
       echo "✓ Self-heal reset produced a valid scene file: ${scene_file}" | tee -a "$LOG_FILE"
       return 0
     fi
@@ -1391,7 +1414,7 @@ repair_scene_until_valid() {
       continue
     fi
 
-    if ! validate_scene_runtime "$scene_file" "$scene_class"; then
+    if ! runtime_validate_scene_with_preconditions "$scene_file" "$scene_class"; then
       reason=$(extract_recent_error_excerpt "$scene_file")
       continue
     fi
@@ -1658,9 +1681,13 @@ handle_precache_voiceovers() {
     echo "✗ ERROR: voice_clone_config.json missing in project" | tee -a "$LOG_FILE"
     return 1
   fi
-  if [[ ! -f "assets/voice_ref/ref.wav" || ! -f "assets/voice_ref/ref.txt" ]]; then
-    echo "✗ ERROR: Missing voice reference assets in assets/voice_ref" | tee -a "$LOG_FILE"
-    return 1
+  # Use mediator to check voice reference (supports FLAMING_HORSE_VOICE_REF_DIR env var)
+  if ! python3 -c "import sys; sys.path.insert(0, '${SCRIPT_DIR}'); from voice_ref_mediator import check_voice_ref_exists; sys.exit(0 if check_voice_ref_exists(None, None)[0] else 1)" 2>/dev/null; then
+    # Fallback: try direct check if import fails
+    if ! python3 "${SCRIPT_DIR}/voice_ref_mediator.py" --check "$PROJECT_DIR" >/dev/null 2>&1; then
+      echo "✗ ERROR: Missing voice reference assets (set FLAMING_HORSE_VOICE_REF_DIR or ensure ref.wav + ref.txt exist)" | tee -a "$LOG_FILE"
+      return 1
+    fi
   fi
   echo "→ Running precache script" | tee -a "$LOG_FILE"
   python3 "${SCRIPT_DIR}/precache_voiceovers_qwen.py" "$PROJECT_DIR" \
@@ -1789,12 +1816,6 @@ PY
     fi
   fi
 
-  # Generate TTS cache AFTER basic validations pass (optimization)
-  if ! ensure_qwen_cache_index; then
-    echo "✗ Cannot runtime-validate scenes without cached voice data" | tee -a "$LOG_FILE" >&2
-    return 1
-  fi
-
   # VALIDATION GATE 1: Check imports
   if ! validate_scene_imports "$new_scene"; then
     echo "✗ Import validation failed for $new_scene. Attempting self-heal..." | tee -a "$LOG_FILE"
@@ -1830,7 +1851,7 @@ PY
 
   # Runtime validation gate: catch construct/animation API failures now,
   # before advancing to the next scene.
-  if ! validate_scene_runtime "$new_scene" "$scene_class"; then
+  if ! runtime_validate_scene_with_preconditions "$new_scene" "$scene_class"; then
     echo "✗ Runtime validation failed for $new_scene. Attempting self-heal..." | tee -a "$LOG_FILE"
     local runtime_reason
     runtime_reason=$(extract_recent_error_excerpt "$new_scene")
@@ -2624,6 +2645,7 @@ PYEOF
 handle_complete() {
   echo "✅ Video build complete!" | tee -a "$LOG_FILE"
   echo "Final video: ${PROJECT_DIR}/final_video.mp4" | tee -a "$LOG_FILE"
+  play_completion_sound
   exit 0
 }
 
@@ -2677,6 +2699,64 @@ state.setdefault("history", []).append(
 with open("${STATE_FILE}", "w") as f:
     json.dump(state, f, indent=2)
 PY
+}
+
+play_completion_sound() {
+  # Set PIPELINE_COMPLETION_SOUND=0 to disable completion notifications.
+  if [[ "${PIPELINE_COMPLETION_SOUND:-1}" == "0" ]]; then
+    return 0
+  fi
+
+  # Optional spoken completion message.
+  if [[ -n "${PIPELINE_COMPLETION_SAY:-}" ]] && command -v say >/dev/null 2>&1; then
+    say "${PIPELINE_COMPLETION_SAY}" >/dev/null 2>&1 || true
+    return 0
+  fi
+
+  # Preferred macOS sound path (override with PIPELINE_SOUND_FILE).
+  local sound_file="${PIPELINE_SOUND_FILE:-/System/Library/Sounds/Glass.aiff}"
+  if command -v afplay >/dev/null 2>&1 && [[ -f "$sound_file" ]]; then
+    afplay "$sound_file" >/dev/null 2>&1 || true
+    return 0
+  fi
+
+  # Fallback macOS bell.
+  if command -v osascript >/dev/null 2>&1; then
+    osascript -e 'beep 2' >/dev/null 2>&1 || true
+    return 0
+  fi
+
+  # Terminal bell fallback for other environments.
+  printf '\a' || true
+}
+
+play_error_sound() {
+  # Set PIPELINE_ERROR_SOUND=0 to disable error notifications.
+  if [[ "${PIPELINE_ERROR_SOUND:-1}" == "0" ]]; then
+    return 0
+  fi
+
+  # Optional spoken error message.
+  if [[ -n "${PIPELINE_ERROR_SAY:-}" ]] && command -v say >/dev/null 2>&1; then
+    say "${PIPELINE_ERROR_SAY}" >/dev/null 2>&1 || true
+    return 0
+  fi
+
+  # Preferred macOS error sound path (override with PIPELINE_ERROR_SOUND_FILE).
+  local sound_file="${PIPELINE_ERROR_SOUND_FILE:-/System/Library/Sounds/Sosumi.aiff}"
+  if command -v afplay >/dev/null 2>&1 && [[ -f "$sound_file" ]]; then
+    afplay "$sound_file" >/dev/null 2>&1 || true
+    return 0
+  fi
+
+  # Fallback macOS bell.
+  if command -v osascript >/dev/null 2>&1; then
+    osascript -e 'beep 3' >/dev/null 2>&1 || true
+    return 0
+  fi
+
+  # Terminal bell fallback for other environments.
+  printf '\a' || true
 }
 
 # ─── Main Loop ───────────────────────────────────────────────────────

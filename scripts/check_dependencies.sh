@@ -3,6 +3,16 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(realpath "${SCRIPT_DIR}/..")"
+ENV_FILE="${REPO_ROOT}/.env"
+
+# Source .env for environment variables (e.g., FLAMING_HORSE_VOICE_REF_DIR)
+if [[ -f "${ENV_FILE}" ]]; then
+  # shellcheck disable=SC1090
+  source "${ENV_FILE}"
+fi
+
 errors=0
 
 echo "Checking dependencies..."
@@ -44,11 +54,12 @@ else
   errors=$((errors+1))
 fi
 
-# Voice reference
-if [[ -f "assets/voice_ref/ref.wav" ]] && [[ -f "assets/voice_ref/ref.txt" ]]; then
+# Voice reference (using mediator - supports FLAMING_HORSE_VOICE_REF_DIR)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if python3 "${SCRIPT_DIR}/voice_ref_mediator.py" --check "." >/dev/null 2>&1; then
   echo "✓ Voice reference assets"
 else
-  echo "✗ Voice reference missing (create: assets/voice_ref/ref.wav + ref.txt)"
+  echo "✗ Voice reference missing (set FLAMING_HORSE_VOICE_REF_DIR or create assets/voice_ref/ref.wav + ref.txt)"
   errors=$((errors+1))
 fi
 

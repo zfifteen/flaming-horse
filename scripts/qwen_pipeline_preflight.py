@@ -22,6 +22,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from voice_ref_mediator import resolve_voice_ref
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
@@ -70,7 +72,9 @@ def find_hf_snapshot_dir(model_id: str) -> Path | None:
     if not dirname:
         return None
 
-    hf_home = Path(os.environ.get("HF_HOME", str(Path.home() / ".cache" / "huggingface")))
+    hf_home = Path(
+        os.environ.get("HF_HOME", str(Path.home() / ".cache" / "huggingface"))
+    )
     model_dir = hf_home / "hub" / dirname
     snapshots_dir = model_dir / "snapshots"
     if not snapshots_dir.exists():
@@ -97,7 +101,9 @@ def run_checked(cmd: list[str], *, cwd: Path) -> None:
         fail(f"Command failed with exit code {proc.returncode}: {' '.join(cmd)}")
 
 
-def ensure_cache_artifacts(project_dir: Path, output_dir_rel: str) -> tuple[Path, Path, list[Path]]:
+def ensure_cache_artifacts(
+    project_dir: Path, output_dir_rel: str
+) -> tuple[Path, Path, list[Path]]:
     output_dir = (project_dir / output_dir_rel).resolve()
     cache_json = output_dir / "cache.json"
     if not cache_json.exists():
@@ -140,8 +146,6 @@ def main() -> int:
     device = str(cfg.get("device", "cpu"))
     dtype_str = str(cfg.get("dtype", "float32"))
     qwen_python_raw = cfg.get("qwen_python")
-    ref_audio_rel = cfg.get("ref_audio")
-    ref_text_rel = cfg.get("ref_text")
     output_dir_rel = str(cfg.get("output_dir", "media/voiceovers/qwen"))
 
     if device != "cpu":
@@ -157,21 +161,20 @@ def main() -> int:
     if not qwen_python.exists():
         fail(f"qwen_python path not found: {qwen_python}")
 
-    if not isinstance(ref_audio_rel, str) or not isinstance(ref_text_rel, str):
-        fail("voice_clone_config.json must define string ref_audio and ref_text")
+    # Use mediator to resolve voice reference paths
+    try:
+        refs = resolve_voice_ref(project_dir, cfg)
+    except ValueError as e:
+        fail(f"Voice ref resolution failed: {e}")
 
-    ref_audio = (project_dir / ref_audio_rel).resolve()
-    ref_text = (project_dir / ref_text_rel).resolve()
-    if not ref_audio.exists():
-        fail(f"Missing reference audio: {ref_audio}")
-    if not ref_text.exists():
-        fail(f"Missing reference transcript: {ref_text}")
-    if not ref_text.read_text(encoding="utf-8").strip():
-        fail(f"Reference transcript is empty: {ref_text}")
+    ref_audio = refs.ref_audio
+    ref_text = refs.ref_text
 
     snapshot_dir = find_hf_snapshot_dir(model_id)
     if snapshot_dir is None:
-        hf_home = Path(os.environ.get("HF_HOME", str(Path.home() / ".cache" / "huggingface")))
+        hf_home = Path(
+            os.environ.get("HF_HOME", str(Path.home() / ".cache" / "huggingface"))
+        )
         fail(
             "Qwen model snapshot not found in local HuggingFace cache. "
             f"Model: {model_id} | Expected under: {hf_home / 'hub'}"
@@ -216,7 +219,9 @@ def main() -> int:
             cwd=repo_root,
         )
 
-    output_dir, cache_json, mp3_files = ensure_cache_artifacts(project_dir, output_dir_rel)
+    output_dir, cache_json, mp3_files = ensure_cache_artifacts(
+        project_dir, output_dir_rel
+    )
 
     try:
         from flaming_horse_voice import get_speech_service
@@ -224,7 +229,9 @@ def main() -> int:
         service = get_speech_service(project_dir)
         service_name = type(service).__name__
     except Exception as exc:  # noqa: BLE001
-        fail(f"Failed to instantiate cached speech service: {type(exc).__name__}: {exc}")
+        fail(
+            f"Failed to instantiate cached speech service: {type(exc).__name__}: {exc}"
+        )
 
     print("\nIntegration artifacts:")
     print(f"- output_dir={output_dir}")

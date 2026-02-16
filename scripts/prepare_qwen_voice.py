@@ -22,6 +22,8 @@ from pathlib import Path
 from subprocess import PIPE, Popen
 from typing import Any
 
+from voice_ref_mediator import resolve_voice_ref
+
 
 SUPPRESSED_STDERR_SUBSTRINGS = (
     "Warning: flash-attn is not installed.",
@@ -182,23 +184,17 @@ def main() -> int:
         )
         return 2
 
-    ref_audio_rel = cfg.get("ref_audio")
-    ref_text_rel = cfg.get("ref_text")
-    if not ref_audio_rel or not ref_text_rel:
-        print(
-            "ERROR: voice_clone_config.json must define ref_audio and ref_text",
-            file=sys.stderr,
-        )
+    try:
+        refs = resolve_voice_ref(project_dir, cfg)
+    except ValueError as e:
+        print(f"ERROR: {e}", file=sys.stderr)
         return 2
 
-    ref_audio = (project_dir / str(ref_audio_rel)).resolve()
-    ref_text = (project_dir / str(ref_text_rel)).resolve()
-    if not ref_audio.exists():
-        print(f"ERROR: Missing ref audio: {ref_audio}", file=sys.stderr)
-        return 2
-    if not ref_text.exists():
-        print(f"ERROR: Missing ref text: {ref_text}", file=sys.stderr)
-        return 2
+    ref_audio = refs.ref_audio
+    ref_text = refs.ref_text
+
+    print(f"  Ref WAV: {ref_audio}")
+    print(f"  Ref TXT: {ref_text}")
 
     output_dir_rel = cfg.get("output_dir", "media/voiceovers/qwen")
     output_dir = (project_dir / str(output_dir_rel)).resolve()
@@ -281,7 +277,6 @@ def main() -> int:
     print(f"→ Preparing voice backend: {backend}")
     print(f"  Python: {python_path}")
     print(f"  Model:  {model_display}")
-    print(f"  Ref:    {ref_audio.name} + {ref_text.name}")
 
     env = os.environ.copy()
     # Reliability: enforce offline mode; model must already be cached locally.
