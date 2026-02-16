@@ -1,8 +1,7 @@
 """
 Prompt composer for the Flaming Horse agent harness.
 
-Assembles phase-specific prompts from modular documentation,
-reducing context window waste compared to OpenCode.
+Assembles phase-specific prompts from modular documentation.
 """
 
 import json
@@ -31,6 +30,12 @@ def resolve_project_file(
     if isinstance(configured_name, str) and configured_name.strip():
         return project_dir / configured_name
     return project_dir / default_name
+
+
+def scene_id_to_class_name(scene_id: str) -> str:
+    """Convert scene id like scene_01_intro to Scene01Intro."""
+    parts = [part for part in str(scene_id).split("_") if part]
+    return "".join(part.capitalize() for part in parts)
 
 
 def extract_scene_narration(
@@ -191,7 +196,7 @@ def compose_build_scenes_prompt(
     config_guide = read_file(REFERENCE_DOCS_DIR / "manim_config_guide.md")
     visual_helpers = read_file(REFERENCE_DOCS_DIR / "visual_helpers.md")
 
-    system_prompt = f"""# Flaming Horse Video Production Agent - Build Scenes Phase
+    system_prompt = f"""# Video Production Agent - Build Scenes Phase
 
 {core_rules}
 
@@ -239,6 +244,10 @@ def compose_build_scenes_prompt(
         scene_id = current_scene.get("id", f"scene_{current_index + 1:02d}")
         scene_title = current_scene.get("title", "Unknown")
         narration_key = current_scene.get("narration_key", scene_id)
+        scene_file_name = current_scene.get("file", f"{scene_id}.py")
+        scene_class_name = current_scene.get(
+            "class_name", scene_id_to_class_name(scene_id)
+        )
 
         # Find the corresponding scene in the plan
         plan_scene = None
@@ -252,6 +261,8 @@ def compose_build_scenes_prompt(
         scene_id = f"scene_{current_index + 1:02d}"
         scene_title = "Unknown"
         narration_key = scene_id
+        scene_file_name = f"{scene_id}.py"
+        scene_class_name = scene_id_to_class_name(scene_id)
         scene_details = "N/A"
 
     scene_narration = extract_scene_narration(narration_content, narration_key)
@@ -277,8 +288,11 @@ Please fix the issue and generate a corrected version.
 
     user_prompt = f"""You are generating exactly ONE scene file for this run.
 
-**Current Scene**: {scene_id} - {scene_title}
-**Narration Key**: {narration_key}
+**Current Scene ID**: {scene_id}
+**Expected File Name**: {scene_file_name}
+**Expected Class Name**: {scene_class_name}
+**Expected Narration Key**: {narration_key}
+**Expected Title (Exact Match Required)**: {scene_title}
 
 **Scene Details from Plan**:
 ```json
@@ -296,12 +310,16 @@ Generate the complete Python scene file for `{scene_id}`.
 
 Hard requirements:
 1. Use the exact SCRIPT key: `SCRIPT["{narration_key}"]`.
-2. Use the scene title and subtitle content from plan details; do not use placeholders.
-3. Implement visuals tied to this scene's `narrative_beats` and `visual_ideas`.
-4. Follow positioning rules (title at `UP * 3.8`, `safe_position` after `.next_to`, etc.).
-5. Keep timing budget ≤ 1.0 and keep text animations ≤ 1.5s.
-6. Forbidden placeholder strings: `Scene Title`, `Subtitle`, `Your Scene Title`, `Your Subtitle Here`.
-7. Do not reuse scaffold demo animations (default box/shape demo) unless explicitly required by this scene's plan.
+2. The title text in code must exactly match: `{scene_title}` (no paraphrase).
+3. Use subtitle and bullets grounded in this scene's plan details; do not use placeholders.
+4. Keep semantics strictly scene-specific: use only this scene's plan details + narration text.
+5. Do not introduce unrelated branding/topics/project names unless they appear in this scene's provided inputs.
+6. Use class name `{scene_class_name}` and output code for file `{scene_file_name}` only.
+7. Implement visuals tied to this scene's `narrative_beats` and `visual_ideas`.
+8. Follow positioning rules (title at `UP * 3.8`, `safe_position` after `.next_to`, etc.).
+9. Keep timing budget ≤ 1.0 and keep text animations ≤ 1.5s.
+10. Forbidden placeholder strings/tokens: `{{{{TITLE}}}}`, `{{{{SUBTITLE}}}}`, `{{{{KEY_POINT_1}}}}`, `{{{{KEY_POINT_2}}}}`, `{{{{KEY_POINT_3}}}}` (and any `{{{{...}}}}` left in scaffold strings).
+11. Do not reuse scaffold demo animations (default box/shape demo) unless explicitly required by this scene's plan.
 
 Output ONLY the Python code. Start with the imports.
 """
@@ -389,7 +407,7 @@ def compose_scene_repair_prompt(
     core_rules = read_file(PROMPT_TEMPLATES_DIR / "core_rules.md")
     repair_system = read_file(PROMPT_TEMPLATES_DIR / "repair_system.md")
 
-    system_prompt = f"""# Flaming Horse Video Production Agent - Scene Repair Phase
+    system_prompt = f"""# Video Production Agent - Scene Repair Phase
 
 {core_rules}
 
@@ -398,10 +416,64 @@ def compose_scene_repair_prompt(
 {repair_system}
 """
 
-    # User prompt: broken file + error
+    # User prompt: broken file + error + scene-specific context
     broken_file_content = read_file(scene_file)
 
+    plan_file = resolve_project_file(project_dir, state.get("plan_file"), "plan.json")
+    plan_data = json.loads(read_file(plan_file))
+
+    narration_file = resolve_project_file(
+        project_dir,
+        state.get("narration_file"),
+        "narration_script.py",
+    )
+    narration_content = read_file(narration_file)
+
+    scenes = state.get("scenes", [])
+    current_index = state.get("current_scene_index", 0)
+
+    scene_id = scene_file.stem
+    scene_title = "Unknown"
+    narration_key = scene_id
+    scene_class_name = scene_id_to_class_name(scene_id)
+    scene_file_name = scene_file.name
+
+    if current_index < len(scenes):
+        current_scene = scenes[current_index]
+        scene_id = current_scene.get("id", scene_id)
+        scene_title = current_scene.get("title", scene_title)
+        narration_key = current_scene.get("narration_key", narration_key)
+        scene_class_name = current_scene.get(
+            "class_name", scene_id_to_class_name(scene_id)
+        )
+        scene_file_name = current_scene.get("file", scene_file_name)
+
+    plan_scene = None
+    for ps in plan_data.get("scenes", []):
+        if ps.get("id") == scene_id:
+            plan_scene = ps
+            break
+
+    scene_details = json.dumps(plan_scene, indent=2) if plan_scene else "N/A"
+    scene_narration = extract_scene_narration(narration_content, narration_key) or "N/A"
+
     user_prompt = f"""Please repair this scene file that failed to render.
+
+**Current Scene ID**: {scene_id}
+**Expected File Name**: {scene_file_name}
+**Expected Class Name**: {scene_class_name}
+**Expected Narration Key**: {narration_key}
+**Expected Title (Exact Match Required)**: {scene_title}
+
+**Scene Details from Plan**:
+```json
+{scene_details}
+```
+
+**Current Scene Narration** (`SCRIPT["{narration_key}"]`):
+```text
+{scene_narration}
+```
 
 **File**: {scene_file.name}
 
@@ -415,7 +487,12 @@ def compose_scene_repair_prompt(
 {retry_context or "Unknown error"}
 ```
 
-Please diagnose the issue and output the corrected Python file.
+Repair intent is strict:
+1. Patch only what is needed to fix the reported failure.
+2. Preserve this scene's topic and planned meaning.
+3. Keep title text exactly `{scene_title}`.
+4. Keep SCRIPT key exactly `SCRIPT["{narration_key}"]`.
+5. Do not inject unrelated branding/topics/project names.
 
 Output ONLY the corrected Python code. No explanations.
 """

@@ -97,9 +97,10 @@ The intent of this system is to generate videos from a single prompt without app
 - ✅ For staggered reveals, use `LaggedStart(FadeIn(a), FadeIn(b), ..., lag_ratio=0.15)`
 
 ### Content Density Per Scene
-- ❌ NEVER place more than 5 primary visual elements in one voiceover block
-- ✅ If you need more elements, split into multiple voiceover segments
-- ✅ Remove (FadeOut) previous elements before introducing new ones
+- ✅ Maintain high informational density for non-math topics using explainer-slide structure
+- ✅ Use progressive bullets plus evolving right-side visuals instead of sparse placeholder scenes
+- ✅ If content is too dense for one block, split across multiple voiceover segments
+- ✅ Remove (FadeOut/Transform) previous elements before introducing new ones
 
 ### Element Cleanup
 - ✅ ALWAYS FadeOut previous section content before new section begins
@@ -111,3 +112,10 @@ The intent of this system is to generate videos from a single prompt without app
 - ✅ Minimum run_time for any visible animation: 0.3 seconds
 - ❌ NEVER set run_time < 0.2 (imperceptible, creates visual artifacts)
 - ✅ For sequential reveals, use lag_ratio=0.1 to 0.3
+
+### Continuous Motion Standard
+- ❌ NEVER leave long static/black intervals where little changes on screen
+- ✅ Target a visible visual state change every ~1.5-3 seconds
+- ✅ Derive BeatPlan density from narration duration (at least `ceil(duration/3)` beats, clamped to practical range)
+- ✅ For non-math topics, default to explainer-slide cadence: title/subtitle, progressive bullets, evolving diagram, recap/callout
+- ❌ Avoid generic filler visuals (single circle/ellipse/equation) unless explicitly topic-relevant

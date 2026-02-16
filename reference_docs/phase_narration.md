@@ -15,7 +15,7 @@ Duration: ~[X] seconds
 
 SCRIPT = {
     "intro": """Your intro narration here. Write naturally, as if speaking.
-    Keep it conversational and engaging. Include beat markers for sync: e.g., "Hook: [beat1] Explanation: [beat2]". Estimate per-beat words using simple syllable count (add helper: `def estimate_beats(text): return len(text.split()) // 3`). Generate segmented SCRIPT: Split into 3-5 beats max per key for visual matching.""",
+    Keep it conversational and engaging. Include clear transitions that map to visual beats such as title, bullet reveals, diagram shifts, and recap callouts.""",
     
     "demo": """Second segment narration. Break into logical beats that
     match visual moments.""",
@@ -34,6 +34,13 @@ After generating `narration_script.py`, the precache step:
 3. Skips regeneration if hash matches (saves 2-5 minutes)
 
 **Agent action:** None required. Orchestrator handles cache validation automatically.
+
+## Non-Math Narration Guidance
+
+For non-math topics, write narration so scene builders can sustain explainer-slide cadence:
+- Include 4-8 short visual cues per scene (title setup, bullet progression, visual shift, recap).
+- Keep transitions explicit ("First", "Next", "Now notice", "Finally").
+- Avoid one long uninterrupted paragraph that only supports a single late animation.
 
 **State Update:**
 ```python

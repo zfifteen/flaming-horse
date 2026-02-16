@@ -7,8 +7,10 @@ import sys
 
 
 TEMPLATE = """from pathlib import Path
+import colorsys
 
 from manim import *
+import numpy as np
 from manim_voiceover_plus import VoiceoverScene
 
 from flaming_horse_voice import get_speech_service
@@ -45,6 +47,36 @@ def safe_layout(*mobjects, h_buff=0.5, max_y=3.5, min_y=-3.5):
     return VGroup(*mobjects)
 
 
+def harmonious_color(base_color, variations=3, lightness_shift=0.1):
+    rgb = np.array(base_color.to_rgb())
+    h, l, s = colorsys.rgb_to_hls(*rgb)
+    palette = []
+    for i in range(variations):
+        h_shift = i * (360 / variations) / 360
+        new_h = (h + h_shift) % 1
+        new_l = min(1.0, max(0.0, l + lightness_shift * i))
+        new_r, new_g, new_b = colorsys.hls_to_rgb(new_h, new_l, s)
+        palette.append([new_r, new_g, new_b, 1.0])
+    return palette
+
+
+def polished_fade_in(mobject, lag_ratio=0.2, scale_factor=1.1, glow=False):
+    if glow:
+        mobject.set_stroke(width=3, opacity=0.5)
+    return LaggedStart(
+        FadeIn(mobject),
+        mobject.animate.scale(scale_factor).set_run_time(0.5).scale(1 / scale_factor),
+        lag_ratio=lag_ratio,
+    )
+
+
+def adaptive_title_position(title, content_group, max_shift=0.5):
+    content_height = content_group.height if content_group else 0
+    shift_y = min(max_shift, max(0, content_height - 2.0))
+    title.move_to(UP * (3.8 + shift_y))
+    return title
+
+
 class BeatPlan:
     def __init__(self, total_duration, weights):
         self.total_duration = max(0.0, float(total_duration))
@@ -79,6 +111,9 @@ class BeatPlan:
 def play_in_slot(scene, slot, *animations, max_run_time=None, min_run_time=0.3, **play_kwargs):
     if not animations:
         return
+
+    if "run_time" in play_kwargs:
+        raise ValueError("Do not pass run_time to play_next/play_text_next; slot helpers own timing.")
 
     slot = max(0.0, float(slot))
     if slot <= 0:
@@ -141,22 +176,59 @@ class {class_name}(VoiceoverScene):
 
         with self.voiceover(text=SCRIPT["{narration_key}"]) as tracker:
             # SLOT_START:scene_body
-            beats = BeatPlan(tracker.duration, [3, 2, 5])
+            num_beats = max(10, min(22, int(np.ceil(tracker.duration / 3.0))))
+            beats = BeatPlan(tracker.duration, [1] * num_beats)
+            blues = harmonious_color(BLUE, variations=3)
 
-            title = Text("Scene Title", font_size=48, weight=BOLD)
-            title.move_to(UP * 3.8)
+            title = Text("{{{{TITLE}}}}", font_size=48, weight=BOLD, color=blues[0])
+            title = adaptive_title_position(title, None)
             play_text_next(self, beats, Write(title))
 
-            subtitle = Text("Subtitle", font_size=32)
+            subtitle = Text("{{{{SUBTITLE}}}}", font_size=32, color=blues[1])
             subtitle.next_to(title, DOWN, buff=0.4)
             safe_position(subtitle)
-            play_text_next(self, beats, FadeIn(subtitle))
+            play_text_next(self, beats, polished_fade_in(subtitle, lag_ratio=0.1))
 
-            box = Rectangle(width=4.0, height=2.4, color=BLUE)
-            box.move_to(DOWN * 0.8)
-            play_next(self, beats, Create(box, rate_func=smooth))
+            bullet_1 = Text("{{{{KEY_POINT_1}}}}", font_size=28).move_to(LEFT * 4.8 + UP * 1.6)
+            bullet_2 = Text("{{{{KEY_POINT_2}}}}", font_size=28).next_to(bullet_1, DOWN, aligned_edge=LEFT, buff=0.3)
+            safe_position(bullet_2)
+            bullet_3 = Text("{{{{KEY_POINT_3}}}}", font_size=28).next_to(bullet_2, DOWN, aligned_edge=LEFT, buff=0.3)
+            safe_position(bullet_3)
 
-            self.wait(tracker.duration * 0.1)
+            play_text_next(self, beats, FadeIn(bullet_1))
+            play_text_next(self, beats, FadeIn(bullet_2))
+            play_text_next(self, beats, FadeIn(bullet_3))
+
+            # Before dense visuals, remove previous text layer (keep title if desired).
+            play_next(self, beats, FadeOut(subtitle), FadeOut(bullet_1), FadeOut(bullet_2), FadeOut(bullet_3))
+
+            # Evolving right-panel visual (replace with topic-specific diagram).
+            panel = RoundedRectangle(width=5.2, height=3.2, corner_radius=0.2, color=blues[2]).move_to(RIGHT * 3.2 + DOWN * 0.6)
+            marker = Dot(panel.get_center(), color=YELLOW)
+            marker_label = Text("Visual Focus", font_size=22, color=YELLOW)
+            marker_label.next_to(panel, UP, buff=0.2)
+            safe_position(marker_label)
+
+            play_next(self, beats, Create(panel, rate_func=smooth))
+            play_next(self, beats, FadeIn(marker), FadeIn(marker_label))
+            play_next(self, beats, marker.animate.shift(RIGHT * 1.2))
+
+            # Pattern for labels attached via next_to in loops.
+            node_left = Dot(LEFT * 1.0 + DOWN * 1.8, color=RED)
+            node_right = Dot(RIGHT * 1.0 + DOWN * 1.8, color=RED)
+            node_labels = []
+            for node in [node_left, node_right]:
+                label = Text("Node", font_size=20)
+                label.next_to(node, DOWN, buff=0.2)
+                safe_position(label)
+                node_labels.append(label)
+            safe_layout(node_left, node_right)
+            safe_layout(*node_labels)
+            play_next(self, beats, FadeIn(node_left), FadeIn(node_right))
+            play_text_next(self, beats, LaggedStart(*[FadeIn(label) for label in node_labels], lag_ratio=0.15))
+
+            play_next(self, beats, FadeOut(marker), FadeOut(marker_label), FadeOut(panel), FadeOut(node_left), FadeOut(node_right), FadeOut(*node_labels))
+
             # SLOT_END:scene_body
 """
 

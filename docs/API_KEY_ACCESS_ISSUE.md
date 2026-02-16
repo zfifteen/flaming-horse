@@ -26,7 +26,6 @@ For local or manual testing:
 cat > .env <<EOF
 XAI_API_KEY=your_actual_key_here
 AGENT_MODEL=xai/grok-4-1-fast
-USE_HARNESS=1
 EOF
 
 # Run the test
@@ -44,7 +43,7 @@ name: Test Harness E2E
 on:
   workflow_dispatch:
   push:
-    branches: [copilot/replace-opencode-with-xai-api]
+    branches: [main]
 
 jobs:
   test-harness:

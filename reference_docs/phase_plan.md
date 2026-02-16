@@ -10,6 +10,7 @@
    recap scene that summarizes and re-states the content of the video.
 3. Estimate narration word count (150 words/minute speaking pace)
 4. Flag animation complexity and risks
+5. For non-math topics, plan scenes as explainer slides with progressive bullet structure and evolving diagrams/timelines
 
 **Output:** `plan.json`
 
@@ -62,6 +63,7 @@ state['phase'] = 'review'
 - ✅ Timing allows for both narration + animation
 - ⚠️ Flag scenes with >5 simultaneous objects
 - ⚠️ Flag scenes requiring bookmark synchronization
+- ✅ For non-math topics, each scene plan should imply continuous motion (new visual state every ~1.5-3s) and avoid sparse placeholder visuals
 
 **Quality Scoring (New):**
 Compute score = 10 - (risk_flags * 1.5) + (3d_used ? 2 : 0). If <7, suggest simplifications (e.g., "Reduce to 2D for scene X").

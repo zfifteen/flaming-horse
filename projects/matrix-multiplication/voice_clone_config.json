@@ -4,7 +4,7 @@
   "device": "cpu",
   "dtype": "float32",
   "language": "English",
-  "ref_audio": "assets/voice_ref/ref.wav",
-  "ref_text": "assets/voice_ref/ref.txt",
+  "ref_audio": "../../assets/voice_ref/ref.wav",
+  "ref_text": "../../assets/voice_ref/ref.txt",
   "output_dir": "media/voiceovers/qwen"
 }

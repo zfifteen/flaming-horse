@@ -174,7 +174,7 @@ Add `scripts/lint_positioning.py` with static checks, e.g.:
 ## Priority 5 (Medium): Preflight environment checker from entrypoint
 
 ### Problem
-Some failures (missing `manim`, `ffmpeg`, `ffprobe`, `opencode`, invalid qwen python path) surface late.
+Some failures (missing `manim`, `ffmpeg`, `ffprobe`, invalid qwen python path) surface late.
 
 ### Script opportunity
 Add `scripts/preflight_check.py` (or `.sh`) and call it from `create_video.sh` before project creation/build.

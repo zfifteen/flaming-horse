@@ -148,33 +148,38 @@ def sanitize_code(code: str) -> str:
 def has_scaffold_artifacts(code: str) -> bool:
     """
     Check if code contains scaffold placeholders or demo code.
-    
+
     Args:
         code: Python code string
-        
+
     Returns:
         True if scaffold artifacts are found
     """
-    # Forbidden placeholder text
+    # Forbidden placeholder tokens
     forbidden_literals = [
-        '"Scene Title"',
-        "'Scene Title'",
-        '"Subtitle"',
-        "'Subtitle'",
+        '"{{TITLE}}"',
+        "'{{TITLE}}'",
+        '"{{SUBTITLE}}"',
+        "'{{SUBTITLE}}'",
+        '"{{KEY_POINT_1}}"',
+        "'{{KEY_POINT_1}}'",
+        '"{{KEY_POINT_2}}"',
+        "'{{KEY_POINT_2}}'",
+        '"{{KEY_POINT_3}}"',
+        "'{{KEY_POINT_3}}'",
     ]
-    
+
     for literal in forbidden_literals:
         if literal in code:
             return True
-    
+
     # Check for demo Rectangle from scaffold template
     # Pattern: box = Rectangle(width=4.0, height=2.4, ...
     if re.search(
-        r"box\s*=\s*Rectangle\(\s*width\s*=\s*4(?:\.0)?,\s*height\s*=\s*2\.4",
-        code
+        r"box\s*=\s*Rectangle\(\s*width\s*=\s*4(?:\.0)?,\s*height\s*=\s*2\.4", code
     ):
         return True
-    
+
     return False
 
 
@@ -360,7 +365,7 @@ def parse_scene_repair_response(response_text: str) -> Optional[str]:
 
     if not verify_python_syntax(code):
         return None
-    
+
     # NEW: Reject repaired code that still has scaffold placeholders
     if has_scaffold_artifacts(code):
         return None

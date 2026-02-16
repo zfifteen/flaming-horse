@@ -22,7 +22,7 @@ Hard requirements enforced by the codebase:
 - Build flow runs offline for Hugging Face/Transformers.
 - Each project must have `voice_clone_config.json` and `assets/voice_ref/ref.wav` + `assets/voice_ref/ref.txt`.
 - `manim` must be on PATH for build/validation phases.
-- `opencode` CLI must be available for full end-to-end agent phases.
+- Python + harness runtime must be available for full end-to-end agent phases.
 
 ---
 
@@ -247,7 +247,7 @@ Direct orchestration path:
 
 Prerequisites for end-to-end run:
 
-- `opencode` installed and authenticated
+- `python3 -m harness --help` runs successfully
 - API credential configured for your selected `AGENT_MODEL`
 - Qwen model already cached locally
 

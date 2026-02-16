@@ -47,3 +47,6 @@ def adaptive_title_position(title, content_group, max_shift=0.5):
 - 3D Guidelines: Prefer for spatial topics (e.g., geometry); limit to 1-2 moving objects. Use `self.set_camera_orientation(phi=75 * DEGREES, theta=-45 * DEGREES)` in a `ThreeDScene` for subtle depth without complexity.
 - Text Rules: Cap `Write()` at 1.5s; for staggered reveals use `LaggedStart(*[FadeIn(b) for b in bullets], lag_ratio=0.15)`.
 - For transitions: Mandate 0.5-1s crossfades between elements using `FadeTransform` or `polished_fade_in()`.
+- Timing Rule: Never pass `run_time=` to `play_next(...)` / `play_text_next(...)`; those helpers must own slot timing.
+- Cleanup Rule: Before dense visuals begin, fade out prior bullets/subtitle to keep <=2 simultaneous content layers.
+- Positioning Rule: If labels are created via loop/comprehension with `.next_to(...)`, call `safe_position(...)` for each label explicitly.

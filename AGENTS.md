@@ -7,13 +7,14 @@ This file references modular docs:
 - reference_docs/phase_narration.md: Script/timing rules
 - reference_docs/phase_scenes.md: Build/render guidelines
 - reference_docs/visual_helpers.md: Code snippets for aesthetics
+- reference_docs/topic_visual_patterns.md: Topic-to-visual mapping patterns
 - tests/README.md: Unit test instructions
 
 For full phase details, see the modular docs above.
 
-**Version:** 2.2  
-**Last Updated:** 2026-02-14  
-**Changes:** Visual polish, validation enhancements, modularization per agent_improvements.md.  
+**Version:** 2.4  
+**Last Updated:** 2026-02-16  
+**Changes:** Root-cause-first troubleshooting policy; guardrails/validations treated as last-resort containment only; tightened scene template timing/layout contracts.  
 **Purpose:** Instructions for automated agents building Manim voiceover videos
 
 ---
@@ -37,7 +38,7 @@ For full phase details, see the modular docs above.
 - Create a new folder under `projects` for the video and all associated artifacts.
 - Do not create or modify any files outside the designated project folder.
 
-- If the subject is not mathematical, use text, tables, charts and graphs and do not draw geometric or mathematical objects. 
+- If the subject is not mathematical, default to an explainer-slide style: progressive bullets, topic-specific diagrams/timelines, and continuous motion. Avoid generic geometric filler visuals unless explicitly relevant.
 - API keys are in `.env`
 
 ---
@@ -52,6 +53,32 @@ You are an incremental video production agent that:
 4. Advances to next phase on success
 5. Logs all decisions to `history` array
 6. Generates production-ready Manim code
+
+---
+
+## 🚨 ROOT-CAUSE-FIRST TROUBLESHOOTING POLICY
+
+When debugging, repairing, or responding to failures, follow this priority order:
+
+1. **Identify root cause first** (where failure originates), not just symptom location.
+2. **Fix the source mechanism** (prompt ambiguity, phase logic, state transitions, architecture, data flow).
+3. **Use guardrails/validations only as last resort**, and only when immediate containment is required.
+
+### Mandatory Debugging Behavior
+
+- ✅ **ALWAYS** trace the first bad step in the causal chain before proposing fixes.
+- ✅ **ALWAYS** explain why existing logic allowed the failure to pass through.
+- ✅ **ALWAYS** prefer simplification/clarification of core logic over layering new checks.
+- ❌ **NEVER** default to adding validation gates as the primary fix.
+- ❌ **NEVER** treat symptom checks as equivalent to a root-cause fix.
+
+### If a Guardrail Is Temporarily Needed
+
+- Allowed only when root fix cannot land immediately in the same pass.
+- Must be documented as **temporary containment**, not final resolution.
+- Must include removal condition tied to the root-cause fix.
+
+This repo's debugging standard is: **Root cause first. Guardrails last.**
 
 ---
 
@@ -238,26 +265,37 @@ class Scene01Intro(VoiceoverScene):
         # Timing is deterministic via BeatPlan helper slots.
         
         with self.voiceover(text=SCRIPT["intro"]) as tracker:
-            beats = BeatPlan(tracker.duration, [4, 3, 3])
+            num_beats = max(10, min(22, int(np.ceil(tracker.duration / 3.0))))
+            beats = BeatPlan(tracker.duration, [1] * num_beats)
 
             # Title (ALWAYS use UP * 3.8, NEVER .to_edge(UP)); Adaptive (New)
-            title = Text("Your Title", font_size=48, weight=BOLD, color=blues[0])
+            title = Text("{{TITLE}}", font_size=48, weight=BOLD, color=blues[0])
             title = adaptive_title_position(title, None)  # No content yet
-            play_text_next(self, beats, Write(title, run_time=1.5))  # Cap at 1.5s (New)
+            play_text_next(self, beats, Write(title))  # Text helper caps at 1.5s
             
             # Subtitle with safe positioning
-            subtitle = Text("Subtitle", font_size=32, color=blues[1])
+            subtitle = Text("{{SUBTITLE}}", font_size=32, color=blues[1])
             subtitle.next_to(title, DOWN, buff=0.4)
             safe_position(subtitle)  # ALWAYS call after .next_to()
             play_text_next(self, beats, polished_fade_in(subtitle, lag_ratio=0.1))  # Polished (New)
             
-            # Main content
-            content = Circle(radius=1.5, color=blues[2])
-            content.move_to(ORIGIN)
-            play_next(self, beats, Create(content, run_time=2.0, rate_func=smooth))  # Smooth (New)
-            
-            # Always end with buffer (New)
-            self.wait(tracker.duration * 0.1)
+            # Explainer-slide cadence: progressive bullets + evolving right-panel visual
+            bullet_1 = Text("{{KEY_POINT_1}}", font_size=28).move_to(LEFT * 4.8 + UP * 1.6)
+            bullet_2 = Text("{{KEY_POINT_2}}", font_size=28).next_to(bullet_1, DOWN, aligned_edge=LEFT, buff=0.3)
+            safe_position(bullet_2)
+            bullet_3 = Text("{{KEY_POINT_3}}", font_size=28).next_to(bullet_2, DOWN, aligned_edge=LEFT, buff=0.3)
+            safe_position(bullet_3)
+
+            diagram = RoundedRectangle(width=5.2, height=3.2, corner_radius=0.2, color=blues[2]).move_to(RIGHT * 3.2 + DOWN * 0.4)
+            callout = SurroundingRectangle(bullet_2, color=YELLOW, buff=0.15)
+
+            play_text_next(self, beats, FadeIn(bullet_1))
+            play_text_next(self, beats, FadeIn(bullet_2))
+            play_text_next(self, beats, FadeIn(bullet_3))
+            play_next(self, beats, FadeOut(subtitle), FadeOut(bullet_1), FadeOut(bullet_2), FadeOut(bullet_3))
+            play_next(self, beats, Create(diagram, rate_func=smooth))
+            play_next(self, beats, FadeIn(callout), max_run_time=0.8)
+            play_next(self, beats, FadeOut(callout), max_run_time=0.8)
 ```
 
 See reference_docs/visual_helpers.md for more on enhanced helpers and aesthetics.
@@ -315,6 +353,7 @@ See reference_docs/visual_helpers.md for more on enhanced helpers and aesthetics
 - ✅ Example: `0.4 + 0.3 + 0.3 = 1.0` ✓ Perfect sync
 - ✅ **ALWAYS** use scaffold timing helpers (`BeatPlan`, `play_next`, `play_text_next`) instead of raw `self.wait(...)`/`run_time` math
 - ❌ **NEVER** write expressions that can evaluate to zero/negative waits (e.g. `a - a`)
+- ❌ **NEVER** pass `run_time=` to `play_next(...)`/`play_text_next(...)`; slot helpers are the single timing source
 ### Sync Enhancements (New)
 - For Qwen caching: In scaffold, add precache check:
   ```python
@@ -334,9 +373,11 @@ with self.voiceover(text=SCRIPT["demo"]) as tracker:  # 10 seconds
 
 # CORRECT:
 with self.voiceover(text=SCRIPT["demo"]) as tracker:  # 10 seconds
-    self.play(Write(title), run_time=tracker.duration * 0.5)   # 5s (50%)
-    self.play(FadeIn(obj), run_time=tracker.duration * 0.4)     # 4s (40%)
-    self.wait(tracker.duration * 0.1)                           # 1s buffer (10%)
+    self.play(Write(title), run_time=tracker.duration * 0.2)   # 2s (20%)
+    self.play(FadeIn(obj), run_time=tracker.duration * 0.25)    # 2.5s (25%)
+    self.play(obj.animate.shift(RIGHT * 0.8), run_time=tracker.duration * 0.2)
+    self.play(Indicate(obj), run_time=tracker.duration * 0.15)
+    self.play(FadeIn(callout), run_time=tracker.duration * 0.2)
     # Total = 1.0 = 100% ✓ Perfect sync
 ```
 
@@ -355,6 +396,7 @@ with self.voiceover(text=SCRIPT["demo"]) as tracker:  # 10 seconds
 ### 8. Positioning and Overlap Prevention
 - ❌ **NEVER** place multiple elements at ORIGIN without explicit offsets
 - ❌ **NEVER** use `.next_to()` without immediately calling `safe_position()`
+- ❌ **NEVER** keep `.next_to(...)` inside list comprehensions/loops without explicit per-item `safe_position(...)`
 - ✅ **ALWAYS** call `safe_layout(*elements)` on any VGroup with 2+ sibling elements
 - ✅ **ALWAYS** use explicit coordinates: `element.move_to(UP * 2 + LEFT * 3)`
 
@@ -390,7 +432,9 @@ safe_layout(label1, label2, label3)  # MANDATORY for siblings
 Recommended pattern:
 
 ```python
-beats = BeatPlan(tracker.duration, [3, 2, 5])
+# Duration-scaled micro-beats (no coarse 3-slot timing)
+num_beats = max(10, min(22, int(np.ceil(tracker.duration / 3.0))))
+beats = BeatPlan(tracker.duration, [1] * num_beats)
 play_text_next(self, beats, Write(title))
 play_next(self, beats, Create(diagram))
 play_text_next(self, beats, FadeIn(key_point))
@@ -399,9 +443,11 @@ play_text_next(self, beats, FadeIn(key_point))
 - ✅ For staggered reveals, use `LaggedStart(FadeIn(a), FadeIn(b), ..., lag_ratio=0.15)`
 
 ### Content Density Per Scene
-- ❌ NEVER place more than 5 primary visual elements in one voiceover block
-- ✅ If you need more elements, split into multiple voiceover segments
-- ✅ Remove (FadeOut) previous elements before introducing new ones
+- ✅ For non-math topics, prefer high-information explainer slides over sparse minimal scenes
+- ✅ Use progressive bullet reveals plus evolving right-panel visuals
+- ✅ Derive right-panel visuals from narration keywords (see `reference_docs/topic_visual_patterns.md`)
+- ✅ If content is too dense for one block, split into multiple voiceover segments
+- ✅ Remove (FadeOut/Transform) previous elements before introducing new ones
 
 ### Element Cleanup
 - ✅ ALWAYS FadeOut previous section content before new section begins
@@ -413,6 +459,12 @@ play_text_next(self, beats, FadeIn(key_point))
 - ✅ Minimum run_time for any visible animation: 0.3 seconds
 - ❌ NEVER set run_time < 0.2 (imperceptible, creates visual artifacts)
 - ✅ For sequential reveals, use lag_ratio=0.1 to 0.3
+
+### Continuous Motion Requirement
+- ❌ NEVER leave long static/black intervals where little changes on screen
+- ✅ Target a visible visual state change every ~1.5-3 seconds
+- ✅ Non-math scenes should follow slide cadence (title/subtitle, bullets, evolving visual, recap/callout)
+- ❌ Avoid generic filler visuals (single circle/ellipse/equation) unless directly relevant
 
 ### Overlap Prevention
 - ✅ After positioning ALL elements in a segment, verify no overlaps using `safe_layout()`:
@@ -496,6 +548,17 @@ When `needs_human_review = True`:
 ```
 "Render failed"
 ```
+
+### Root Cause Analysis Requirement (Troubleshooting/Debug)
+
+Before implementing any fix for failed phases/scenes, perform and record:
+
+1. **Failure origin**: the earliest point where behavior diverged from intent.
+2. **Causal chain**: how the error propagated through phase logic.
+3. **Primary fix**: change that eliminates the source mechanism.
+4. **Containment status**: whether any temporary guardrail was added, and explicit removal trigger.
+
+Do not stop at detection-level explanations (e.g., "validation failed"). Explain the mechanism that produced invalid output.
 
 ### Visual-Specific Errors (New)
 If validation detects overlaps/desyncs:

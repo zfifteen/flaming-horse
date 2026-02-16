@@ -8,6 +8,8 @@ Primary instructions:
 - Validate and patch scene files listed below (from project_state.json):
 {{SCENE_FILES}}
 - Keep creative intent; fix timing sync and overlap/layout defects.
+- Treat underwhelming sparse scenes as defects: if a scene is mostly static/black with one late trivial animation, rewrite the scene body to an explainer-slide cadence.
+- For non-math scenes, require progressive bullet reveals plus evolving topic-specific visuals over the full narration duration.
 - Do NOT edit project_state.json.
 - Write a report file named scene_qc_report.md in this directory.
 

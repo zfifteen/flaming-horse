@@ -36,7 +36,18 @@ You MUST output a JSON object with this exact structure:
 - Include `narration_key` for every scene (typically same as `id`)
 - Narrative beats should be specific and actionable
 - Visual ideas should reference specific Manim elements (Text, Circle, Graph, MathTex, etc.)
-- For non-mathematical topics, prefer charts, graphs, and text-based visuals over geometric shapes
+- For non-mathematical topics, default to an explainer-slide visual style rather than abstract geometry
+
+### Non-Math Default Visual Contract
+
+For non-mathematical topics, each scene should be planned as a high-information explainer slide with continuous visual progression:
+
+- Include 3-5 bullet points that can be revealed progressively.
+- Include a right-side visual sequence that evolves at least 2-4 times during the scene.
+- Plan duration-scaled micro-beats per scene (about one visual state change every ~1.5-3 seconds, so longer scenes require more than 12 beats).
+- Ensure no long static periods; assume a visible transition every ~1.5-3 seconds.
+- Prefer topic-specific visuals (timelines, flowcharts, witness/event cards, comparison panels, evidence callouts).
+- Avoid generic filler visuals (single circle/ellipse/equation) unless the topic explicitly requires them.
 
 ## Think Step-by-Step
 

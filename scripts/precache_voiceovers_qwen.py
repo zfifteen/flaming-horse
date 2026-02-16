@@ -8,6 +8,8 @@ import time
 from pathlib import Path
 from typing import Optional
 
+from voice_ref_mediator import resolve_voice_ref
+
 
 SUPPRESSED_STDERR_SUBSTRINGS = (
     "Warning: flash-attn is not installed.",
@@ -188,23 +190,22 @@ def main() -> int:
     device = cfg.get("device", "cpu")
     dtype_str = cfg.get("dtype", "float32")
     python_path = cfg.get("qwen_python")
-    ref_audio = cfg.get("ref_audio")
-    ref_text_path = cfg.get("ref_text")
     output_dir = cfg.get("output_dir", "media/voiceovers/qwen")
 
     if not python_path:
         raise ValueError("voice_clone_config.json must define qwen_python")
-
-    if not ref_audio or not ref_text_path:
-        raise ValueError(
-            "ref_audio and ref_text must be set in voice_clone_config.json"
-        )
 
     if backend == "qwen" and (device != "cpu" or dtype_str != "float32"):
         raise ValueError(
             "This repo requires CPU float32 for Qwen voice clone. "
             f"Found device={device!r} dtype={dtype_str!r} in voice_clone_config.json"
         )
+
+    # Use mediator to resolve voice reference paths
+    try:
+        refs = resolve_voice_ref(project_dir, cfg)
+    except ValueError as e:
+        raise ValueError(f"Voice ref resolution failed: {e}")
 
     model_source = str(model_id)
     if backend == "qwen":
@@ -220,6 +221,7 @@ def main() -> int:
             hf_home = Path(
                 os.environ.get("HF_HOME", str(Path.home() / ".cache" / "huggingface"))
             )
+
             expected = _hf_repo_id_to_cache_dirname(str(model_id))
             expected_path = (
                 (hf_home / "hub" / expected) if expected else (hf_home / "hub")
@@ -236,8 +238,8 @@ def main() -> int:
             )
             raise SystemExit(2)
 
-    ref_audio_path = (project_dir / ref_audio).resolve()
-    ref_text = ensure_ref_text((project_dir / ref_text_path).resolve())
+    ref_audio_path = refs.ref_audio
+    ref_text = refs.ref_text.read_text(encoding="utf-8").strip()
 
     cache_dir = (project_dir / output_dir).resolve()
     cache_dir.mkdir(parents=True, exist_ok=True)

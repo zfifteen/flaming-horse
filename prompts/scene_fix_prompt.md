@@ -22,13 +22,14 @@ The scene must pass semantic validation checks:
 5. Proper Manim imports present
 6. Valid Scene class definition inheriting from VoiceoverScene
 7. No empty self.play() calls
-8. Appropriate timing with self.wait() calls after animations
+8. Appropriate timing via BeatPlan slot helpers (`play_next`, `play_text_next`) without long standalone waits
+9. For non-math topics, scene should not be sparse/static; use explainer-slide cadence (progressive bullets + evolving topic visual)
 
 Common validation failures to avoid:
 - Empty construct() body or only containing `pass`
 - Missing `SCRIPT` import or missing voiceover call using `SCRIPT[...]`
 - Broken self.play() calls with invalid arguments
-- Missing self.wait() timing between animation sequences
+- Coarse timing with too few beat slots or long idle waits
 - Syntax errors from incomplete refactoring
 - Missing imports for Manim objects used in scene
 
@@ -44,8 +45,12 @@ INSTRUCTIONS:
    - Do NOT pass `lag_ratio` or `scale_factor` directly to `FadeIn(...)`.
    - If staggered fade-in is needed, use `LaggedStart(FadeIn(...), ..., lag_ratio=...)`.
 8. Ensure construct() has substantive animation logic (not empty/placeholder)
-9. Verify `self.voiceover(...)` uses `SCRIPT["{{SCENE_ID}}"]` or the scene's proper narration key
-10. Add appropriate self.wait() calls for timing between animation sequences
+9. Verify `self.voiceover(...)` uses the scene's actual narration key from `project_state.json` (never hardcode/guess keys)
+10. Rebalance BeatPlan weights/count so visual state changes continue throughout the narration (no late-only clustering)
+11. If failure indicates low visual quality or under-animation, perform a substantial in-slot rewrite (still preserving narration intent)
+12. Never pass `run_time=` to `play_next(...)`/`play_text_next(...)`; timing must come from beat slots.
+13. If `.next_to(...)` appears in a loop/list-comprehension, rewrite to an explicit loop and call `safe_position(...)` for each element.
+14. Before introducing dense visuals after bullets/text, fade out older section content to maintain <=2 simultaneous content layers.
 
 SELF-HEAL OPTIMIZATION:
 This is attempt {{ATTEMPT}} of {{PHASE_RETRY_LIMIT}}. The self-heal loop will:

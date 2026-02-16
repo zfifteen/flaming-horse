@@ -109,15 +109,10 @@ echo ""
 
 # Test 6: Verify build_video.sh integration
 echo "Test 6: build_video.sh integration..."
-if grep -q "USE_HARNESS" "${REPO_ROOT}/scripts/build_video.sh"; then
-  if grep -q "python3 -m harness" "${REPO_ROOT}/scripts/build_video.sh"; then
-    echo "✅ PASS: build_video.sh has harness integration"
-  else
-    echo "❌ FAIL: build_video.sh missing harness invocation"
-    exit 1
-  fi
+if grep -q "python3 -m harness" "${REPO_ROOT}/scripts/build_video.sh"; then
+  echo "✅ PASS: build_video.sh has harness integration"
 else
-  echo "❌ FAIL: build_video.sh missing USE_HARNESS flag"
+  echo "❌ FAIL: build_video.sh missing harness invocation"
   exit 1
 fi
 echo ""

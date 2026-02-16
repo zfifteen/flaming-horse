@@ -6,9 +6,6 @@
 # Use harness (default)
 ./scripts/build_video.sh projects/my_video --topic "My Topic"
 
-# Use OpenCode (fallback)
-USE_HARNESS=0 ./scripts/build_video.sh projects/my_video
-
 # Test harness dry-run
 ./tests/test_harness_dry_run.sh
 
@@ -24,7 +21,6 @@ XAI_API_KEY=your_xai_api_key_here
 
 # Optional
 AGENT_MODEL=xai/grok-4-1-fast  # Model selection
-USE_HARNESS=1                   # 1=harness, 0=OpenCode
 ```
 
 ## CLI Arguments
@@ -69,8 +65,8 @@ harness/
 |---|---|
 | `No module named harness` | Check PYTHONPATH includes repo root |
 | `XAI_API_KEY not set` | Add to .env file |
-| `Parsing failed` | Check logs, try USE_HARNESS=0 |
-| Any other issue | Set USE_HARNESS=0 as fallback |
+| `Parsing failed` | Check logs and retry with corrected context |
+| Any other issue | Inspect `build.log` and phase retry context |
 
 ## Documentation
 

@@ -87,7 +87,6 @@ python3 tests/test_harness_mock_e2e.py
 cat > .env <<EOF
 XAI_API_KEY=your_key_here
 AGENT_MODEL=xai/grok-4-1-fast
-USE_HARNESS=1
 EOF
 
 # Run full end-to-end test
@@ -149,7 +148,6 @@ EOF
 
 ### Integration Validation
 - ✅ Harness invoked by build_video.sh
-- ✅ USE_HARNESS flag controls behavior
 - ✅ All three invocation points updated (invoke_agent, invoke_scene_fix_agent, scene_qc)
 - ✅ Exit codes propagated correctly
 - ✅ Dry-run mode prevents API calls
@@ -166,11 +164,11 @@ Measured from dry-run tests:
 
 | Phase | System Prompt Size | Notes |
 |---|---|---|
-| plan | 19,563 chars (~4,900 tokens) | 58% reduction vs OpenCode |
-| narration | 19,813 chars (~4,950 tokens) | 56% reduction vs OpenCode |
-| build_scenes | 28,957 chars (~7,200 tokens) | 36% reduction vs OpenCode |
-| scene_qc | 12,722 chars (~3,200 tokens) | 71% reduction vs OpenCode |
-| scene_repair | 6,955 chars (~1,700 tokens) | 84% reduction vs OpenCode |
+| plan | 19,563 chars (~4,900 tokens) | 58% reduction vs prior baseline |
+| narration | 19,813 chars (~4,950 tokens) | 56% reduction vs prior baseline |
+| build_scenes | 28,957 chars (~7,200 tokens) | 36% reduction vs prior baseline |
+| scene_qc | 12,722 chars (~3,200 tokens) | 71% reduction vs prior baseline |
+| scene_repair | 6,955 chars (~1,700 tokens) | 84% reduction vs prior baseline |
 
 **Average reduction: 61%**
 
@@ -197,7 +195,7 @@ The final criterion requires XAI_API_KEY to be set and a full video build to com
 2. **Run:** `./tests/test_harness_e2e.sh`
 3. **Verify** all artifacts are created correctly
 4. **Measure** actual token usage from API responses
-5. **Compare** output quality with OpenCode baseline
+5. **Compare** output quality with prior baseline
 6. **Document** any issues or deviations
 7. **Update** this summary with real API test results
 
@@ -205,7 +203,7 @@ The final criterion requires XAI_API_KEY to be set and a full video build to com
 
 1. **No real API testing yet** - All tests use mock data or dry-run mode
 2. **Token usage is estimated** - Based on character counts, not actual API measurements
-3. **Quality comparison pending** - Need side-by-side with OpenCode
+3. **Quality comparison pending** - Need side-by-side with prior baseline
 4. **Performance metrics missing** - Need real API latency data
 
 ## Files Created
