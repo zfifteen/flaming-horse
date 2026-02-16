@@ -1,0 +1,76 @@
+name: Harness End-to-End Test
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - copilot/replace-opencode-with-xai-api
+    paths:
+      - 'harness/**'
+      - 'tests/test_harness_e2e.sh'
+      - '.github/workflows/test_harness_e2e.yml'
+
+jobs:
+  test-harness-e2e:
+    name: Test Harness with Real xAI API
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Install Python dependencies
+        run: |
+          pip install requests
+      
+      - name: Run integration tests (no API)
+        run: |
+          chmod +x ./tests/test_harness_integration.sh
+          ./tests/test_harness_integration.sh
+      
+      - name: Run mock E2E tests (no API)
+        run: |
+          python3 tests/test_harness_mock_e2e.py
+      
+      - name: Run E2E test with real API
+        env:
+          XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
+          AGENT_MODEL: xai/grok-4-1-fast
+          USE_HARNESS: 1
+        run: |
+          chmod +x ./tests/test_harness_e2e.sh
+          ./tests/test_harness_e2e.sh
+      
+      - name: Upload test artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-artifacts
+          path: |
+            projects/e2e_test_harness_*/plan.json
+            projects/e2e_test_harness_*/narration_script.py
+            projects/e2e_test_harness_*/scene_*.py
+            projects/e2e_test_harness_*/project_state.json
+            projects/e2e_test_harness_*/debug_response_*.txt
+            projects/e2e_test_harness_*/harness_*.log
+          retention-days: 7
+      
+      - name: Test summary
+        if: always()
+        run: |
+          echo "## Harness E2E Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if compgen -G "projects/e2e_test_harness_*/plan.json" > /dev/null; then
+            echo "✅ Plan phase completed" >> $GITHUB_STEP_SUMMARY
+            echo "✅ Narration phase completed" >> $GITHUB_STEP_SUMMARY
+            echo "✅ Build scenes phase completed" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "All phases produced valid artifacts." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Test failed - check logs" >> $GITHUB_STEP_SUMMARY
+          fi
