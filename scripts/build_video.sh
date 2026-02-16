@@ -15,6 +15,7 @@ if [[ -f "${ENV_FILE}" ]]; then
 fi
 
 AGENT_MODEL="${AGENT_MODEL:-xai/grok-4-1-fast}"
+USE_HARNESS="${USE_HARNESS:-1}"  # 1=use new harness, 0=use OpenCode
 PROJECTS_BASE_DIR="${PROJECTS_BASE_DIR:-projects}"
 PROJECT_DEFAULT_NAME="${PROJECT_DEFAULT_NAME:-default_video}"
 MAX_RUNS="${MAX_RUNS:-50}"
@@ -880,42 +881,89 @@ for key in [
 print(text, end="")
 PY
   
-  # Invoke OpenCode - message must come after all options
-  # TODO Replace this with an option to select from available models configured in OpenCode
-  local -a opencode_session_args=()
-  if [[ -n "${OPENCODE_SESSION_ID}" ]]; then
-    opencode_session_args=(--session "${OPENCODE_SESSION_ID}")
+  # Invoke agent - use harness or OpenCode based on USE_HARNESS env var
+  if [[ "${USE_HARNESS}" == "1" ]]; then
+    # NEW: Use Python harness for direct xAI API integration
+    echo "Using Python harness (direct xAI API)" | tee -a "$LOG_FILE"
+    
+    # Build harness arguments
+    local -a harness_args=(
+      --phase "$phase"
+      --project-dir "$PROJECT_DIR"
+    )
+    
+    # Add topic if provided (for plan phase)
+    if [[ -n "$topic" ]]; then
+      harness_args+=(--topic "$topic")
+    fi
+    
+    # Add retry context if available
+    if [[ -s "$retry_context_file" ]]; then
+      local retry_context
+      retry_context="$(cat "$retry_context_file")"
+      harness_args+=(--retry-context "$retry_context")
+    fi
+    
+    # For scene_repair phase, add scene file path
+    if [[ "$phase" == "scene_repair" && -n "$build_target_scene_file" && -f "$build_target_scene_file" ]]; then
+      harness_args+=(--scene-file "$build_target_scene_file")
+    fi
+    
+    # Invoke harness
+    python3 -m harness "${harness_args[@]}" \
+      > >(tee -a "$LOG_FILE") \
+      2> >(tee -a "$LOG_FILE" >&2)
+    
+    local exit_code=$?
+    
+    # Clean up prompt file
+    rm -f "$prompt_file"
+    
+    if [[ $exit_code -ne 0 ]]; then
+      echo "❌ Harness invocation failed with exit code: $exit_code" | tee -a "$LOG_FILE"
+      return 1
+    fi
+    
+    echo "[Run $run_num] Harness completed phase: $phase" | tee -a "$LOG_FILE"
   else
-    opencode_session_args=(--format json)
-  fi
-  local opencode_output_file
-  opencode_output_file="$(mktemp)"
+    # OLD: Use OpenCode (legacy path for gradual migration)
+    echo "Using OpenCode (legacy)" | tee -a "$LOG_FILE"
+    
+    local -a opencode_session_args=()
+    if [[ -n "${OPENCODE_SESSION_ID}" ]]; then
+      opencode_session_args=(--session "${OPENCODE_SESSION_ID}")
+    else
+      opencode_session_args=(--format json)
+    fi
+    local opencode_output_file
+    opencode_output_file="$(mktemp)"
 
-  opencode run --agent manim-ce-scripting-expert --model "${AGENT_MODEL}" \
-    "${opencode_session_args[@]}" \
-    --file "$prompt_file" \
-    --file "$STATE_FILE" \
-    "${narration_file_arg[@]}" \
-    "${build_scene_file_arg[@]}" \
-    "${retry_context_arg[@]}" \
-    -- \
-    "Read the first attached file (.agent_prompt_${phase}.md) which contains your complete instructions. Execute the ${phase} phase as described. The current project state is also attached." \
-    > >(tee -a "$LOG_FILE" | tee -a "$opencode_output_file") \
-    2> >(tee -a "$LOG_FILE" | tee -a "$opencode_output_file" >&2)
-  
-  # Clean up prompt file
-  rm -f "$prompt_file"
-  
-  local exit_code=${PIPESTATUS[0]}
-  capture_opencode_session_id_if_missing "$opencode_output_file"
-  rm -f "$opencode_output_file"
-  
-  if [[ $exit_code -ne 0 ]]; then
-    echo "❌ Agent invocation failed with exit code: $exit_code" | tee -a "$LOG_FILE"
-    return 1
+    opencode run --agent manim-ce-scripting-expert --model "${AGENT_MODEL}" \
+      "${opencode_session_args[@]}" \
+      --file "$prompt_file" \
+      --file "$STATE_FILE" \
+      "${narration_file_arg[@]}" \
+      "${build_scene_file_arg[@]}" \
+      "${retry_context_arg[@]}" \
+      -- \
+      "Read the first attached file (.agent_prompt_${phase}.md) which contains your complete instructions. Execute the ${phase} phase as described. The current project state is also attached." \
+      > >(tee -a "$LOG_FILE" | tee -a "$opencode_output_file") \
+      2> >(tee -a "$LOG_FILE" | tee -a "$opencode_output_file" >&2)
+    
+    # Clean up prompt file
+    rm -f "$prompt_file"
+    
+    local exit_code=${PIPESTATUS[0]}
+    capture_opencode_session_id_if_missing "$opencode_output_file"
+    rm -f "$opencode_output_file"
+    
+    if [[ $exit_code -ne 0 ]]; then
+      echo "❌ Agent invocation failed with exit code: $exit_code" | tee -a "$LOG_FILE"
+      return 1
+    fi
+    
+    echo "[Run $run_num] Agent completed phase: $phase" | tee -a "$LOG_FILE"
   fi
-  
-  echo "[Run $run_num] Agent completed phase: $phase" | tee -a "$LOG_FILE"
 }
 
 scene_python_syntax_ok() {
@@ -1192,30 +1240,59 @@ for key in [
 print(text, end="")
 PY
 
-  local -a opencode_session_args=()
-  if [[ -n "${OPENCODE_SESSION_ID}" ]]; then
-    opencode_session_args=(--session "${OPENCODE_SESSION_ID}")
+  # Invoke agent for scene repair - use harness or OpenCode
+  if [[ "${USE_HARNESS}" == "1" ]]; then
+    # NEW: Use Python harness for direct xAI API integration
+    echo "Using Python harness for scene repair" | tee -a "$LOG_FILE"
+    
+    local error_excerpt
+    error_excerpt="$(extract_recent_error_excerpt "$scene_file")"
+    local retry_context="${failure_reason}
+
+Error details:
+${error_excerpt}"
+    
+    # Invoke harness for scene_repair
+    python3 -m harness \
+      --phase scene_repair \
+      --project-dir "$PROJECT_DIR" \
+      --scene-file "$scene_file" \
+      --retry-context "$retry_context" \
+      > >(tee -a "$LOG_FILE") \
+      2> >(tee -a "$LOG_FILE" >&2)
+    
+    local exit_code=$?
+    rm -f "$prompt_file"
+    return $exit_code
   else
-    opencode_session_args=(--format json)
+    # OLD: Use OpenCode (legacy path)
+    echo "Using OpenCode for scene repair (legacy)" | tee -a "$LOG_FILE"
+    
+    local -a opencode_session_args=()
+    if [[ -n "${OPENCODE_SESSION_ID}" ]]; then
+      opencode_session_args=(--session "${OPENCODE_SESSION_ID}")
+    else
+      opencode_session_args=(--format json)
+    fi
+    local opencode_output_file
+    opencode_output_file="$(mktemp)"
+
+    opencode run --agent manim-ce-scripting-expert --model "${AGENT_MODEL}" \
+      "${opencode_session_args[@]}" \
+      --file "$prompt_file" \
+      --file "$STATE_FILE" \
+      --file "$scene_file" \
+      -- \
+      "Repair ${scene_file} for final_render. Execute only that targeted fix." \
+      > >(tee -a "$LOG_FILE" | tee -a "$opencode_output_file") \
+      2> >(tee -a "$LOG_FILE" | tee -a "$opencode_output_file" >&2)
+
+    local exit_code=${PIPESTATUS[0]}
+    capture_opencode_session_id_if_missing "$opencode_output_file"
+    rm -f "$opencode_output_file"
+    rm -f "$prompt_file"
+    return $exit_code
   fi
-  local opencode_output_file
-  opencode_output_file="$(mktemp)"
-
-  opencode run --agent manim-ce-scripting-expert --model "${AGENT_MODEL}" \
-    "${opencode_session_args[@]}" \
-    --file "$prompt_file" \
-    --file "$STATE_FILE" \
-    --file "$scene_file" \
-    -- \
-    "Repair ${scene_file} for final_render. Execute only that targeted fix." \
-    > >(tee -a "$LOG_FILE" | tee -a "$opencode_output_file") \
-    2> >(tee -a "$LOG_FILE" | tee -a "$opencode_output_file" >&2)
-
-  local exit_code=${PIPESTATUS[0]}
-  capture_opencode_session_id_if_missing "$opencode_output_file"
-  rm -f "$opencode_output_file"
-  rm -f "$prompt_file"
-  return $exit_code
 }
 
 repair_scene_until_valid() {
@@ -1761,60 +1838,84 @@ PY
     "STATE_FILE=${STATE_FILE}" \
     "SCENE_FILES=${qc_scene_files}"
 
-  local -a opencode_session_args=()
-  if [[ -n "${OPENCODE_SESSION_ID}" ]]; then
-    opencode_session_args=(--session "${OPENCODE_SESSION_ID}")
-  else
-    opencode_session_args=(--format json)
-  fi
-  local opencode_output_file
-  opencode_output_file="$(mktemp)"
-
-  opencode run --agent manim-ce-scripting-expert --model "${AGENT_MODEL}" \
-    "${opencode_session_args[@]}" \
-    --file "$prompt_file" \
-    --file "$STATE_FILE" \
-    -- \
-    "Read .agent_prompt_scene_qc.md and execute the QC pass. Patch the scene files listed from project_state.json and write scene_qc_report.md." \
-    > >(tee -a "$LOG_FILE" | tee -a "$opencode_output_file") \
-    2> >(tee -a "$LOG_FILE" | tee -a "$opencode_output_file" >&2)
-
-  local exit_code=${PIPESTATUS[0]}
-  capture_opencode_session_id_if_missing "$opencode_output_file"
-  rm -f "$opencode_output_file"
-  if [[ $exit_code -ne 0 ]]; then
-    # Some environments do not expose the pinned xai model to opencode.
-    # Fallback to the user's default configured model for this QC pass.
-    if tail -n 120 "$LOG_FILE" | grep -q "ProviderModelNotFoundError"; then
-      echo "⚠ Requested model unavailable for scene_qc; retrying with default model..." | tee -a "$LOG_FILE"
-      local -a fallback_session_args=()
-      if [[ -n "${OPENCODE_SESSION_ID}" ]]; then
-        fallback_session_args=(--session "${OPENCODE_SESSION_ID}")
-      else
-        fallback_session_args=(--format json)
-      fi
-      local fallback_output_file
-      fallback_output_file="$(mktemp)"
-
-      opencode run --agent manim-ce-scripting-expert \
-        "${fallback_session_args[@]}" \
-        --file "$prompt_file" \
-        --file "$STATE_FILE" \
-        -- \
-        "Read .agent_prompt_scene_qc.md and execute the QC pass. Patch the scene files listed from project_state.json and write scene_qc_report.md." \
-        > >(tee -a "$LOG_FILE" | tee -a "$fallback_output_file") \
-        2> >(tee -a "$LOG_FILE" | tee -a "$fallback_output_file" >&2)
-      exit_code=${PIPESTATUS[0]}
-      capture_opencode_session_id_if_missing "$fallback_output_file"
-      rm -f "$fallback_output_file"
+  # Invoke agent for scene QC - use harness or OpenCode
+  if [[ "${USE_HARNESS}" == "1" ]]; then
+    # NEW: Use Python harness for direct xAI API integration
+    echo "Using Python harness for scene QC" | tee -a "$LOG_FILE"
+    
+    # Invoke harness for scene_qc
+    python3 -m harness \
+      --phase scene_qc \
+      --project-dir "$PROJECT_DIR" \
+      > >(tee -a "$LOG_FILE") \
+      2> >(tee -a "$LOG_FILE" >&2)
+    
+    local exit_code=$?
+    rm -f "$prompt_file"
+    
+    if [[ $exit_code -ne 0 ]]; then
+      echo "❌ Scene QC harness failed with exit code: $exit_code" | tee -a "$LOG_FILE"
+      return 1
     fi
-  fi
+  else
+    # OLD: Use OpenCode (legacy path)
+    echo "Using OpenCode for scene QC (legacy)" | tee -a "$LOG_FILE"
+    
+    local -a opencode_session_args=()
+    if [[ -n "${OPENCODE_SESSION_ID}" ]]; then
+      opencode_session_args=(--session "${OPENCODE_SESSION_ID}")
+    else
+      opencode_session_args=(--format json)
+    fi
+    local opencode_output_file
+    opencode_output_file="$(mktemp)"
 
-  rm -f "$prompt_file"
+    opencode run --agent manim-ce-scripting-expert --model "${AGENT_MODEL}" \
+      "${opencode_session_args[@]}" \
+      --file "$prompt_file" \
+      --file "$STATE_FILE" \
+      -- \
+      "Read .agent_prompt_scene_qc.md and execute the QC pass. Patch the scene files listed from project_state.json and write scene_qc_report.md." \
+      > >(tee -a "$LOG_FILE" | tee -a "$opencode_output_file") \
+      2> >(tee -a "$LOG_FILE" | tee -a "$opencode_output_file" >&2)
 
-  if [[ $exit_code -ne 0 ]]; then
-    echo "❌ Scene QC agent failed with exit code: $exit_code" | tee -a "$LOG_FILE"
-    return 1
+    local exit_code=${PIPESTATUS[0]}
+    capture_opencode_session_id_if_missing "$opencode_output_file"
+    rm -f "$opencode_output_file"
+    if [[ $exit_code -ne 0 ]]; then
+      # Some environments do not expose the pinned xai model to opencode.
+      # Fallback to the user's default configured model for this QC pass.
+      if tail -n 120 "$LOG_FILE" | grep -q "ProviderModelNotFoundError"; then
+        echo "⚠ Requested model unavailable for scene_qc; retrying with default model..." | tee -a "$LOG_FILE"
+        local -a fallback_session_args=()
+        if [[ -n "${OPENCODE_SESSION_ID}" ]]; then
+          fallback_session_args=(--session "${OPENCODE_SESSION_ID}")
+        else
+          fallback_session_args=(--format json)
+        fi
+        local fallback_output_file
+        fallback_output_file="$(mktemp)"
+
+        opencode run --agent manim-ce-scripting-expert \
+          "${fallback_session_args[@]}" \
+          --file "$prompt_file" \
+          --file "$STATE_FILE" \
+          -- \
+          "Read .agent_prompt_scene_qc.md and execute the QC pass. Patch the scene files listed from project_state.json and write scene_qc_report.md." \
+          > >(tee -a "$LOG_FILE" | tee -a "$fallback_output_file") \
+          2> >(tee -a "$LOG_FILE" | tee -a "$fallback_output_file" >&2)
+        exit_code=${PIPESTATUS[0]}
+        capture_opencode_session_id_if_missing "$fallback_output_file"
+        rm -f "$fallback_output_file"
+      fi
+    fi
+
+    rm -f "$prompt_file"
+
+    if [[ $exit_code -ne 0 ]]; then
+      echo "❌ Scene QC agent failed with exit code: $exit_code" | tee -a "$LOG_FILE"
+      return 1
+    fi
   fi
 
   if [[ ! -s "scene_qc_report.md" ]]; then
