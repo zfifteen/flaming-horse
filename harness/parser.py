@@ -110,8 +110,12 @@ def sanitize_code(code: str) -> str:
     Returns:
         Cleaned code
     """
-    # Remove standalone XML/HTML-like tag lines that some models emit.
-    # Do not strip inline angle-bracket operators used by valid Python code.
+    # Remove HTML/XML-like tags emitted by models while preserving Python
+    # comparison operators. We only strip tokens that look like real tags
+    # (<tag ...> / </tag>) and never span across newlines.
+    code = re.sub(r"</?[A-Za-z][^>\n]*>", "", code)
+
+    # Remove standalone tag-only lines that can remain after stripping.
     code = re.sub(r"^\s*</?[A-Za-z][^>]*>\s*$", "", code, flags=re.MULTILINE)
 
     # Remove markdown artifacts that might have slipped through
