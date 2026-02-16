@@ -119,7 +119,7 @@ EOF
 # The voice pipeline requires these files to exist on disk.
 #
 # You can override the template directory via VOICE_REF_TEMPLATE_DIR.
-ref_template_dir="${VOICE_REF_TEMPLATE_DIR:-${SCRIPT_DIR}/../projects/matrix-multiplication/assets/voice_ref}"
+ref_template_dir="${VOICE_REF_TEMPLATE_DIR:-${SCRIPT_DIR}/../assets/voice_ref}"
 if [[ ! -f "$PROJECT_DIR/assets/voice_ref/ref.wav" || ! -f "$PROJECT_DIR/assets/voice_ref/ref.txt" ]]; then
   if [[ -f "$ref_template_dir/ref.wav" && -f "$ref_template_dir/ref.txt" ]]; then
     cp -a "$ref_template_dir/ref.wav" "$PROJECT_DIR/assets/voice_ref/ref.wav"

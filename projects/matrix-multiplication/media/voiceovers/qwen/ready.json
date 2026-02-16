@@ -4,8 +4,8 @@
   "model_source": "Qwen/Qwen3-TTS-12Hz-1.7B-Base",
   "device": "cpu",
   "dtype": "float32",
-  "ref_audio": "/Users/velocityworks/IdeaProjects/flaming-horse/projects/matrix-multiplication/assets/voice_ref/ref.wav",
-  "ref_text": "/Users/velocityworks/IdeaProjects/flaming-horse/projects/matrix-multiplication/assets/voice_ref/ref.txt",
+  "ref_audio": "/Users/velocityworks/IdeaProjects/flaming-horse/assets/voice_ref/ref.wav",
+  "ref_text": "/Users/velocityworks/IdeaProjects/flaming-horse/assets/voice_ref/ref.txt",
   "offline": true,
   "timings": {
     "model_load_seconds": 0.0,
