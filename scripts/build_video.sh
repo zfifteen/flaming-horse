@@ -103,7 +103,6 @@ PHASE_PROMPT_TEMPLATE="${PROMPTS_DIR}/phase_prompt_instructions.md"
 PHASE_NARRATION_TEMPLATE="${PROMPTS_DIR}/phase_narration.md"
 PHASE_BUILD_SCENES_TEMPLATE="${PROMPTS_DIR}/phase_build_scenes.md"
 SCENE_FIX_TEMPLATE="${PROMPTS_DIR}/scene_fix_prompt.md"
-SCENE_QC_TEMPLATE="${PROMPTS_DIR}/scene_qc_prompt.md"
 
 
 # ─── Lock File Management ────────────────────────────────────────────
@@ -443,7 +442,6 @@ validate_scene_template_structure() {
     "from narration_script import SCRIPT"
     "# LOCKED CONFIGURATION (DO NOT MODIFY)"
     "config.frame_height = 10"
-    "config.frame_width = 10 * 16 / 9"
     "config.pixel_height = 1440"
     "config.pixel_width = 2560"
     "self.set_speech_service(get_speech_service(Path(__file__).resolve().parent))"
@@ -461,6 +459,11 @@ validate_scene_template_structure() {
 
   if ! grep -Eq "with self\\.voiceover\\(text=SCRIPT\\[['\"][^'\"]+['\"]\\]\\) as tracker:" "$scene_file"; then
     echo "✗ ERROR: Scene missing required voiceover wrapper using SCRIPT key" | tee -a "$LOG_FILE"
+    return 1
+  fi
+
+  if ! grep -Eq "config\.frame_width[[:space:]]*=[[:space:]]*10[[:space:]]*\*[[:space:]]*16[[:space:]]*/[[:space:]]*9" "$scene_file"; then
+    echo "✗ ERROR: Scene missing required locked frame_width expression (10 * 16 / 9)" | tee -a "$LOG_FILE"
     return 1
   fi
 
@@ -611,6 +614,35 @@ validate_voiceover_sync() {
   fi
   
   echo "✓ Voiceover sync checks passed" | tee -a "$LOG_FILE"
+  return 0
+}
+
+validate_scene_semantics() {
+  local scene_file="$1"
+
+  echo "→ Validating semantic quality in ${scene_file}..." | tee -a "$LOG_FILE"
+
+  local -a forbidden_literals=(
+    "Scene Title"
+    "Subtitle"
+    "Your Scene Title"
+    "Your Subtitle Here"
+  )
+
+  local bad
+  for bad in "${forbidden_literals[@]}"; do
+    if grep -Fq "$bad" "$scene_file"; then
+      echo "✗ ERROR: Scene contains forbidden placeholder text: $bad" | tee -a "$LOG_FILE"
+      return 1
+    fi
+  done
+
+  if grep -Eq "box[[:space:]]*=[[:space:]]*Rectangle\([[:space:]]*width[[:space:]]*=[[:space:]]*4(\.0)?,[[:space:]]*height[[:space:]]*=[[:space:]]*2\.4,[[:space:]]*color[[:space:]]*=[[:space:]]*BLUE" "$scene_file"; then
+    echo "✗ ERROR: Scene contains scaffold demo rectangle animation" | tee -a "$LOG_FILE"
+    return 1
+  fi
+
+  echo "✓ Semantic quality checks passed" | tee -a "$LOG_FILE"
   return 0
 }
 
@@ -1317,6 +1349,7 @@ repair_scene_until_valid() {
     if validate_scene_template_structure "$scene_file" && \
        validate_scene_imports "$scene_file" && \
        validate_voiceover_sync "$scene_file" && \
+       validate_scene_semantics "$scene_file" && \
        validate_scene_runtime "$scene_file" "$scene_class"; then
       echo "✓ Self-heal reset produced a valid scene file: ${scene_file}" | tee -a "$LOG_FILE"
       return 0
@@ -1344,6 +1377,11 @@ repair_scene_until_valid() {
 
     if ! validate_voiceover_sync "$scene_file"; then
       reason="Scene failed voiceover sync validation after repair."
+      continue
+    fi
+
+    if ! validate_scene_semantics "$scene_file"; then
+      reason="Scene failed semantic quality validation after repair."
       continue
     fi
 
@@ -1771,6 +1809,17 @@ PY
     fi
   fi
 
+  # VALIDATION GATE 3: Semantic quality (no scaffold placeholders/default demo content)
+  if ! validate_scene_semantics "$new_scene"; then
+    echo "✗ Semantic quality validation failed for $new_scene. Attempting self-heal..." | tee -a "$LOG_FILE"
+    local semantic_reason
+    semantic_reason="Scene contains placeholder or scaffold demo content"
+    if ! repair_scene_until_valid "$scene_id" "$new_scene" "$scene_class" "$semantic_reason"; then
+      echo "✗ Self-heal failed after semantic quality error in $new_scene" | tee -a "$LOG_FILE" >&2
+      return 1
+    fi
+  fi
+
   # Runtime validation gate: catch construct/animation API failures now,
   # before advancing to the next scene.
   if ! validate_scene_runtime "$new_scene" "$scene_class"; then
@@ -1792,7 +1841,7 @@ PY
 }
 
 handle_scene_qc() {
-  echo "🧪 Running scene QC pass..." | tee -a "$LOG_FILE"
+  echo "🧪 Running deterministic scene checks (no LLM QC)..." | tee -a "$LOG_FILE"
   cd "$PROJECT_DIR"
 
   local qc_scene_files
@@ -1832,104 +1881,65 @@ PY
     return 1
   fi
 
-  local prompt_file=".agent_prompt_scene_qc.md"
-  if [[ ! -f "$SCENE_QC_TEMPLATE" ]]; then
-    echo "❌ Missing prompt template: $SCENE_QC_TEMPLATE" | tee -a "$LOG_FILE" >&2
-    return 1
-  fi
-  render_template_file \
-    "$SCENE_QC_TEMPLATE" \
-    "$prompt_file" \
-    "PROJECT_DIR=${PROJECT_DIR}" \
-    "STATE_FILE=${STATE_FILE}" \
-    "SCENE_FILES=${qc_scene_files}"
+  local report_file="scene_qc_report.md"
+  local scene_count=0
 
-  # Invoke agent for scene QC - use harness or OpenCode
-  if [[ "${USE_HARNESS}" == "1" ]]; then
-    # NEW: Use Python harness for direct xAI API integration
-    echo "Using Python harness for scene QC" | tee -a "$LOG_FILE"
-    
-    # Invoke harness for scene_qc
-    python3 -m harness \
-      --phase scene_qc \
-      --project-dir "$PROJECT_DIR" \
-      > >(tee -a "$LOG_FILE") \
-      2> >(tee -a "$LOG_FILE" >&2)
-    
-    local exit_code=$?
-    rm -f "$prompt_file"
-    
-    if [[ $exit_code -ne 0 ]]; then
-      echo "❌ Scene QC harness failed with exit code: $exit_code" | tee -a "$LOG_FILE"
+  {
+    echo "# Scene QC Report"
+    echo
+    echo "Deterministic validation pass (LLM QC removed)."
+    echo
+  } > "$report_file"
+
+  while IFS= read -r scene_file; do
+    [[ -n "$scene_file" ]] || continue
+    scene_count=$((scene_count + 1))
+
+    local scene_class
+    scene_class="$(infer_scene_class_name "$scene_file")"
+
+    {
+      echo "## ${scene_file}"
+      echo
+    } >> "$report_file"
+
+    if ! validate_scene_template_structure "$scene_file"; then
+      echo "- ❌ Template structure validation failed" >> "$report_file"
       return 1
     fi
-  else
-    # OLD: Use OpenCode (legacy path)
-    echo "Using OpenCode for scene QC (legacy)" | tee -a "$LOG_FILE"
-    
-    local -a opencode_session_args=()
-    if [[ -n "${OPENCODE_SESSION_ID}" ]]; then
-      opencode_session_args=(--session "${OPENCODE_SESSION_ID}")
-    else
-      opencode_session_args=(--format json)
-    fi
-    local opencode_output_file
-    opencode_output_file="$(mktemp)"
 
-    opencode run --agent manim-ce-scripting-expert --model "${AGENT_MODEL}" \
-      "${opencode_session_args[@]}" \
-      --file "$prompt_file" \
-      --file "$STATE_FILE" \
-      -- \
-      "Read .agent_prompt_scene_qc.md and execute the QC pass. Patch the scene files listed from project_state.json and write scene_qc_report.md." \
-      > >(tee -a "$LOG_FILE" | tee -a "$opencode_output_file") \
-      2> >(tee -a "$LOG_FILE" | tee -a "$opencode_output_file" >&2)
-
-    local exit_code=${PIPESTATUS[0]}
-    capture_opencode_session_id_if_missing "$opencode_output_file"
-    rm -f "$opencode_output_file"
-    if [[ $exit_code -ne 0 ]]; then
-      # Some environments do not expose the pinned xai model to opencode.
-      # Fallback to the user's default configured model for this QC pass.
-      if tail -n 120 "$LOG_FILE" | grep -q "ProviderModelNotFoundError"; then
-        echo "⚠ Requested model unavailable for scene_qc; retrying with default model..." | tee -a "$LOG_FILE"
-        local -a fallback_session_args=()
-        if [[ -n "${OPENCODE_SESSION_ID}" ]]; then
-          fallback_session_args=(--session "${OPENCODE_SESSION_ID}")
-        else
-          fallback_session_args=(--format json)
-        fi
-        local fallback_output_file
-        fallback_output_file="$(mktemp)"
-
-        opencode run --agent manim-ce-scripting-expert \
-          "${fallback_session_args[@]}" \
-          --file "$prompt_file" \
-          --file "$STATE_FILE" \
-          -- \
-          "Read .agent_prompt_scene_qc.md and execute the QC pass. Patch the scene files listed from project_state.json and write scene_qc_report.md." \
-          > >(tee -a "$LOG_FILE" | tee -a "$fallback_output_file") \
-          2> >(tee -a "$LOG_FILE" | tee -a "$fallback_output_file" >&2)
-        exit_code=${PIPESTATUS[0]}
-        capture_opencode_session_id_if_missing "$fallback_output_file"
-        rm -f "$fallback_output_file"
-      fi
-    fi
-
-    rm -f "$prompt_file"
-
-    if [[ $exit_code -ne 0 ]]; then
-      echo "❌ Scene QC agent failed with exit code: $exit_code" | tee -a "$LOG_FILE"
+    if ! validate_scene_imports "$scene_file"; then
+      echo "- ❌ Import validation failed" >> "$report_file"
       return 1
     fi
-  fi
 
-  if [[ ! -s "scene_qc_report.md" ]]; then
-    echo "❌ scene_qc_report.md missing or empty after scene QC" | tee -a "$LOG_FILE" >&2
+    if ! validate_voiceover_sync "$scene_file"; then
+      echo "- ❌ Voiceover sync validation failed" >> "$report_file"
+      return 1
+    fi
+
+    if ! validate_scene_semantics "$scene_file"; then
+      echo "- ❌ Semantic validation failed" >> "$report_file"
+      return 1
+    fi
+
+    if ! validate_scene_runtime "$scene_file" "$scene_class"; then
+      echo "- ❌ Runtime validation failed" >> "$report_file"
+      return 1
+    fi
+
+    {
+      echo "- ✅ All deterministic checks passed"
+      echo
+    } >> "$report_file"
+  done <<< "$qc_scene_files"
+
+  if [[ "$scene_count" -eq 0 ]]; then
+    echo "❌ No scene files available for deterministic QC" | tee -a "$LOG_FILE" >&2
     return 1
   fi
 
-  echo "✓ Scene QC complete: scene_qc_report.md" | tee -a "$LOG_FILE"
+  echo "✓ Scene QC complete (deterministic): ${scene_count} scene(s) validated" | tee -a "$LOG_FILE"
   apply_state_phase "scene_qc" || true
   return 0
 }

@@ -6,6 +6,7 @@ reducing context window waste compared to OpenCode.
 """
 
 import json
+import ast
 from pathlib import Path
 from typing import Tuple, Optional, Dict, Any
 
@@ -30,6 +31,45 @@ def resolve_project_file(
     if isinstance(configured_name, str) and configured_name.strip():
         return project_dir / configured_name
     return project_dir / default_name
+
+
+def extract_scene_narration(
+    narration_content: str, narration_key: str
+) -> Optional[str]:
+    """Extract SCRIPT[narration_key] from narration_script.py content."""
+    try:
+        tree = ast.parse(narration_content)
+    except SyntaxError:
+        return None
+
+    script_value = None
+    for node in tree.body:
+        if not isinstance(node, ast.Assign):
+            continue
+        if not any(
+            isinstance(target, ast.Name) and target.id == "SCRIPT"
+            for target in node.targets
+        ):
+            continue
+        script_value = node.value
+        break
+
+    if script_value is None:
+        return None
+
+    try:
+        script_dict = ast.literal_eval(script_value)
+    except (ValueError, SyntaxError):
+        return None
+
+    if not isinstance(script_dict, dict):
+        return None
+
+    narration = script_dict.get(narration_key)
+    if isinstance(narration, str):
+        stripped = narration.strip()
+        return stripped if stripped else None
+    return None
 
 
 def compose_plan_prompt(state: Dict[str, Any], topic: Optional[str]) -> Tuple[str, str]:
@@ -178,7 +218,7 @@ def compose_build_scenes_prompt(
 {visual_helpers}
 """
 
-    # User prompt: plan + narration + current scene + retry context
+    # User prompt: plan + current scene narration + retry context
     plan_file = resolve_project_file(project_dir, state.get("plan_file"), "plan.json")
     plan_content = read_file(plan_file)
     plan_data = json.loads(plan_content)
@@ -214,6 +254,12 @@ def compose_build_scenes_prompt(
         narration_key = scene_id
         scene_details = "N/A"
 
+    scene_narration = extract_scene_narration(narration_content, narration_key)
+    if not scene_narration:
+        raise ValueError(
+            f"Could not extract SCRIPT[{narration_key!r}] from {narration_file.name}"
+        )
+
     retry_section = ""
     if retry_context:
         retry_section = f"""
@@ -229,7 +275,7 @@ This scene previously failed with the following error:
 Please fix the issue and generate a corrected version.
 """
 
-    user_prompt = f"""You are building scene files for this video:
+    user_prompt = f"""You are generating exactly ONE scene file for this run.
 
 **Current Scene**: {scene_id} - {scene_title}
 **Narration Key**: {narration_key}
@@ -239,21 +285,23 @@ Please fix the issue and generate a corrected version.
 {scene_details}
 ```
 
-**Narration Script**:
-```python
-{narration_content}
+**Current Scene Narration** (`SCRIPT["{narration_key}"]`):
+```text
+{scene_narration}
 ```
 
 {retry_section}
 
-Please generate the complete Python scene file for {scene_id} following the template exactly.
+Generate the complete Python scene file for `{scene_id}`.
 
-Remember:
-1. Use the correct SCRIPT key: SCRIPT["{narration_key}"]
-2. Follow all positioning rules (title at UP * 3.8, safe_position after next_to, etc.)
-3. Keep timing budget ≤ 1.0
-4. Include all helper functions from the template
-5. Use visual ideas from the plan to guide your implementation
+Hard requirements:
+1. Use the exact SCRIPT key: `SCRIPT["{narration_key}"]`.
+2. Use the scene title and subtitle content from plan details; do not use placeholders.
+3. Implement visuals tied to this scene's `narrative_beats` and `visual_ideas`.
+4. Follow positioning rules (title at `UP * 3.8`, `safe_position` after `.next_to`, etc.).
+5. Keep timing budget ≤ 1.0 and keep text animations ≤ 1.5s.
+6. Forbidden placeholder strings: `Scene Title`, `Subtitle`, `Your Scene Title`, `Your Subtitle Here`.
+7. Do not reuse scaffold demo animations (default box/shape demo) unless explicitly required by this scene's plan.
 
 Output ONLY the Python code. Start with the imports.
 """

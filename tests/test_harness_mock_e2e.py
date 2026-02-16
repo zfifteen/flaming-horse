@@ -223,6 +223,76 @@ def test_build_scenes_phase():
     return code
 
 
+def test_build_scenes_prompt_uses_current_scene_narration_only():
+    """Build scene prompt should include only current scene narration text."""
+    print("Testing build_scenes prompt narration scoping...")
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        project_dir = Path(tmpdir)
+
+        plan = {
+            "title": "Scoped narration test",
+            "scenes": [
+                {
+                    "id": "scene_01_intro",
+                    "title": "Intro",
+                    "narration_key": "scene_01_intro",
+                    "narrative_beats": ["Beat A"],
+                    "visual_ideas": ["Idea A"],
+                },
+                {
+                    "id": "scene_02_focus",
+                    "title": "Focus",
+                    "narration_key": "scene_02_focus",
+                    "narrative_beats": ["Beat B"],
+                    "visual_ideas": ["Idea B"],
+                },
+            ],
+        }
+        (project_dir / "plan.json").write_text(
+            json.dumps(plan, indent=2), encoding="utf-8"
+        )
+
+        narration_text = """SCRIPT = {
+    "scene_01_intro": "NARRATION_ONE_UNIQUE",
+    "scene_02_focus": "NARRATION_TWO_UNIQUE"
+}
+"""
+        (project_dir / "narration_script.py").write_text(
+            narration_text, encoding="utf-8"
+        )
+
+        state = {
+            "plan_file": "plan.json",
+            "narration_file": "narration_script.py",
+            "scenes": [
+                {
+                    "id": "scene_01_intro",
+                    "title": "Intro",
+                    "narration_key": "scene_01_intro",
+                },
+                {
+                    "id": "scene_02_focus",
+                    "title": "Focus",
+                    "narration_key": "scene_02_focus",
+                },
+            ],
+            "current_scene_index": 1,
+        }
+
+        _, user_prompt = compose_prompt(
+            phase="build_scenes",
+            state=state,
+            project_dir=project_dir,
+        )
+
+        assert "NARRATION_TWO_UNIQUE" in user_prompt
+        assert "NARRATION_ONE_UNIQUE" not in user_prompt
+        assert "Forbidden placeholder strings" in user_prompt
+
+    print("✅ Build scenes prompt uses current scene narration only")
+
+
 def test_full_pipeline():
     """Test full pipeline with mock responses."""
     print("\n" + "=" * 50)
@@ -286,6 +356,9 @@ def test_full_pipeline():
         scene_code = test_build_scenes_phase()
         scene_file = project_dir / "scene_01.py"
         scene_file.write_text(scene_code)
+
+        # Test prompt narration scoping
+        test_build_scenes_prompt_uses_current_scene_narration_only()
 
         # Verify all files exist
         assert plan_file.exists(), "plan.json not created"
