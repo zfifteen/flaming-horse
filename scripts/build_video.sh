@@ -117,7 +117,6 @@ PHASE_TRAINING_TEMPLATE="${PROMPTS_DIR}/phase_training.md"
 PHASE_NARRATION_TEMPLATE="${PROMPTS_DIR}/phase_narration.md"
 PHASE_BUILD_SCENES_TEMPLATE="${PROMPTS_DIR}/phase_build_scenes.md"
 SCENE_FIX_TEMPLATE="${PROMPTS_DIR}/scene_fix_prompt.md"
-SCENE_QC_TEMPLATE="${PROMPTS_DIR}/scene_qc_prompt.md"
 
 
 # ─── Lock File Management ────────────────────────────────────────────
@@ -229,7 +228,6 @@ try:
         'training',
         'narration',
         'build_scenes',
-        'scene_qc',
         'precache_voiceovers',
         'final_render',
         'assemble',
@@ -311,7 +309,7 @@ apply_state_phase() {
 is_retryable_phase() {
   local phase="$1"
   case "$phase" in
-    init|plan|training|narration|build_scenes|scene_qc|final_render|assemble)
+    init|plan|training|narration|build_scenes|final_render|assemble)
       return 0
       ;;
     *)
@@ -1954,126 +1952,6 @@ PY
   return 0
 }
 
-handle_scene_qc() {
-  echo "🧪 Running scene QC pass..." | tee -a "$LOG_FILE"
-  cd "$PROJECT_DIR"
-
-  local qc_scene_files
-  qc_scene_files=$(python3 - <<PY
-import json
-from pathlib import Path
-
-state = json.load(open("${STATE_FILE}", "r"))
-scenes = state.get("scenes") or []
-files = []
-for s in scenes:
-    if not isinstance(s, dict):
-        continue
-    f = s.get("file")
-    if isinstance(f, str) and f:
-        files.append(f)
-
-if not files:
-    print("")
-    raise SystemExit(0)
-
-missing = [f for f in files if not Path(f).exists()]
-if missing:
-    print("MISSING:" + ",".join(missing))
-else:
-    print("\n".join(files))
-PY
-)
-
-  if [[ -z "$qc_scene_files" ]]; then
-    echo "❌ No scene files listed in project_state.json for QC" | tee -a "$LOG_FILE" >&2
-    return 1
-  fi
-
-  if [[ "$qc_scene_files" == MISSING:* ]]; then
-    echo "❌ QC cannot run; missing scene files: ${qc_scene_files#MISSING:}" | tee -a "$LOG_FILE" >&2
-    return 1
-  fi
-
-  local prompt_file=".agent_prompt_scene_qc.md"
-  if [[ ! -f "$SCENE_QC_TEMPLATE" ]]; then
-    echo "❌ Missing prompt template: $SCENE_QC_TEMPLATE" | tee -a "$LOG_FILE" >&2
-    return 1
-  fi
-  render_template_file \
-    "$SCENE_QC_TEMPLATE" \
-    "$prompt_file" \
-    "PROJECT_DIR=${PROJECT_DIR}" \
-    "STATE_FILE=${STATE_FILE}" \
-    "SCENE_FILES=${qc_scene_files}"
-
-  local -a opencode_session_args=()
-  if [[ -n "${OPENCODE_SESSION_ID}" ]]; then
-    opencode_session_args=(--session "${OPENCODE_SESSION_ID}")
-  else
-    opencode_session_args=(--format json)
-  fi
-  local opencode_output_file
-  opencode_output_file="$(mktemp)"
-
-  opencode run --agent manim-ce-scripting-expert --model "${AGENT_MODEL}" \
-    "${opencode_session_args[@]}" \
-    --file "$prompt_file" \
-    --file "$STATE_FILE" \
-    -- \
-    "Read .agent_prompt_scene_qc.md and execute the QC pass. Patch the scene files listed from project_state.json and write scene_qc_report.md." \
-    > >(tee -a "$LOG_FILE" | tee -a "$opencode_output_file") \
-    2> >(tee -a "$LOG_FILE" | tee -a "$opencode_output_file" >&2)
-
-  local exit_code=${PIPESTATUS[0]}
-  capture_opencode_session_id_if_missing "$opencode_output_file"
-  rm -f "$opencode_output_file"
-  if [[ $exit_code -ne 0 ]]; then
-    # Some environments do not expose the pinned xai model to opencode.
-    # Fallback to the user's default configured model for this QC pass.
-    if tail -n 120 "$LOG_FILE" | grep -q "ProviderModelNotFoundError"; then
-      echo "⚠ Requested model unavailable for scene_qc; retrying with default model..." | tee -a "$LOG_FILE"
-      local -a fallback_session_args=()
-      if [[ -n "${OPENCODE_SESSION_ID}" ]]; then
-        fallback_session_args=(--session "${OPENCODE_SESSION_ID}")
-      else
-        fallback_session_args=(--format json)
-      fi
-      local fallback_output_file
-      fallback_output_file="$(mktemp)"
-
-      opencode run --agent manim-ce-scripting-expert \
-        "${fallback_session_args[@]}" \
-        --file "$prompt_file" \
-        --file "$STATE_FILE" \
-        -- \
-        "Read .agent_prompt_scene_qc.md and execute the QC pass. Patch the scene files listed from project_state.json and write scene_qc_report.md." \
-        > >(tee -a "$LOG_FILE" | tee -a "$fallback_output_file") \
-        2> >(tee -a "$LOG_FILE" | tee -a "$fallback_output_file" >&2)
-      exit_code=${PIPESTATUS[0]}
-      capture_opencode_session_id_if_missing "$fallback_output_file"
-      rm -f "$fallback_output_file"
-    fi
-  fi
-
-  rm -f "$prompt_file"
-
-  if [[ $exit_code -ne 0 ]]; then
-    echo "❌ Scene QC agent failed with exit code: $exit_code" | tee -a "$LOG_FILE"
-    return 1
-  fi
-
-  if [[ ! -s "scene_qc_report.md" ]]; then
-    echo "❌ scene_qc_report.md missing or empty after scene QC" | tee -a "$LOG_FILE" >&2
-    return 1
-  fi
-
-  echo "✓ Scene QC complete: scene_qc_report.md" | tee -a "$LOG_FILE"
-  apply_state_phase "scene_qc" || true
-  return 0
-}
-
-
 # Parallel scene rendering coordinator
 render_scenes_parallel() {
   local scene_lines="$1"
@@ -2790,7 +2668,6 @@ run_phase_once() {
     training) handle_training ;;
     narration) handle_narration ;;
     build_scenes) handle_build_scenes ;;
-    scene_qc) handle_scene_qc ;;
     precache_voiceovers) handle_precache_voiceovers ;;
     final_render) handle_final_render ;;
     assemble) handle_assemble ;;

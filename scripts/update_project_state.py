@@ -32,7 +32,6 @@ VALID_PHASES = {
     "training",
     "narration",
     "build_scenes",
-    "scene_qc",
     "precache_voiceovers",
     "final_render",
     "assemble",
@@ -460,32 +459,6 @@ def apply_phase(project_dir: Path, state: dict, phase: str) -> dict:
         )
         return state
 
-    if phase == "scene_qc":
-        report_path = project_dir / "scene_qc_report.md"
-        if report_path.exists() and report_path.stat().st_size > 0:
-            state["phase"] = "precache_voiceovers"
-            state["flags"]["needs_human_review"] = False
-            _clear_errors_matching(
-                state,
-                lambda e: e.startswith("scene_qc incomplete:")
-                or e.startswith("scene_qc failed:"),
-            )
-            state.setdefault("history", []).append(
-                {
-                    "timestamp": utc_now(),
-                    "phase": "scene_qc",
-                    "action": "Detected scene_qc_report.md; advanced to precache_voiceovers (deterministic)",
-                }
-            )
-            return state
-
-        state["phase"] = "scene_qc"
-        _add_error_unique(
-            state,
-            "scene_qc incomplete: scene_qc_report.md missing",
-        )
-        return state
-
     if phase == "build_scenes":
         idx = int(state.get("current_scene_index") or 0)
         scenes = state.get("scenes") or []
@@ -497,7 +470,7 @@ def apply_phase(project_dir: Path, state: dict, phase: str) -> dict:
             state["flags"]["needs_human_review"] = True
             return state
         if idx >= len(scenes):
-            state["phase"] = "scene_qc"
+            state["phase"] = "precache_voiceovers"
             _clear_errors_matching(
                 state, lambda e: e.startswith("build_scenes incomplete:")
             )
@@ -541,7 +514,7 @@ def apply_phase(project_dir: Path, state: dict, phase: str) -> dict:
         )
 
         if state["current_scene_index"] >= len(scenes):
-            state["phase"] = "scene_qc"
+            state["phase"] = "precache_voiceovers"
         else:
             state["phase"] = "build_scenes"
 

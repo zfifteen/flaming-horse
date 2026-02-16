@@ -13,4 +13,3 @@ This directory is the single source of truth for orchestrator prompt text/snippe
 - `phase_prompt_instructions.md`: Shared per-phase instructions appended to phase prompts.
 - `phase_build_scenes.md`: Build-scenes phase-specific reminder snippet.
 - `scene_fix_prompt.md`: Targeted scene-repair prompt.
-- `scene_qc_prompt.md`: Dedicated scene QC prompt.

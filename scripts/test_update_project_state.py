@@ -222,8 +222,8 @@ def test_apply_build_scenes_marks_built() -> None:
             "class_name not inferred",
         )
         require(
-            state["phase"] == "scene_qc",
-            "single scene should advance to scene_qc",
+            state["phase"] == "precache_voiceovers",
+            "single scene should advance to precache_voiceovers",
         )
         require(
             "build_scenes incomplete: expected scene_01_intro.py not found"
