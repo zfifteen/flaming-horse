@@ -26,19 +26,18 @@ fi
   scene_qc)
     echo "🔍 Phase: scene_qc - Validating scene rendering" | tee -a "$LOG_FILE"
 
-    # First, validate scene_files consistency
+    # First, validate scenes consistency
     if command -v validate_scene_files_consistency >/dev/null 2>&1; then
       if ! validate_scene_files_consistency "$PROJECT_DIR"; then
-        echo "⚠️  scene_files consistency check failed, but continuing..." | tee -a "$LOG_FILE"
+        echo "⚠️  scenes consistency check failed, but continuing..." | tee -a "$LOG_FILE"
       fi
     fi
 
-    # Get current scene index from state
-    CURRENT_SCENE_INDEX=$(python3 -c "import json; print(json.load(open('${STATE_FILE}'))['current_scene_index'])")
-    SCENE_FILE="${PROJECT_DIR}/scenes/scene_${CURRENT_SCENE_INDEX}.py"
-    SCENE_CLASS="Scene${CURRENT_SCENE_INDEX}"
+    # Get current scene metadata from state
+    SCENE_META=$(python3 -c "import json,re; s=json.load(open('${STATE_FILE}')); idx=int(s.get('current_scene_index',0)); scenes=s.get('scenes',[]); assert 0 <= idx < len(scenes), 'current_scene_index out of range'; sc=scenes[idx]; sid=sc.get('id') or sc.get('scene_id'); assert sid, 'missing scene id'; sf=sc.get('file') or f'{sid}.py'; cls=sc.get('class_name') or ('Scene'+''.join(part.capitalize() for part in sid.replace('scene_','').split('_'))); print(f'{idx}|{sid}|{sf}|{cls}')")
+    IFS='|' read -r CURRENT_SCENE_INDEX CURRENT_SCENE_ID SCENE_FILE SCENE_CLASS <<< "$SCENE_META"
 
-    echo "Validating scene ${CURRENT_SCENE_INDEX}..." | tee -a "$LOG_FILE"
+    echo "Validating scene ${CURRENT_SCENE_ID} (index ${CURRENT_SCENE_INDEX})..." | tee -a "$LOG_FILE"
 
     # Run semantic validation if available
     SEMANTIC_VALIDATION_PASSED=false
@@ -87,10 +86,10 @@ fi
 # Documentation of semantic validation checks performed:
 #
 # 1. Syntax validation: Ensures Python syntax is valid
-# 2. narration_text presence: Checks for non-empty narration_text assignment
+# 2. Voiceover narration wiring: Checks for `self.voiceover(text=SCRIPT["..."])`
 # 3. construct() validation: Ensures construct() method exists with substantive body
 # 4. Import validation: Verifies required Manim imports are present
-# 5. Scene class validation: Confirms proper Scene class definition
+# 5. Scene class validation: Confirms class inherits from VoiceoverScene
 # 6. Animation validation: Detects empty self.play() calls
 # 7. Timing validation: Checks for self.wait() calls after animations
 # 8. Placeholder detection: Identifies TODO/FIXME comments in construct()

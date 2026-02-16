@@ -29,7 +29,7 @@ Your scene MUST pass these validation checks:
 
 1. **Non-empty construct() body**: The construct() method must contain substantive animation logic, not just `pass` or empty body. Include actual self.play(), self.wait(), and mobject creation.
 
-2. **Valid narration_text**: Must assign non-empty narration_text string with actual narration content. This is the voiceover text for the scene.
+2. **Valid narration wiring**: Use `with self.voiceover(text=SCRIPT["{{TARGET_NARRATION_KEY}}"]) as tracker:` and keep `SCRIPT` imported from `narration_script.py`.
 
 3. **Proper timing flow**: Include self.wait() calls between animation sequences for pacing. Don't chain self.play() calls without timing.
 
@@ -41,8 +41,8 @@ Your scene MUST pass these validation checks:
 
 Common validation failures to avoid:
 - Empty construct() or only `pass`
-- Missing narration_text assignment
-- narration_text = "" (empty string)
+- Missing `SCRIPT` import
+- Voiceover not using `SCRIPT[...]` narration key
 - No self.wait() calls (animations need timing)
 - self.play() with no arguments
 - TODO/FIXME placeholders in construct()

@@ -16,17 +16,17 @@ VALIDATION REQUIREMENTS:
 
 The scene must pass semantic validation checks:
 1. Valid Python syntax (no SyntaxError)
-2. Non-empty narration_text assignment with actual content
+2. Valid voiceover narration wiring: `with self.voiceover(text=SCRIPT["..."]) as tracker:`
 3. construct() method exists with non-trivial body (not just `pass`)
 4. No TODO/FIXME placeholders in construct() body
 5. Proper Manim imports present
-6. Valid Scene class definition inheriting from Scene
+6. Valid Scene class definition inheriting from VoiceoverScene
 7. No empty self.play() calls
 8. Appropriate timing with self.wait() calls after animations
 
 Common validation failures to avoid:
 - Empty construct() body or only containing `pass`
-- Missing or empty narration_text = ""
+- Missing `SCRIPT` import or missing voiceover call using `SCRIPT[...]`
 - Broken self.play() calls with invalid arguments
 - Missing self.wait() timing between animation sequences
 - Syntax errors from incomplete refactoring
@@ -44,7 +44,7 @@ INSTRUCTIONS:
    - Do NOT pass `lag_ratio` or `scale_factor` directly to `FadeIn(...)`.
    - If staggered fade-in is needed, use `LaggedStart(FadeIn(...), ..., lag_ratio=...)`.
 8. Ensure construct() has substantive animation logic (not empty/placeholder)
-9. Verify narration_text contains the actual narration content for this scene
+9. Verify `self.voiceover(...)` uses `SCRIPT["{{SCENE_ID}}"]` or the scene's proper narration key
 10. Add appropriate self.wait() calls for timing between animation sequences
 
 SELF-HEAL OPTIMIZATION:
