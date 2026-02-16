@@ -9,6 +9,7 @@ Your task is to review all scene files for consistency, quality, and adherence t
 - Positioning correctness (titles at UP * 3.8, safe_position calls, no overlaps)
 - Timing budget compliance (fractions ≤ 1.0)
 - Visual quality (smooth animations, proper cleanup)
+- Scene energy and cadence (continuous meaningful motion, no long static spans)
 - Code style consistency across scenes
 - Import correctness (manim_voiceover_plus with underscores)
 - Voice service setup (no network TTS, cached Qwen only)
@@ -33,9 +34,10 @@ For each scene file, check:
 - [ ] Timing fractions sum to ≤ 1.0 per voiceover block
 - [ ] No hardcoded narration (uses SCRIPT["scene_xx"])
 - [ ] Text animations ≤ 1.5 seconds
-- [ ] Maximum 5 elements per voiceover block
 - [ ] Old content faded out before new content appears
 - [ ] MathTex for equations, Text for labels
+- [ ] No long static intervals (>~3 seconds without meaningful visual change)
+- [ ] Non-math scenes follow explainer-slide cadence (progressive bullets + evolving diagram)
 
 ## Common Issues to Fix
 
@@ -45,6 +47,7 @@ For each scene file, check:
 4. **Timing budget overflow**: Reduce run_times to keep total ≤ 1.0
 5. **Visual clutter**: Add FadeOut between sections
 6. **Slow text**: Cap Write() animations at 1.5s
+7. **Underwhelming sparse scene**: Rewrite scene body to add progressive bullets, topic-specific right-panel visuals, and continuous transitions
 
 ## Report Format
 
@@ -70,5 +73,7 @@ For each scene file, check:
 - Consider adding more visual variety in scene 3
 - Scene 4 could benefit from a color palette using harmonious_color()
 ```
+
+If a scene is under-animated or mostly static, do not make only tiny timing edits. Apply a substantial in-slot rewrite that preserves narrative intent but raises visual information density and motion cadence.
 
 **Output the modified scene files AND the scene_qc_report.md.**

@@ -37,7 +37,7 @@ For full phase details, see the modular docs above.
 - Create a new folder under `projects` for the video and all associated artifacts.
 - Do not create or modify any files outside the designated project folder.
 
-- If the subject is not mathematical, use text, tables, charts and graphs and do not draw geometric or mathematical objects. 
+- If the subject is not mathematical, default to an explainer-slide style: progressive bullets, topic-specific diagrams/timelines, and continuous motion. Avoid generic geometric filler visuals unless explicitly relevant.
 - API keys are in `.env`
 
 ---
@@ -238,7 +238,7 @@ class Scene01Intro(VoiceoverScene):
         # Timing is deterministic via BeatPlan helper slots.
         
         with self.voiceover(text=SCRIPT["intro"]) as tracker:
-            beats = BeatPlan(tracker.duration, [4, 3, 3])
+            beats = BeatPlan(tracker.duration, [1, 1, 1, 1, 1, 1, 1, 1, 1, 1])
 
             # Title (ALWAYS use UP * 3.8, NEVER .to_edge(UP)); Adaptive (New)
             title = Text("Your Title", font_size=48, weight=BOLD, color=blues[0])
@@ -251,13 +251,22 @@ class Scene01Intro(VoiceoverScene):
             safe_position(subtitle)  # ALWAYS call after .next_to()
             play_text_next(self, beats, polished_fade_in(subtitle, lag_ratio=0.1))  # Polished (New)
             
-            # Main content
-            content = Circle(radius=1.5, color=blues[2])
-            content.move_to(ORIGIN)
-            play_next(self, beats, Create(content, run_time=2.0, rate_func=smooth))  # Smooth (New)
-            
-            # Always end with buffer (New)
-            self.wait(tracker.duration * 0.1)
+            # Explainer-slide cadence: progressive bullets + evolving right-panel visual
+            bullet_1 = Text("Key point one", font_size=28).move_to(LEFT * 4.8 + UP * 1.6)
+            bullet_2 = Text("Key point two", font_size=28).next_to(bullet_1, DOWN, aligned_edge=LEFT, buff=0.3)
+            safe_position(bullet_2)
+            bullet_3 = Text("Key point three", font_size=28).next_to(bullet_2, DOWN, aligned_edge=LEFT, buff=0.3)
+            safe_position(bullet_3)
+
+            diagram = RoundedRectangle(width=5.2, height=3.2, corner_radius=0.2, color=blues[2]).move_to(RIGHT * 3.2 + DOWN * 0.4)
+            callout = SurroundingRectangle(bullet_2, color=YELLOW, buff=0.15)
+
+            play_text_next(self, beats, FadeIn(bullet_1))
+            play_text_next(self, beats, FadeIn(bullet_2))
+            play_text_next(self, beats, FadeIn(bullet_3))
+            play_next(self, beats, Create(diagram, rate_func=smooth))
+            play_next(self, beats, FadeIn(callout), max_run_time=0.8)
+            play_next(self, beats, FadeOut(callout), max_run_time=0.8)
 ```
 
 See reference_docs/visual_helpers.md for more on enhanced helpers and aesthetics.
@@ -334,9 +343,11 @@ with self.voiceover(text=SCRIPT["demo"]) as tracker:  # 10 seconds
 
 # CORRECT:
 with self.voiceover(text=SCRIPT["demo"]) as tracker:  # 10 seconds
-    self.play(Write(title), run_time=tracker.duration * 0.5)   # 5s (50%)
-    self.play(FadeIn(obj), run_time=tracker.duration * 0.4)     # 4s (40%)
-    self.wait(tracker.duration * 0.1)                           # 1s buffer (10%)
+    self.play(Write(title), run_time=tracker.duration * 0.2)   # 2s (20%)
+    self.play(FadeIn(obj), run_time=tracker.duration * 0.25)    # 2.5s (25%)
+    self.play(obj.animate.shift(RIGHT * 0.8), run_time=tracker.duration * 0.2)
+    self.play(Indicate(obj), run_time=tracker.duration * 0.15)
+    self.play(FadeIn(callout), run_time=tracker.duration * 0.2)
     # Total = 1.0 = 100% ✓ Perfect sync
 ```
 
@@ -399,9 +410,10 @@ play_text_next(self, beats, FadeIn(key_point))
 - ✅ For staggered reveals, use `LaggedStart(FadeIn(a), FadeIn(b), ..., lag_ratio=0.15)`
 
 ### Content Density Per Scene
-- ❌ NEVER place more than 5 primary visual elements in one voiceover block
-- ✅ If you need more elements, split into multiple voiceover segments
-- ✅ Remove (FadeOut) previous elements before introducing new ones
+- ✅ For non-math topics, prefer high-information explainer slides over sparse minimal scenes
+- ✅ Use progressive bullet reveals plus evolving right-panel visuals
+- ✅ If content is too dense for one block, split into multiple voiceover segments
+- ✅ Remove (FadeOut/Transform) previous elements before introducing new ones
 
 ### Element Cleanup
 - ✅ ALWAYS FadeOut previous section content before new section begins
@@ -413,6 +425,12 @@ play_text_next(self, beats, FadeIn(key_point))
 - ✅ Minimum run_time for any visible animation: 0.3 seconds
 - ❌ NEVER set run_time < 0.2 (imperceptible, creates visual artifacts)
 - ✅ For sequential reveals, use lag_ratio=0.1 to 0.3
+
+### Continuous Motion Requirement
+- ❌ NEVER leave long static/black intervals where little changes on screen
+- ✅ Target a visible visual state change every ~1.5-3 seconds
+- ✅ Non-math scenes should follow slide cadence (title/subtitle, bullets, evolving visual, recap/callout)
+- ❌ Avoid generic filler visuals (single circle/ellipse/equation) unless directly relevant
 
 ### Overlap Prevention
 - ✅ After positioning ALL elements in a segment, verify no overlaps using `safe_layout()`:

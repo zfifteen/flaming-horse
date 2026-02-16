@@ -16,8 +16,9 @@
    ```
 3. Fill in animations inside the scaffolded `# TODO: Add animations here` block
    - Parse narration beats: Use `BeatPlan(tracker.duration, [beat_durations])` where durations = tracker.duration * (words_per_beat / total_words).
-   - Add buffers: Always end with `self.wait(tracker.duration * 0.1)` for 10% tolerance.
-   - If deviation >10% in dry-run, insert `self.play(Wait(0.5))` and flag in state.
+   - Use the full narration duration with staged visual beats; avoid long tail idle waits.
+   - Prefer 8-12 micro-beats per scene (title/subtitle, progressive bullets, evolving visual transitions, recap callout).
+   - If deviation >10% in dry-run, rebalance beat slots and flag in state.
 4. Keep the generated boilerplate structure unchanged unless absolutely necessary
 5. Update scene status to `'built'` AND persist required render metadata into state:
    - `scene['file'] = '<scene_id>.py'`
@@ -40,6 +41,8 @@ Update state: `scene['validation_passed'] = True` only if all checks pass.
 - Labels must attach to nearby elements (e.g., `label.next_to(curve.get_end(), UP, buff=0.2)`), then `safe_position(label)`.
 - After positioning, run `safe_layout(...)` for any group of 2+ elements.
 - ❌ NEVER use `.to_edge(...)` for titles or labels (causes clipping/edge drift).
+- For non-math topics, default to explainer-slide layout: left-panel progressive bullets + right-panel evolving topic visual.
+- Ensure a visible transition every ~1.5-3 seconds; avoid static black intervals.
 
 ---
 

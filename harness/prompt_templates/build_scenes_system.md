@@ -83,25 +83,42 @@ The template contains placeholder content that MUST be replaced:
 - NEVER exceed 1.0 total timing fraction per voiceover block
 - Use `BeatPlan` helper to manage timing slots
 - Text animations capped at 1.5s
-- End each voiceover with 10% buffer: `self.wait(tracker.duration * 0.1)`
+- Do not leave long tail idle time; use the full tracker duration with staged beats
 
 ### Visual Quality
 - Use `harmonious_color()` for color palettes
 - Use `polished_fade_in()` for smooth reveals
-- Maximum 5 elements per voiceover block
-- FadeOut old content before introducing new content
+- Keep scene composition intentional and readable, but not sparse
+- FadeOut or transform old content before introducing dense new content
 - Minimum animation run_time: 0.3 seconds
+
+### Non-Math Scene Default (Explainer Slide Cadence)
+
+When the topic is non-mathematical, default each scene to a slide-style explainer layout:
+
+- Top: title + subtitle
+- Left panel: 3-5 bullets revealed progressively
+- Right panel: topic-specific diagram/timeline/flow visual that evolves over time
+- Recap/callout element late in the scene
+
+Motion and pacing requirements for non-math scenes:
+
+- Plan 8-12 micro-beats per scene (`BeatPlan` should reflect this cadence)
+- Keep a visible state change every ~1.5-3 seconds
+- Avoid long black/static stretches
+- Avoid placeholder visuals (single late circle/ellipse/equation) unless explicitly relevant
 
 ## Think Step-by-Step
 
 1. Read the scene's visual_ideas and narrative_beats from the plan
 2. Design the visual composition (title, subtitle, main content)
 3. **Replace ALL placeholder text** with actual scene-specific content
-4. Calculate timing budget based on narration duration
-5. Implement animations using helper functions
-6. Verify positioning (no overlaps, proper safe zones)
-7. Verify timing (fractions sum to ≤ 1.0)
-8. Test that scene uses the provided narration key (not scene id) for SCRIPT lookup
+4. For non-math topics, explicitly map to explainer-slide layout and 8-12 micro-beats
+5. Calculate timing budget based on narration duration
+6. Implement animations using helper functions
+7. Verify positioning (no overlaps, proper safe zones)
+8. Verify timing (fractions sum to ≤ 1.0 and no long static spans)
+9. Test that scene uses the provided narration key (not scene id) for SCRIPT lookup
 
 **Output each scene as a complete Python file. Use clear delimiters between scenes.**
 

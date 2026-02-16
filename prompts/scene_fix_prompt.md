@@ -23,6 +23,7 @@ The scene must pass semantic validation checks:
 6. Valid Scene class definition inheriting from VoiceoverScene
 7. No empty self.play() calls
 8. Appropriate timing with self.wait() calls after animations
+9. For non-math topics, scene should not be sparse/static; use explainer-slide cadence (progressive bullets + evolving topic visual)
 
 Common validation failures to avoid:
 - Empty construct() body or only containing `pass`
@@ -46,6 +47,7 @@ INSTRUCTIONS:
 8. Ensure construct() has substantive animation logic (not empty/placeholder)
 9. Verify `self.voiceover(...)` uses `SCRIPT["{{SCENE_ID}}"]` or the scene's proper narration key
 10. Add appropriate self.wait() calls for timing between animation sequences
+11. If failure indicates low visual quality or under-animation, perform a substantial in-slot rewrite (still preserving narration intent)
 
 SELF-HEAL OPTIMIZATION:
 This is attempt {{ATTEMPT}} of {{PHASE_RETRY_LIMIT}}. The self-heal loop will:

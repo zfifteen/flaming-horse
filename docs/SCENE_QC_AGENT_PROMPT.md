@@ -45,11 +45,17 @@ Hard requirements:
    - Do NOT call `FadeIn(..., scale_factor=...)`.
    - For staggered fades, use `LaggedStart(FadeIn(a), FadeIn(b), ..., lag_ratio=...)`.
 
+6. Enforce scene energy and content density for non-math topics.
+   - Reject scenes that are mostly static/black for long stretches.
+   - Reject scenes that only show title/subtitle plus one trivial late animation.
+   - Require explainer-slide cadence: progressive bullets and an evolving topic-specific visual.
+
 Repair strategy:
 - Prefer minimal edits to timing/layout lines.
 - Do not rewrite scene concepts or narration content.
 - Do not introduce network TTS or fallback logic.
 - If a scene is too dense, split the visual sequence across multiple voiceover sub-segments.
+- If a scene is under-animated/sparse, perform a substantial in-slot rewrite that preserves intent while increasing motion cadence.
 
 Validation checklist before finishing:
 - [ ] No non-positive waits
@@ -57,6 +63,8 @@ Validation checklist before finishing:
 - [ ] No obvious timing over-allocation per voiceover block
 - [ ] No major overlaps in active scene layout
 - [ ] Prior section content cleaned up before new dense section
+- [ ] No long static spans (>~3s without meaningful visual change)
+- [ ] Non-math scenes use progressive bullets + evolving right-side visuals
 
 Required report format:
 - Scene-by-scene summary with:

@@ -22,6 +22,9 @@ MANDATORY: ALWAYS follow the scene examples syntax from `reference_docs/manim_te
 - NEVER enable optional alignment extras.
 - Mentally validate: does the code import manim correctly and run without NameError?
 - Layout contract: Title at UP * 3.8, subtitle directly below, graphs/diagrams moved DOWN * 0.6 to 1.2, no .to_edge(...) for titles/labels, safe_layout for 2+ siblings, safe_position after .next_to().
+- For non-math topics, default to explainer-slide cadence: progressive left-panel bullets plus evolving right-panel topic visuals.
+- Target 8-12 micro-beats per scene (not 3 coarse beats), with a visible transition every ~1.5-3 seconds.
+- Avoid long static/black periods and avoid generic filler visuals unless explicitly relevant.
 
 SEMANTIC VALIDATION REQUIREMENTS:
 
@@ -47,5 +50,7 @@ Common validation failures to avoid:
 - self.play() with no arguments
 - TODO/FIXME placeholders in construct()
 - Syntax errors from incomplete edits
+- Title/subtitle plus mostly static black screen with one late trivial animation
+- Non-math scenes that lack progressive bullets and evolving topic visuals
 
 Validation runs automatically after build. Fix issues proactively to avoid self-heal loop.
