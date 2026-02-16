@@ -23,13 +23,19 @@ def read_file(path: Path) -> str:
     return path.read_text()
 
 
-def compose_plan_prompt(
-    state: Dict[str, Any],
-    topic: Optional[str]
-) -> Tuple[str, str]:
+def resolve_project_file(
+    project_dir: Path, configured_name: Any, default_name: str
+) -> Path:
+    """Resolve a project file path with fallback for null/empty state values."""
+    if isinstance(configured_name, str) and configured_name.strip():
+        return project_dir / configured_name
+    return project_dir / default_name
+
+
+def compose_plan_prompt(state: Dict[str, Any], topic: Optional[str]) -> Tuple[str, str]:
     """
     Compose prompts for the plan phase.
-    
+
     Returns:
         (system_prompt, user_prompt)
     """
@@ -37,7 +43,7 @@ def compose_plan_prompt(
     core_rules = read_file(PROMPT_TEMPLATES_DIR / "core_rules.md")
     plan_system = read_file(PROMPT_TEMPLATES_DIR / "plan_system.md")
     pipeline_doc = read_file(REFERENCE_DOCS_DIR / "manim_content_pipeline.md")
-    
+
     system_prompt = f"""# Flaming Horse Video Production Agent - Plan Phase
 
 {core_rules}
@@ -52,7 +58,7 @@ def compose_plan_prompt(
 
 {pipeline_doc}
 """
-    
+
     # User prompt: topic + instructions
     user_prompt = f"""You are creating a video plan for the following topic:
 
@@ -68,17 +74,16 @@ Think about:
 
 Output ONLY the JSON plan. Begin your response with the opening brace.
 """
-    
+
     return system_prompt, user_prompt
 
 
 def compose_narration_prompt(
-    state: Dict[str, Any],
-    project_dir: Path
+    state: Dict[str, Any], project_dir: Path
 ) -> Tuple[str, str]:
     """
     Compose prompts for the narration phase.
-    
+
     Returns:
         (system_prompt, user_prompt)
     """
@@ -86,7 +91,7 @@ def compose_narration_prompt(
     core_rules = read_file(PROMPT_TEMPLATES_DIR / "core_rules.md")
     narration_system = read_file(PROMPT_TEMPLATES_DIR / "narration_system.md")
     pipeline_doc = read_file(REFERENCE_DOCS_DIR / "manim_content_pipeline.md")
-    
+
     system_prompt = f"""# Flaming Horse Video Production Agent - Narration Phase
 
 {core_rules}
@@ -101,12 +106,12 @@ def compose_narration_prompt(
 
 {pipeline_doc}
 """
-    
+
     # User prompt: plan contents + instructions
-    plan_file = project_dir / state.get("plan_file", "plan.json")
+    plan_file = resolve_project_file(project_dir, state.get("plan_file"), "plan.json")
     plan_content = read_file(plan_file)
     plan_data = json.loads(plan_content)
-    
+
     user_prompt = f"""You are writing the voiceover script for this video:
 
 **Title**: {plan_data.get("title", "Unknown")}
@@ -126,18 +131,16 @@ Create engaging, conversational narration for each scene that:
 
 Output ONLY the Python code (narration_script.py). Start with the comment line.
 """
-    
+
     return system_prompt, user_prompt
 
 
 def compose_build_scenes_prompt(
-    state: Dict[str, Any],
-    project_dir: Path,
-    retry_context: Optional[str] = None
+    state: Dict[str, Any], project_dir: Path, retry_context: Optional[str] = None
 ) -> Tuple[str, str]:
     """
     Compose prompts for the build_scenes phase.
-    
+
     Returns:
         (system_prompt, user_prompt)
     """
@@ -147,7 +150,7 @@ def compose_build_scenes_prompt(
     template = read_file(REFERENCE_DOCS_DIR / "manim_template.py.txt")
     config_guide = read_file(REFERENCE_DOCS_DIR / "manim_config_guide.md")
     visual_helpers = read_file(REFERENCE_DOCS_DIR / "visual_helpers.md")
-    
+
     system_prompt = f"""# Flaming Horse Video Production Agent - Build Scenes Phase
 
 {core_rules}
@@ -174,37 +177,41 @@ def compose_build_scenes_prompt(
 
 {visual_helpers}
 """
-    
+
     # User prompt: plan + narration + current scene + retry context
-    plan_file = project_dir / state.get("plan_file", "plan.json")
+    plan_file = resolve_project_file(project_dir, state.get("plan_file"), "plan.json")
     plan_content = read_file(plan_file)
     plan_data = json.loads(plan_content)
-    
-    narration_file = project_dir / state.get("narration_file", "narration_script.py")
+
+    narration_file = resolve_project_file(
+        project_dir,
+        state.get("narration_file"),
+        "narration_script.py",
+    )
     narration_content = read_file(narration_file)
-    
+
     # Get current scene to build
     scenes = state.get("scenes", [])
     current_index = state.get("current_scene_index", 0)
-    
+
     if current_index < len(scenes):
         current_scene = scenes[current_index]
         scene_id = current_scene.get("id", f"scene_{current_index + 1:02d}")
         scene_title = current_scene.get("title", "Unknown")
-        
+
         # Find the corresponding scene in the plan
         plan_scene = None
         for ps in plan_data.get("scenes", []):
             if ps.get("id") == scene_id:
                 plan_scene = ps
                 break
-        
+
         scene_details = json.dumps(plan_scene, indent=2) if plan_scene else "N/A"
     else:
         scene_id = f"scene_{current_index + 1:02d}"
         scene_title = "Unknown"
         scene_details = "N/A"
-    
+
     retry_section = ""
     if retry_context:
         retry_section = f"""
@@ -219,7 +226,7 @@ This scene previously failed with the following error:
 
 Please fix the issue and generate a corrected version.
 """
-    
+
     user_prompt = f"""You are building scene files for this video:
 
 **Current Scene**: {scene_id} - {scene_title}
@@ -247,17 +254,16 @@ Remember:
 
 Output ONLY the Python code. Start with the imports.
 """
-    
+
     return system_prompt, user_prompt
 
 
 def compose_scene_qc_prompt(
-    state: Dict[str, Any],
-    project_dir: Path
+    state: Dict[str, Any], project_dir: Path
 ) -> Tuple[str, str]:
     """
     Compose prompts for the scene_qc phase.
-    
+
     Returns:
         (system_prompt, user_prompt)
     """
@@ -265,7 +271,7 @@ def compose_scene_qc_prompt(
     core_rules = read_file(PROMPT_TEMPLATES_DIR / "core_rules.md")
     qc_system = read_file(PROMPT_TEMPLATES_DIR / "scene_qc_system.md")
     scenes_doc = read_file(REFERENCE_DOCS_DIR / "phase_scenes.md")
-    
+
     system_prompt = f"""# Flaming Horse Video Production Agent - Scene QC Phase
 
 {core_rules}
@@ -280,25 +286,25 @@ def compose_scene_qc_prompt(
 
 {scenes_doc}
 """
-    
+
     # User prompt: all scene files
     scenes = state.get("scenes", [])
     scene_files_content = []
-    
+
     for scene in scenes:
         scene_file_path = project_dir / scene.get("file", "")
         if scene_file_path.exists():
             content = read_file(scene_file_path)
             scene_files_content.append(f"""
-### {scene.get('file')}
+### {scene.get("file")}
 
 ```python
 {content}
 ```
 """)
-    
+
     all_scenes = "\n".join(scene_files_content)
-    
+
     user_prompt = f"""Please review all scene files for consistency and quality.
 
 **Scene Files**:
@@ -312,7 +318,7 @@ Review each file against the QC checklist and:
 
 Output the modified scene files (with clear markers showing which file) and the QC report.
 """
-    
+
     return system_prompt, user_prompt
 
 
@@ -320,18 +326,18 @@ def compose_scene_repair_prompt(
     state: Dict[str, Any],
     project_dir: Path,
     scene_file: Path,
-    retry_context: Optional[str]
+    retry_context: Optional[str],
 ) -> Tuple[str, str]:
     """
     Compose prompts for the scene_repair phase.
-    
+
     Returns:
         (system_prompt, user_prompt)
     """
     # System prompt: core rules + repair system (minimal)
     core_rules = read_file(PROMPT_TEMPLATES_DIR / "core_rules.md")
     repair_system = read_file(PROMPT_TEMPLATES_DIR / "repair_system.md")
-    
+
     system_prompt = f"""# Flaming Horse Video Production Agent - Scene Repair Phase
 
 {core_rules}
@@ -340,10 +346,10 @@ def compose_scene_repair_prompt(
 
 {repair_system}
 """
-    
+
     # User prompt: broken file + error
     broken_file_content = read_file(scene_file)
-    
+
     user_prompt = f"""Please repair this scene file that failed to render.
 
 **File**: {scene_file.name}
@@ -362,7 +368,7 @@ Please diagnose the issue and output the corrected Python file.
 
 Output ONLY the corrected Python code. No explanations.
 """
-    
+
     return system_prompt, user_prompt
 
 
@@ -372,11 +378,11 @@ def compose_prompt(
     topic: Optional[str] = None,
     retry_context: Optional[str] = None,
     scene_file: Optional[Path] = None,
-    project_dir: Optional[Path] = None
+    project_dir: Optional[Path] = None,
 ) -> Tuple[str, str]:
     """
     Compose phase-specific prompts.
-    
+
     Args:
         phase: Phase name (plan, narration, build_scenes, scene_qc, scene_repair)
         state: Project state dict
@@ -384,13 +390,13 @@ def compose_prompt(
         retry_context: Error context for retry attempts
         scene_file: Scene file path for repair phase
         project_dir: Project directory path
-        
+
     Returns:
         (system_prompt, user_prompt)
     """
     if not project_dir:
         raise ValueError("project_dir is required")
-    
+
     if phase == "plan":
         return compose_plan_prompt(state, topic)
     elif phase == "narration":
@@ -402,6 +408,8 @@ def compose_prompt(
     elif phase == "scene_repair":
         if not scene_file:
             raise ValueError("scene_file is required for scene_repair phase")
-        return compose_scene_repair_prompt(state, project_dir, scene_file, retry_context)
+        return compose_scene_repair_prompt(
+            state, project_dir, scene_file, retry_context
+        )
     else:
         raise ValueError(f"Unknown phase: {phase}")
