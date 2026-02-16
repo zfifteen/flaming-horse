@@ -8,7 +8,7 @@ Please create the **Incremental Manim Video Builder** project scaffold on my fil
 
 1. **Create the project structure** in `~/manim_projects/incremental_builder/`
 2. **Generate all core files** with complete, production-ready code
-3. **Use my ElevenLabs voice configuration**: Voice ID `rBgRd5IfS6iqrGfuhlKR`, model `eleven_multilingual_v2`
+3. **Use local Qwen voice clone**: Cached audio from `Qwen/Qwen3-TTS-12Hz-1.7B-Base` model with voice reference in `assets/voice_ref/`
 4. **Target macOS** (my MacBook environment)
 5. **Follow the TECH-SPEC** provided below
 
@@ -74,7 +74,7 @@ The agent instruction template that gets injected on each run. Should include:
 User documentation covering:
 
 - What this system does
-- Prerequisites (manim, manim-voiceover-plus, sox, ffmpeg, ElevenLabs API key)
+- Prerequisites (manim, manim-voiceover-plus, sox, ffmpeg, Qwen voice model and reference audio)
 - Quick start guide
 - How to create a new project
 - How the state machine works
@@ -133,10 +133,11 @@ REFERENCE_DOCS=(
   "${SCRIPT_DIR}/reference_docs/manim_config_guide.md"
 )
 
-# ElevenLabs config
-export ELEVENLABS_API_KEY="${ELEVENLABS_API_KEY:?ERROR: Set ELEVENLABS_API_KEY}"
-VOICE_ID="rBgRd5IfS6iqrGfuhlKR"
-MODEL_ID="eleven_multilingual_v2"
+# Qwen voice clone config
+# Voice reference assets should be in assets/voice_ref/ref.wav and assets/voice_ref/ref.txt
+export FLAMING_HORSE_TTS_BACKEND="qwen"
+export HF_HUB_OFFLINE="1"
+export TRANSFORMERS_OFFLINE="1"
 ```
 
 
@@ -219,14 +220,14 @@ Generate:
 For current scene (tracked by `current_scene_index`):
 
 - Generate `scene_XX_name.py` using VoiceoverScene + template config
-- Test render with gTTS (`MANIM_VOICE_PROD` unset)
+- Render with cached Qwen voice (precached audio required)
 - If successful: mark scene `status: built`, increment index, stay in `build_scenes`
 - If all scenes built: advance to `final_render`
 
 
 ### Phase: `final_render`
 
-Re-render all scenes with `MANIM_VOICE_PROD=1` (ElevenLabs)
+Re-render all scenes at production quality with `MANIM_VOICE_PROD=1` (cached Qwen voice, higher resolution/framerate)
 
 ### Phase: `assemble`
 
