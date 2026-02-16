@@ -68,7 +68,7 @@ class MyScene(VoiceoverScene):
 1. **Voice Consistency:** All videos must use Big D's cloned voice - no exceptions
 2. **Quality Control:** gTTS is robotic and unacceptable for production
 3. **No Confusion:** One voice service = simpler code, fewer bugs
-4. **Fail Fast:** If ElevenLabs fails, we want to know immediately, not get a gTTS video
+4. **Fail Fast:** If Qwen TTS fails, we want to know immediately, not get a placeholder audio
 
 ## What Happens if You Violate This Policy
 
@@ -86,7 +86,7 @@ A: No. Use cached Qwen. There is no development mode.
 A: The video build MUST FAIL. Run the precache step.
 
 **Q: What if I need to test without voice?**  
-A: Don't. Test with ElevenLabs voice. That's what production will use.
+A: Don't. Test with cached Qwen voice. That's what production will use.
 
 **Q: But gTTS is faster...**  
 A: NO. Cached Qwen only.

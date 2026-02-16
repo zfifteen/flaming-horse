@@ -27,7 +27,7 @@ For full phase details, see the modular docs above.
 - ✅ **Model:** `Qwen/Qwen3-TTS-12Hz-1.7B-Base` (voice clone).
 - ✅ **Device/Dtype:** CPU `float32` for stability.
 - ✅ **Reference assets:** `assets/voice_ref/ref.wav` + `assets/voice_ref/ref.txt` per project.
-- ❌ **NEVER** call ElevenLabs in this repo.
+- ❌ **NEVER** use any TTS service except cached Qwen.
 - ❌ **NEVER** create fallback code patterns.
 
 **If cached audio is missing, the build MUST fail and instruct to run the precache step.**
@@ -474,6 +474,27 @@ error_msg = f"Phase {phase} failed: {error_details}"
 state['errors'].append(error_msg)
 state['flags']['needs_human_review'] = True
 # Do NOT advance phase - stay for retry
+```
+
+### Error Recovery Protocol
+
+When `needs_human_review = True`:
+1. Orchestrator halts after current phase
+2. Human inspects `state['errors']` array
+3. Human fixes issue (edits files, updates deps, etc.)
+4. Human clears flag: Set `state['flags']['needs_human_review'] = false`
+5. Human resumes: `./scripts/build_video.sh <project>`
+
+**Agent responsibility:** Provide actionable error messages.
+
+**Good example:**
+```
+"Scene 02 failed: MathTex rendering error at line 45. Check LaTeX syntax for '\\frac{GMm}{r^2}'"
+```
+
+**Bad example:**
+```
+"Render failed"
 ```
 
 ### Visual-Specific Errors (New)

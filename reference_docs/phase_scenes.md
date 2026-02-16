@@ -45,7 +45,7 @@ Update state: `scene['validation_passed'] = True` only if all checks pass.
 
 ## Phase: `final_render`
 
-**Goal:** Render all scenes with ElevenLabs voice (production quality) and verify output
+**Goal:** Render all scenes with cached Qwen voice (production quality) and verify output
 
 **Actions:**
 1. For each scene in `state['scenes']`:
@@ -124,3 +124,20 @@ for scene in state['scenes']:
 
 state['phase'] = 'assemble'
 ```
+
+## Parallel Rendering (Automatic)
+
+The orchestrator automatically renders scenes in parallel when:
+- `PARALLEL_RENDERS` env var set (0=auto, N=use N jobs, -1=disable)
+- GNU parallel installed
+- All scenes pass pre-render validation
+
+**Agent action:** None required. Orchestrator handles parallelization.
+
+Required env vars (set by orchestrator):
+- `MANIM_VOICE_PROD=1`
+- `PYTHONPATH=<repo_root>`
+- `FLAMING_HORSE_TTS_BACKEND=qwen`
+- `HF_HUB_OFFLINE=1`
+- `TRANSFORMERS_OFFLINE=1`
+- `TOKENIZERS_PARALLELISM=false`

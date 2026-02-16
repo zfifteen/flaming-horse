@@ -68,6 +68,25 @@ python3 scripts/precache_voiceovers_qwen.py projects/my_video
 
 **Voice Requirements:** Flaming Horse uses cached Qwen voice clones configured via `voice_clone_config.json`. Run the precache step before building.
 
+## Environment Setup
+
+Before your first build:
+
+```bash
+# 1. Check dependencies
+./scripts/check_dependencies.sh
+
+# 2. Set up voice reference (one-time)
+# Record a 5-10 second voice sample and place:
+# - assets/voice_ref/ref.wav (audio file)
+# - assets/voice_ref/ref.txt (transcript of audio)
+
+# 3. Test Qwen model access
+python3 -c "from scripts.qwen_tts_mediator import load_model; load_model()"
+```
+
+For detailed installation instructions, see [docs/INSTALLATION.md](docs/INSTALLATION.md).
+
 ## Configuration
 
 Edit `./scripts/build_video.sh` to connect your preferred AI agent (Claude, GPT-4, Gemini, etc.) in the `invoke_agent()` function. The agent receives context about the current build phase and returns the appropriate output.
