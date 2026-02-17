@@ -162,7 +162,7 @@ echo "Testing harness narration phase with real API..."
 # Update state to narration phase
 python3 - <<PY
 import json
-from datetime import datetime
+from datetime import datetime, UTC
 
 with open("project_state.json", "r") as f:
     state = json.load(f)
@@ -171,7 +171,7 @@ with open("plan.json", "r") as f:
     plan = json.load(f)
 
 state["phase"] = "narration"
-state["updated_at"] = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+state["updated_at"] = datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')
 
 # Add scenes from plan
 state["scenes"] = []
@@ -235,14 +235,14 @@ echo "Testing harness build_scenes phase with real API..."
 # Update state to build_scenes phase
 python3 - <<PY
 import json
-from datetime import datetime
+from datetime import datetime, UTC
 
 with open("project_state.json", "r") as f:
     state = json.load(f)
 
 state["phase"] = "build_scenes"
 state["current_scene_index"] = 0
-state["updated_at"] = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+state["updated_at"] = datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')
 
 with open("project_state.json", "w") as f:
     json.dump(state, f, indent=2)

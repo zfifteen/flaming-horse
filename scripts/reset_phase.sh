@@ -25,14 +25,14 @@ echo "💾 Backed up current state to .state_before_reset.json"
 
 python3 <<EOF
 import json
-from datetime import datetime
+from datetime import datetime, UTC
 
 with open('${STATE_FILE}', 'r') as f:
     state = json.load(f)
 
 old_phase = state['phase']
 state['phase'] = '${NEW_PHASE}'
-state['updated_at'] = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+state['updated_at'] = datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')
 
 state['history'].append({
     'timestamp': state['updated_at'],
