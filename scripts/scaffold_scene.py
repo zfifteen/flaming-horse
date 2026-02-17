@@ -7,13 +7,13 @@ import sys
 
 
 TEMPLATE = """from pathlib import Path
-import colorsys
 
 from manim import *
 import numpy as np
 from manim_voiceover_plus import VoiceoverScene
 
 from flaming_horse_voice import get_speech_service
+from flaming_horse.scene_helpers import safe_position, harmonious_color, polished_fade_in, adaptive_title_position, safe_layout, BeatPlan, play_next, play_text_next
 from narration_script import SCRIPT
 
 
@@ -24,60 +24,7 @@ config.pixel_height = 1440
 config.pixel_width = 2560
 
 
-def safe_position(mobject, max_y=3.8, min_y=-3.8, buff=0.2):
-    top = mobject.get_top()[1]
-    bottom = mobject.get_bottom()[1]
-    if top > max_y - buff:
-        mobject.shift(DOWN * (top - (max_y - buff)))
-    if bottom < min_y + buff:
-        mobject.shift(UP * ((min_y + buff) - bottom))
-    return mobject
-
-
-def safe_layout(*mobjects, h_buff=0.5, max_y=3.5, min_y=-3.5):
-    group = VGroup(*mobjects)
-    group.arrange(RIGHT, buff=h_buff)
-    for mob in mobjects:
-        safe_position(mob, max_y=max_y, min_y=min_y)
-    for i, mob_a in enumerate(mobjects):
-        for mob_b in mobjects[i + 1 :]:
-            if mob_a.get_right()[0] > mob_b.get_left()[0] - h_buff:
-                overlap = mob_a.get_right()[0] - mob_b.get_left()[0] + h_buff
-                mob_b.shift(RIGHT * overlap)
-    return VGroup(*mobjects)
-
-
-def harmonious_color(base_color, variations=3, lightness_shift=0.1):
-    rgb = np.array(base_color.to_rgb())
-    h, l, s = colorsys.rgb_to_hls(*rgb)
-    palette = []
-    for i in range(variations):
-        h_shift = i * (360 / variations) / 360
-        new_h = (h + h_shift) % 1
-        new_l = min(1.0, max(0.0, l + lightness_shift * i))
-        new_r, new_g, new_b = colorsys.hls_to_rgb(new_h, new_l, s)
-        palette.append([new_r, new_g, new_b, 1.0])
-    return palette
-
-
-def polished_fade_in(mobject, lag_ratio=0.2, scale_factor=1.1, glow=False):
-    if glow:
-        mobject.set_stroke(width=3, opacity=0.5)
-    return LaggedStart(
-        FadeIn(mobject),
-        mobject.animate.scale(scale_factor).set_run_time(0.5).scale(1 / scale_factor),
-        lag_ratio=lag_ratio,
-    )
-
-
-def adaptive_title_position(title, content_group, max_shift=0.5):
-    content_height = content_group.height if content_group else 0
-    shift_y = min(max_shift, max(0, content_height - 2.0))
-    title.move_to(UP * (3.8 + shift_y))
-    return title
-
-
-class BeatPlan:
+# Helpers imported from flaming_horse.scene_helpers
     def __init__(self, total_duration, weights):
         self.total_duration = max(0.0, float(total_duration))
         cleaned = [max(0.0, float(w)) for w in weights]
@@ -176,59 +123,12 @@ class {class_name}(VoiceoverScene):
 
         with self.voiceover(text=SCRIPT["{narration_key}"]) as tracker:
             # SLOT_START:scene_body
-            num_beats = max(10, min(22, int(np.ceil(tracker.duration / 3.0))))
-            beats = BeatPlan(tracker.duration, [1] * num_beats)
-            blues = harmonious_color(BLUE, variations=3)
-
-            title = Text("{{{{TITLE}}}}", font_size=48, weight=BOLD, color=blues[0])
-            title = adaptive_title_position(title, None)
-            play_text_next(self, beats, Write(title))
-
-            subtitle = Text("{{{{SUBTITLE}}}}", font_size=32, color=blues[1])
-            subtitle.next_to(title, DOWN, buff=0.4)
-            safe_position(subtitle)
-            play_text_next(self, beats, polished_fade_in(subtitle, lag_ratio=0.1))
-
-            bullet_1 = Text("{{{{KEY_POINT_1}}}}", font_size=28).move_to(LEFT * 4.8 + UP * 1.6)
-            bullet_2 = Text("{{{{KEY_POINT_2}}}}", font_size=28).next_to(bullet_1, DOWN, aligned_edge=LEFT, buff=0.3)
-            safe_position(bullet_2)
-            bullet_3 = Text("{{{{KEY_POINT_3}}}}", font_size=28).next_to(bullet_2, DOWN, aligned_edge=LEFT, buff=0.3)
-            safe_position(bullet_3)
-
-            play_text_next(self, beats, FadeIn(bullet_1))
-            play_text_next(self, beats, FadeIn(bullet_2))
-            play_text_next(self, beats, FadeIn(bullet_3))
-
-            # Before dense visuals, remove previous text layer (keep title if desired).
-            play_next(self, beats, FadeOut(subtitle), FadeOut(bullet_1), FadeOut(bullet_2), FadeOut(bullet_3))
-
-            # Evolving right-panel visual (replace with topic-specific diagram).
-            panel = RoundedRectangle(width=5.2, height=3.2, corner_radius=0.2, color=blues[2]).move_to(RIGHT * 3.2 + DOWN * 0.6)
-            marker = Dot(panel.get_center(), color=YELLOW)
-            marker_label = Text("Visual Focus", font_size=22, color=YELLOW)
-            marker_label.next_to(panel, UP, buff=0.2)
-            safe_position(marker_label)
-
-            play_next(self, beats, Create(panel, rate_func=smooth))
-            play_next(self, beats, FadeIn(marker), FadeIn(marker_label))
-            play_next(self, beats, marker.animate.shift(RIGHT * 1.2))
-
-            # Pattern for labels attached via next_to in loops.
-            node_left = Dot(LEFT * 1.0 + DOWN * 1.8, color=RED)
-            node_right = Dot(RIGHT * 1.0 + DOWN * 1.8, color=RED)
-            node_labels = []
-            for node in [node_left, node_right]:
-                label = Text("Node", font_size=20)
-                label.next_to(node, DOWN, buff=0.2)
-                safe_position(label)
-                node_labels.append(label)
-            safe_layout(node_left, node_right)
-            safe_layout(*node_labels)
-            play_next(self, beats, FadeIn(node_left), FadeIn(node_right))
-            play_text_next(self, beats, LaggedStart(*[FadeIn(label) for label in node_labels], lag_ratio=0.15))
-
-            play_next(self, beats, FadeOut(marker), FadeOut(marker_label), FadeOut(panel), FadeOut(node_left), FadeOut(node_right), FadeOut(*node_labels))
-
+            # PROMPT: Design unique visual flow per scene, incorporating ≥1 unique visual from topic_visual_patterns.md.
+            # PROMPT: Use structurally different patterns (e.g., progressive bullets + evolving diagram or timeline/staged reveal).
+            # PROMPT: Position bullets at LEFT * 3.5 with set_max_width(6.0); derive content from narration_script.py, not plan.json.
+            # PROMPT: Ensure layout contracts: title at UP * 3.8, subtitle next_to(title, DOWN, buff=0.4), visuals below subtitle.
+            # PROMPT: Use BeatPlan with num_beats = max(12, min(30, int(np.ceil(tracker.duration / 1.8)))).
+            # PROMPT: Set max_text_seconds=999 in play_text_next to avoid micro-pauses.
             # SLOT_END:scene_body
 """
 
