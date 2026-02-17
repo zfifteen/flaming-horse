@@ -12,7 +12,7 @@ You will receive:
 
 ## Scaffold Preservation (CRITICAL)
 - DO NOT modify scaffold header (imports, config, class signature).
-- Preserve SLOT_START_SCENE_BODY and SLOT_END_SCENE_BODY markers.
+- Preserve exact scaffold markers: # SLOT_START:scene_body and # SLOT_END:scene_body
 - Edit ONLY inside the SLOT_START_SCENE_BODY region.
 - Always maintain proper indentation and voiceover block.
 
@@ -97,4 +97,4 @@ AttributeError: 'ShowCreation' object has no attribute...
 
 ## Output Format
 
-Output ONLY the corrected body code inside SLOT_START_SCENE_BODY. Do not include scaffold, headers, or markers. No explanations.
+Output ONLY the corrected, properly indented code block between # SLOT_START:scene_body and # SLOT_END:scene_body. Use exact scaffold markers. No full file, no explanations.

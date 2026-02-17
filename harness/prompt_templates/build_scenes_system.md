@@ -11,9 +11,21 @@ You have access to these reference documents:
 - `topic_visual_patterns.md` - Visual patterns for unique topic-specific content
 - `flaming_horse.scene_helpers` - Centralized helper functions
 
-## Output Format
+## Output Format (STRICT XML - NO OTHER TEXT)
 
-Generate exactly ONE complete scene file that preserves the scaffold header and SLOT markers. Edit ONLY inside the SLOT_START_SCENE_BODY region.
+Respond with EXACTLY this XML structure ONLY. NO full file, NO imports, NO class, NO explanations:
+
+```xml
+<scene_body>
+[YOUR INDENTED CODE BLOCK HERE - paste directly under 'with voiceover as tracker:' in scaffold]
+# Use BeatPlan, play_next(self, beats, anim), safe_position(), etc.
+# Derive from SCRIPT["scene_01_intro"], bullets LEFT*3.5 max_width=6.0
+</scene_body>
+```
+
+Parser extracts inner text of <scene_body>. Match indentation (4 spaces).
+
+Output ONLY the properly indented code block to insert between # SLOT_START:scene_body and # SLOT_END:scene_body markers in the scaffold. Do NOT output full file, imports, class, or config.
 
 The scaffold provides:
 - Imports from flaming_horse.scene_helpers (DO NOT redefine helpers inline)
@@ -51,12 +63,13 @@ class SceneXXClassname(VoiceoverScene):
         self.set_speech_service(get_speech_service(Path(__file__).resolve().parent))
 
         with self.voiceover(text=SCRIPT["<narration_key>"]) as tracker:
-            # SLOT_START_SCENE_BODY
-            num_beats = max(12, min(30, int(np.ceil(tracker.duration / 1.8))))
-            beats = BeatPlan(tracker.duration, [1] * num_beats)  # Uniform weights
+# SLOT_START:scene_body
+num_beats = max(12, min(30, int(np.ceil(tracker.duration / 1.8))))
+beats = BeatPlan(tracker.duration, [1] * num_beats)
 
-            # Your scene code here - use imported helpers, no inline definitions
-            # SLOT_END_SCENE_BODY
+# Your unique scene code here - bullets from SCRIPT, visuals from topic_visual_patterns.md
+# Use play_next(self, beats, ...), safe_position(), harmonious_color(), etc.
+# SLOT_END:scene_body
 ```
 
 ## Critical Requirements
@@ -115,4 +128,4 @@ class SceneXXClassname(VoiceoverScene):
 6. Animate continuously: No static spans; fade transitions.
 7. Validate: Syntax OK, markers present, uses SCRIPT["key"].
 
-**Output the complete scene file with SLOT markers preserved.**
+**Output ONLY the code between the exact markers # SLOT_START:scene_body ... # SLOT_END:scene_body. Match scaffold markers precisely.**
