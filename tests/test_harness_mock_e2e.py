@@ -10,7 +10,7 @@ import json
 import sys
 import tempfile
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, UTC
 
 # Add repo root to path
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -308,8 +308,8 @@ def test_full_pipeline():
             "project_name": "mock_test",
             "topic": "Pythagorean Theorem",
             "phase": "plan",
-            "created_at": datetime.utcnow().isoformat() + "Z",
-            "updated_at": datetime.utcnow().isoformat() + "Z",
+            "created_at": datetime.now(UTC).isoformat() + "Z",
+            "updated_at": datetime.now(UTC).isoformat() + "Z",
             "run_count": 0,
             "plan_file": "plan.json",
             "narration_file": "narration_script.py",
