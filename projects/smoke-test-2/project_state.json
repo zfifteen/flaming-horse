@@ -1,0 +1,20 @@
+{
+  "project_name": "smoke-test-2",
+  "topic": "Create a tiny video for testing that include three full scenes: Intro, Content and Conclusion (create your own titles). Make the narration a few quotes from the movie The Matrix.",
+  "phase": "plan",
+  "created_at": "2026-02-17T18:03:32Z",
+  "updated_at": "2026-02-17T18:03:32Z",
+  "run_count": 0,
+  "plan_file": null,
+  "narration_file": null,
+  "voice_config_file": null,
+  "scenes": [],
+  "current_scene_index": 0,
+  "errors": [],
+  "history": [],
+  "flags": {
+    "needs_human_review": false,
+    "dry_run": false,
+    "force_replan": false
+  }
+}

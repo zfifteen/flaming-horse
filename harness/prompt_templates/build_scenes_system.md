@@ -138,20 +138,20 @@ class Scene01Intro(VoiceoverScene):
 
 ## ✅ CORRECT Output Format (Body Code Only)
 
-Output ONLY the indented body code that goes between the SLOT markers:
+Output ONLY the body code that goes between the SLOT markers, WITHOUT indentation:
 ```python
-            num_beats = max(12, min(30, int(np.ceil(tracker.duration / 1.8))))
-            beats = BeatPlan(tracker.duration, [1] * num_beats)
-            
-            blues = harmonious_color(BLUE, variations=3)
-            title = Text("Introduction", font_size=48, weight=BOLD, color=blues[0])
-            title.move_to(UP * 3.8)
-            play_text_next(self, beats, Write(title), max_text_seconds=999)
-            
-            subtitle = Text("Getting Started", font_size=32, color=blues[1])
-            subtitle.next_to(title, DOWN, buff=0.4)
-            safe_position(subtitle)
-            play_text_next(self, beats, polished_fade_in(subtitle, lag_ratio=0.1), max_text_seconds=999)
+num_beats = max(12, min(30, int(np.ceil(tracker.duration / 1.8))))
+beats = BeatPlan(tracker.duration, [1] * num_beats)
+
+blues = harmonious_color(BLUE, variations=3)
+title = Text("Introduction", font_size=48, weight=BOLD, color=blues[0])
+title.move_to(UP * 3.8)
+play_text_next(self, beats, Write(title), max_text_seconds=999)
+
+subtitle = Text("Getting Started", font_size=32, color=blues[1])
+subtitle.next_to(title, DOWN, buff=0.4)
+safe_position(subtitle)
+play_text_next(self, beats, polished_fade_in(subtitle, lag_ratio=0.1), max_text_seconds=999)
 ```
 
-**Output ONLY the body code to be inserted between SLOT markers. The scaffold already exists.**
+**Output ONLY the body code to be inserted between SLOT markers. The scaffold already exists. Do NOT indent the output - the injection function handles proper indentation.**

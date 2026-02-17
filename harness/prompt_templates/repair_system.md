@@ -115,17 +115,17 @@ class Scene01Intro(VoiceoverScene):
 
 ## ✅ CORRECT Output (Body Only)
 
-Output ONLY the indented body code:
+Output ONLY the body code WITHOUT indentation:
 ```python
-            num_beats = max(12, min(30, int(np.ceil(tracker.duration / 1.8))))
-            beats = BeatPlan(tracker.duration, [1] * num_beats)
-            
-            blues = harmonious_color(BLUE, variations=3)
-            title = Text("Introduction", font_size=48, weight=BOLD, color=blues[0])
-            title.move_to(UP * 3.8)
-            play_text_next(self, beats, Write(title), max_text_seconds=999)
+num_beats = max(12, min(30, int(np.ceil(tracker.duration / 1.8))))
+beats = BeatPlan(tracker.duration, [1] * num_beats)
+
+blues = harmonious_color(BLUE, variations=3)
+title = Text("Introduction", font_size=48, weight=BOLD, color=blues[0])
+title.move_to(UP * 3.8)
+play_text_next(self, beats, Write(title), max_text_seconds=999)
 ```
 
 ## Output Format
 
-Output ONLY the corrected body code inside SLOT_START_SCENE_BODY. Do not include scaffold, headers, or markers. No explanations.
+Output ONLY the corrected body code inside SLOT_START_SCENE_BODY. Do not include scaffold, headers, or markers. Do NOT indent the output. No explanations.

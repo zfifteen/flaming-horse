@@ -321,7 +321,7 @@ Hard requirements:
 10. Forbidden placeholder strings/tokens: `{{{{TITLE}}}}`, `{{{{SUBTITLE}}}}`, `{{{{KEY_POINT_1}}}}`, `{{{{KEY_POINT_2}}}}`, `{{{{KEY_POINT_3}}}}` (and any `{{{{...}}}}` left in scaffold strings).
 11. Do not reuse scaffold demo animations (default box/shape demo) unless explicitly required by this scene's plan.
 
-Output ONLY the body code to be inserted between SLOT markers. Do NOT include imports, config, class definition, or SLOT markers themselves. Start with animation code (e.g., num_beats = ...). The output should be properly indented for insertion into the voiceover block.
+Output ONLY the body code to be inserted between SLOT markers. Do NOT include imports, config, class definition, or SLOT markers themselves. Start with animation code (e.g., num_beats = ...). Do NOT indent the output - it will be properly indented during injection.
 """
 
     return system_prompt, user_prompt
