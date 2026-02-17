@@ -3,8 +3,11 @@
 ## One-Line Commands
 
 ```bash
-# Use harness (default)
-./scripts/build_video.sh projects/my_video --topic "My Topic"
+# Canonical user entrypoint (recommended)
+./scripts/create_video.sh my_video --topic "My Topic"
+
+# Use orchestrator directly (advanced)
+./scripts/build_video.sh projects/my_video
 
 # Test harness dry-run
 ./tests/test_harness_dry_run.sh
