@@ -43,7 +43,7 @@ Update state: `scene['validation_passed'] = True` only if all checks pass.
 - Graphs/diagrams must be offset downward (e.g., `DOWN * 0.6` to `DOWN * 1.2`) to avoid title overlap.
 - Labels must attach to nearby elements (e.g., `label.next_to(curve.get_end(), UP, buff=0.2)`), then `safe_position(label)`.
 - Do not use `.next_to(...)` inside list comprehensions unless each element is subsequently passed through `safe_position(...)` explicitly.
-- After positioning, run `safe_layout(...)` for any group of 2+ elements.
+- After positioning, run `safe_layout(...)` for free-positioned sibling clusters; for strict `.next_to(...)` chains, call `safe_position(...)` per element.
 - ❌ NEVER use `.to_edge(...)` for titles or labels (causes clipping/edge drift).
 - For non-math topics, default to explainer-slide layout: left-panel progressive bullets + right-panel evolving topic visual.
 - Derive right-panel visuals from narration keywords; use `reference_docs/topic_visual_patterns.md` patterns.

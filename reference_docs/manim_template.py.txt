@@ -272,7 +272,7 @@ class YourSceneName(VoiceoverScene):  # Replace with your scene name
             safe_position(bullet_3)
 
             # Evolving right-panel visual (topic-specific in real scene code)
-            panel = RoundedRectangle(width=5.2, height=3.2, corner_radius=0.2, color=TEAL).move_to(RIGHT * 3.2 + DOWN * 0.4)
+            panel = RoundedRectangle(width=5.2, height=3.2, corner_radius=0.2, color=TEAL).move_to(RIGHT * 3.2 + DOWN * 0.6)
             marker = Dot(panel.get_center(), color=YELLOW)
             marker_label = Text("Visual Focus", font_size=22, color=YELLOW)
             marker_label.next_to(panel, UP, buff=0.2)
