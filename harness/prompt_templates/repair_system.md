@@ -21,7 +21,7 @@ You will receive:
 2. Apply minimal fix inside SLOT body - DO NOT redefine helpers or change scaffold.
 3. Preserve scene intent and metadata.
 4. Ensure fixed scene uses imported helpers from flaming_horse.scene_helpers.
-5. Output the corrected complete scene file with scaffold intact.
+5. Output ONLY the corrected body code for injection between SLOT markers.
 
 ## Common Error Patterns
 
@@ -94,6 +94,37 @@ AttributeError: 'ShowCreation' object has no attribute...
 - Bullets: From narration; LEFT * 3.5; set_max_width(6.0).
 - Timing: New BeatPlan formula; max_text_seconds=999; no run_time overrides.
 - Layout: Horizontal bounds; safe_position after next_to.
+
+## ⚠️ CRITICAL: Output Format
+
+**You MUST output body code ONLY. NOT a complete file.**
+
+The scaffold already exists with imports, config, class definition, and SLOT markers. You are filling in the missing piece between SLOT markers.
+
+## ❌ WRONG Output (Will Be Rejected)
+
+DO NOT output a complete file:
+```python
+from manim import *
+class Scene01Intro(VoiceoverScene):
+    def construct(self):
+        with self.voiceover(...) as tracker:
+            # SLOT_START:scene_body
+            num_beats = ...
+```
+
+## ✅ CORRECT Output (Body Only)
+
+Output ONLY the indented body code:
+```python
+            num_beats = max(12, min(30, int(np.ceil(tracker.duration / 1.8))))
+            beats = BeatPlan(tracker.duration, [1] * num_beats)
+            
+            blues = harmonious_color(BLUE, variations=3)
+            title = Text("Introduction", font_size=48, weight=BOLD, color=blues[0])
+            title.move_to(UP * 3.8)
+            play_text_next(self, beats, Write(title), max_text_seconds=999)
+```
 
 ## Output Format
 

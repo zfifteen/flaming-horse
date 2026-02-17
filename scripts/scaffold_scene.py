@@ -43,6 +43,7 @@ class {class_name}(VoiceoverScene):
 
         with self.voiceover(text=SCRIPT["{narration_key}"]) as tracker:
             # SLOT_START:scene_body
+            pass  # Placeholder - will be replaced by generated code
             # PROMPT: Design unique visual flow per scene, incorporating ≥1 unique visual from topic_visual_patterns.md.
             # PROMPT: Use structurally different patterns (e.g., progressive bullets + evolving diagram or timeline/staged reveal).
             # PROMPT: Position bullets at LEFT * 3.5 with set_max_width(6.0); derive content from narration_script.py, not plan.json.

@@ -306,7 +306,7 @@ Please fix the issue and generate a corrected version.
 
 {retry_section}
 
-Generate the complete Python scene file for `{scene_id}`.
+Generate the body code for the voiceover block in `{scene_id}`.
 
 Hard requirements:
 1. Use the exact SCRIPT key: `SCRIPT["{narration_key}"]`.
@@ -321,7 +321,7 @@ Hard requirements:
 10. Forbidden placeholder strings/tokens: `{{{{TITLE}}}}`, `{{{{SUBTITLE}}}}`, `{{{{KEY_POINT_1}}}}`, `{{{{KEY_POINT_2}}}}`, `{{{{KEY_POINT_3}}}}` (and any `{{{{...}}}}` left in scaffold strings).
 11. Do not reuse scaffold demo animations (default box/shape demo) unless explicitly required by this scene's plan.
 
-Output ONLY the Python code. Start with the imports.
+Output ONLY the body code to be inserted between SLOT markers. Do NOT include imports, config, class definition, or SLOT markers themselves. Start with animation code (e.g., num_beats = ...). The output should be properly indented for insertion into the voiceover block.
 """
 
     return system_prompt, user_prompt

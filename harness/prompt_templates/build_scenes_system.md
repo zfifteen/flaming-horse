@@ -13,7 +13,7 @@ You have access to these reference documents:
 
 ## Output Format
 
-Generate exactly ONE complete scene file that preserves the scaffold header and SLOT markers. Edit ONLY inside the SLOT_START_SCENE_BODY region.
+Generate ONLY the body code to be inserted between SLOT markers. Do NOT output imports, config, class definition, or the SLOT markers themselves.
 
 The scaffold provides:
 - Imports from flaming_horse.scene_helpers (DO NOT redefine helpers inline)
@@ -68,7 +68,7 @@ class SceneXXClassname(VoiceoverScene):
 - Always include the voiceover block with proper indentation.
 
 ### Single-Scene Scope (CRITICAL)
-- Output only the current scene's complete Python code.
+- Output only the body code for the current scene's voiceover block.
 - Use the provided scene id/file/class/narration key.
 - Do not generate multiple scenes or extra content.
 
@@ -113,6 +113,45 @@ class SceneXXClassname(VoiceoverScene):
 4. Position correctly: Horizontal bounds, safe_position, set_max_width(6.0).
 5. Time properly: BeatPlan formula, max_text_seconds=999, no run_time overrides.
 6. Animate continuously: No static spans; fade transitions.
-7. Validate: Syntax OK, markers present, uses SCRIPT["key"].
+7. Validate: Syntax OK, uses SCRIPT["key"].
 
-**Output the complete scene file with SLOT markers preserved.**
+## ❌ WRONG Output Format (Will Be Rejected by Parser)
+
+DO NOT output a complete file like this:
+```python
+from manim import *
+from manim_voiceover_plus import VoiceoverScene
+from flaming_horse.scene_helpers import BeatPlan, play_next, play_text_next
+
+config.frame_height = 10
+config.frame_width = 10 * 16/9
+
+class Scene01Intro(VoiceoverScene):
+    def construct(self):
+        with self.voiceover(text=SCRIPT["intro"]) as tracker:
+            # SLOT_START:scene_body
+            num_beats = max(12, min(30, int(np.ceil(tracker.duration / 1.8))))
+            beats = BeatPlan(tracker.duration, [1] * num_beats)
+            # ... animation code ...
+            # SLOT_END:scene_body
+```
+
+## ✅ CORRECT Output Format (Body Code Only)
+
+Output ONLY the indented body code that goes between the SLOT markers:
+```python
+            num_beats = max(12, min(30, int(np.ceil(tracker.duration / 1.8))))
+            beats = BeatPlan(tracker.duration, [1] * num_beats)
+            
+            blues = harmonious_color(BLUE, variations=3)
+            title = Text("Introduction", font_size=48, weight=BOLD, color=blues[0])
+            title.move_to(UP * 3.8)
+            play_text_next(self, beats, Write(title), max_text_seconds=999)
+            
+            subtitle = Text("Getting Started", font_size=32, color=blues[1])
+            subtitle.next_to(title, DOWN, buff=0.4)
+            safe_position(subtitle)
+            play_text_next(self, beats, polished_fade_in(subtitle, lag_ratio=0.1), max_text_seconds=999)
+```
+
+**Output ONLY the body code to be inserted between SLOT markers. The scaffold already exists.**
