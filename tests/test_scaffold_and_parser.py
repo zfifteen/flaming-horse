@@ -320,6 +320,105 @@ def run_tests():
     return failed == 0
 
 
+class TestBodyOnlyCodeParsing:
+    """Test parser support for body-only code (PR #56 fix)."""
+    
+    def test_parse_raw_body_code(self):
+        """Parser should accept raw body code without markdown fences."""
+        # Simulate agent output that correctly follows "body-only" instruction
+        raw_body = """num_beats = max(12, min(30, int(np.ceil(tracker.duration / 1.8))))
+beats = BeatPlan(tracker.duration, [1] * num_beats)
+
+blues = harmonious_color(BLUE, variations=3)
+title = Text("Test Title", font_size=48, weight=BOLD, color=blues[0])
+title.move_to(UP * 3.8)
+play_text_next(self, beats, Write(title), max_text_seconds=999)
+
+subtitle = Text("Subtitle", font_size=32, color=blues[1])
+subtitle.next_to(title, DOWN, buff=0.4)
+safe_position(subtitle)
+play_text_next(self, beats, polished_fade_in(subtitle, lag_ratio=0.1), max_text_seconds=999)"""
+        
+        result = parse_build_scenes_response(raw_body)
+        assert result is not None, "Parser should accept raw body code"
+        assert "num_beats" in result
+        assert "BeatPlan" in result
+        assert "play_text_next" in result
+        assert "harmonious_color" in result
+    
+    def test_parse_fenced_body_code(self):
+        """Parser should accept body code in markdown fences."""
+        fenced_response = """Here's the scene code:
+
+```python
+num_beats = max(12, min(30, int(np.ceil(tracker.duration / 1.8))))
+beats = BeatPlan(tracker.duration, [1] * num_beats)
+
+title = Text("Fenced Test", font_size=48)
+title.move_to(UP * 3.8)
+play_text_next(self, beats, Write(title), max_text_seconds=999)
+```"""
+        
+        result = parse_build_scenes_response(fenced_response)
+        assert result is not None, "Parser should accept fenced body code"
+        assert "num_beats" in result
+        assert "BeatPlan" in result
+    
+    def test_body_code_no_imports(self):
+        """Body-only code should not have imports."""
+        body_with_imports = """from manim import *
+num_beats = 12
+title = Text("Test")"""
+        
+        result = parse_build_scenes_response(body_with_imports)
+        # Should be rejected due to forbidden token check
+        assert result is None, "Parser should reject body code with imports"
+    
+    def test_body_code_no_class_def(self):
+        """Body-only code should not have class/def at top level."""
+        body_with_class = """class TestScene:
+    def construct(self):
+        title = Text("Test")"""
+        
+        result = parse_build_scenes_response(body_with_class)
+        # Should be rejected due to top-level class/def check
+        assert result is None, "Parser should reject body code with class definition"
+    
+    def test_real_agent_output_from_smoke_test_2(self):
+        """Test with actual agent output from defective smoke-test-2."""
+        # This is the exact output that was previously rejected
+        agent_output = """num_beats = max(12, min(30, int(np.ceil(tracker.duration / 1.8))))
+beats = BeatPlan(tracker.duration, [1] * num_beats)
+
+blues = harmonious_color(BLUE, variations=3)
+title = Text("The Path to Discovery", font_size=48, weight=BOLD, color=blues[0])
+title.move_to(UP * 3.8)
+play_text_next(self, beats, Write(title), max_text_seconds=999)
+
+subtitle = Text("A Personal Choice", font_size=32, color=blues[1])
+subtitle.next_to(title, DOWN, buff=0.4)
+safe_position(subtitle)
+play_text_next(self, beats, polished_fade_in(subtitle, lag_ratio=0.1), max_text_seconds=999)
+
+bullet_1 = Text("No one can be told", font_size=28).move_to(LEFT * 3.5 + UP * 1.6)
+bullet_1.set_max_width(6.0)
+bullet_2 = Text("See it for yourself", font_size=28).next_to(bullet_1, DOWN, aligned_edge=LEFT, buff=0.3)
+safe_position(bullet_2)
+bullet_2.set_max_width(6.0)
+
+play_text_next(self, beats, FadeIn(bullet_1), max_text_seconds=999)
+play_text_next(self, beats, FadeIn(bullet_2), max_text_seconds=999)
+
+play_next(self, beats, FadeOut(subtitle), FadeOut(bullet_1), FadeOut(bullet_2))"""
+        
+        result = parse_build_scenes_response(agent_output)
+        assert result is not None, "Parser should accept real agent output from smoke-test-2"
+        assert len(result) > 500, "Should return substantial code"
+        assert "harmonious_color" in result
+        assert "play_text_next" in result
+        assert "play_next" in result
+
+
 if __name__ == "__main__":
     success = run_tests()
     sys.exit(0 if success else 1)

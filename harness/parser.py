@@ -182,6 +182,7 @@ def extract_single_python_code(text: str) -> Optional[str]:
     Extract a single Python code block from text.
 
     Handles both markdown fences and raw Python code.
+    Updated to support body-only code (no imports/class/def).
 
     Returns:
         Python code string or None if not found
@@ -194,9 +195,35 @@ def extract_single_python_code(text: str) -> Optional[str]:
         return max(code_blocks, key=lambda x: len(x[1]))[1]
 
     # If no code blocks found, check if the whole text looks like Python
-    if "import" in text or "def " in text or "class " in text:
-        return text.strip()
-
+    # Support both header code (import/def/class) and body-only code
+    stripped = text.strip()
+    if not stripped:
+        return None
+    
+    # Check for Python patterns (both header and body code)
+    python_indicators = [
+        "=",  # Assignment statements
+        "(",  # Function calls
+        "import", "def ", "class ",  # Header code (backward compat)
+        "for ", "while ", "if ", "with ",  # Control flow
+        "self.", "Text(", "Circle(", "Rectangle(",  # Common Manim patterns
+        "play_next", "play_text_next", "BeatPlan",  # Scaffold helpers
+    ]
+    
+    if any(indicator in stripped for indicator in python_indicators):
+        # Validate it compiles as valid Python
+        try:
+            compile(stripped, "<string>", "exec")
+            return stripped
+        except SyntaxError:
+            # Try as indented block (body code often needs wrapping)
+            try:
+                test_code = "def _test():\n" + "\n".join(f"    {line}" for line in stripped.split("\n"))
+                compile(test_code, "<string>", "exec")
+                return stripped
+            except SyntaxError:
+                pass
+    
     return None
 
 

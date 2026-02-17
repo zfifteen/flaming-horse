@@ -107,12 +107,12 @@ class SceneXXClassname(VoiceoverScene):
 
 ## Think Step-by-Step
 
-1. Preserve scaffold: Keep header, markers, and voiceover setup intact.
+1. Review narration: Extract key concepts and visual opportunities from SCRIPT["key"].
 2. Design unique flow: Use one of the examples from AGENTS.md (progressive bullets + diagram OR timeline + staged reveal).
 3. Derive content: Bullets from narration; visuals from topic_visual_patterns.md.
 4. Position correctly: Horizontal bounds, safe_position, set_max_width(6.0).
 5. Time properly: BeatPlan formula, max_text_seconds=999, no run_time overrides.
 6. Animate continuously: No static spans; fade transitions.
-7. Validate: Syntax OK, markers present, uses SCRIPT["key"].
+7. Validate: Syntax OK, uses SCRIPT["key"], no placeholders.
 
-**Output the complete scene file with SLOT markers preserved.**
+**Output ONLY the body code (animation statements) without any wrapper structure.**
