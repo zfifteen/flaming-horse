@@ -3,11 +3,11 @@
 
 ## File Structure (New)
 This file references modular docs:
-- reference_docs/phase_plan.md: Plan/review details
-- reference_docs/phase_narration.md: Script/timing rules
-- reference_docs/phase_scenes.md: Build/render guidelines
-- reference_docs/visual_helpers.md: Code snippets for aesthetics
-- reference_docs/topic_visual_patterns.md: Topic-to-visual mapping patterns
+- docs/reference_docs/phase_plan.md: Plan/review details
+- docs/reference_docs/phase_narration.md: Script/timing rules
+- docs/reference_docs/phase_scenes.md: Build/render guidelines
+- docs/reference_docs/visual_helpers.md: Code snippets for aesthetics
+- docs/reference_docs/topic_visual_patterns.md: Topic-to-visual mapping patterns
 - tests/README.md: Unit test instructions
 
 For full phase details, see the modular docs above.
@@ -113,13 +113,13 @@ The intent of this system is to generate videos from a single prompt without app
 
 Consult these files for technical details:
 
-- **reference_docs/manim_template.py.txt** - Base scene template with locked config
-- **reference_docs/manim_config_guide.md** - Positioning rules, safe zones, sizing guidelines
-- **reference_docs/manim_voiceover.md** - VoiceoverScene patterns for local cached Qwen integration
-- **reference_docs/manim_content_pipeline.md** - Overall workflow concepts
+- **docs/reference_docs/manim_template.py.txt** - Base scene template with locked config
+- **docs/reference_docs/manim_config_guide.md** - Positioning rules, safe zones, sizing guidelines
+- **docs/reference_docs/manim_voiceover.md** - VoiceoverScene patterns for local cached Qwen integration
+- **docs/reference_docs/manim_content_pipeline.md** - Overall workflow concepts
 - **docs/DEVELOPMENT_GUIDELINES.md** - Separation of concerns (agent creativity vs deterministic scripts), one-change-per-PR policy
 - **docs/agent_improvements.md** - Plan for v2.2 updates
-- Modular phase docs in reference_docs/ (e.g., phase_plan.md)
+- Modular phase docs in docs/reference_docs/ (e.g., phase_plan.md)
 
 ---
 
@@ -161,19 +161,19 @@ Consult these files for technical details:
 
 ### Phase: `plan` and `review`
 
-See reference_docs/phase_plan.md for details.
+See docs/reference_docs/phase_plan.md for details.
 
 ---
 
 ### Phase: `narration`
 
-See reference_docs/phase_narration.md for details.
+See docs/reference_docs/phase_narration.md for details.
 
 ---
 
 ### Phase: `build_scenes` and `final_render`
 
-See reference_docs/phase_scenes.md for details.
+See docs/reference_docs/phase_scenes.md for details.
 
 ## CRITICAL: Complete Scene Template
 
@@ -313,7 +313,7 @@ class Scene01Intro(VoiceoverScene):
             play_next(self, beats, FadeOut(panel_label))
 ```
 
-See reference_docs/visual_helpers.md for more on enhanced helpers and aesthetics.
+See docs/reference_docs/visual_helpers.md for more on enhanced helpers and aesthetics.
 
 ---
 
@@ -461,7 +461,7 @@ play_text_next(self, beats, FadeIn(key_point))
 ### Content Density Per Scene
 - ✅ For non-math topics, prefer high-information explainer slides over sparse minimal scenes
 - ✅ Use progressive bullet reveals plus evolving right-panel visuals
-- ✅ Derive right-panel visuals from narration keywords (see `reference_docs/topic_visual_patterns.md`)
+- ✅ Derive right-panel visuals from narration keywords (see `docs/reference_docs/topic_visual_patterns.md`)
 - ✅ If content is too dense for one block, split into multiple voiceover segments
 - ✅ Remove (FadeOut/Transform) previous elements before introducing new ones
 
@@ -491,7 +491,7 @@ play_text_next(self, beats, FadeIn(key_point))
   ```
 
 ### Enhanced Visual Helpers (New)
-Always include these functions in scene files for polished aesthetics (see reference_docs/visual_helpers.md for full code):
+Always include these functions in scene files for polished aesthetics (see docs/reference_docs/visual_helpers.md for full code):
 - `harmonious_color()`: Generate cohesive palettes.
 - `polished_fade_in()`: Smooth reveals with scale pop.
 - `adaptive_title_position()`: Dynamic title shifting.
@@ -531,7 +531,7 @@ Before rendering any scene, programmatically verify:
 
 ### Phase: `assemble` and `complete`
 
-See reference_docs/phase_scenes.md for details (includes assemble and complete).
+See docs/reference_docs/phase_scenes.md for details (includes assemble and complete).
 
 ## Error Handling
 
