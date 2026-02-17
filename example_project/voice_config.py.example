@@ -1,6 +1,0 @@
-"""
-Deprecated placeholder.
-Cached Qwen voice is configured via voice_clone_config.json.
-"""
-
-__all__ = []

@@ -104,7 +104,7 @@ mkdir -p "$PROJECT_DIR"
 mkdir -p "$PROJECT_DIR/assets/voice_ref"
 cat > "$PROJECT_DIR/voice_clone_config.json" <<'EOF'
 {
-  "qwen_python": "~/qwen3-tts-local/.venv/bin/python",
+  "qwen_python": "~/IdeaProjects/flaming-horse/models/qwen3-tts-local/.venv/bin/python",
   "model_id": "Qwen/Qwen3-TTS-12Hz-1.7B-Base",
   "device": "cpu",
   "dtype": "float32",

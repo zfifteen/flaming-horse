@@ -19,8 +19,8 @@ from typing import Any
 import torch
 
 
-DEFAULT_MLX_PYTHON = "/Users/velocityworks/qwen3-tts-local/mlx_env312/bin/python"
-DEFAULT_MLX_MODEL_ID = "mlx-community/Qwen3-TTS-12Hz-0.6B-Base-4bit"
+DEFAULT_MLX_PYTHON = "/Users/velocityworks/IdeaProjects/flaming-horse/models/qwen3-tts-local/mlx_env312/bin/python"
+DEFAULT_MLX_MODEL_ID = "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit"
 
 
 def _backend() -> str:

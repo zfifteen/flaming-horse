@@ -28,7 +28,7 @@ Migrate flaming-horse voice generation from the legacy Qwen/PyTorch path to an M
   - Set default MLX model for reliability during migration test:
     - `mlx-community/Qwen3-TTS-12Hz-0.6B-Base-4bit`
   - Updated MLX python path to the new Python 3.12 env:
-    - `/Users/velocityworks/qwen3-tts-local/mlx_env312/bin/python`
+    - `/Users/velocityworks/IdeaProjects/flaming-horse/models/qwen3-tts-local/mlx_env312/bin/python`
 
 ### 3) MLX TTS subprocess service fixed for current mlx-audio behavior
 
@@ -62,7 +62,7 @@ Migrate flaming-horse voice generation from the legacy Qwen/PyTorch path to an M
 Created a dedicated MLX Python 3.12 environment and installed required packages:
 
 - Venv:
-  - `/Users/velocityworks/qwen3-tts-local/mlx_env312`
+  - `/Users/velocityworks/IdeaProjects/flaming-horse/models/qwen3-tts-local/mlx_env312`
 - Installed:
   - `mlx-audio==0.3.1`
   - `mlx==0.30.6`
@@ -120,7 +120,7 @@ The pipeline workers now route synthesis through `scripts/qwen_tts_mediator.py`,
 
 Optional MLX overrides:
 
-- `FLAMING_HORSE_MLX_PYTHON` (default: `/Users/velocityworks/qwen3-tts-local/mlx_env312/bin/python`)
+- `FLAMING_HORSE_MLX_PYTHON` (default: `/Users/velocityworks/IdeaProjects/flaming-horse/models/qwen3-tts-local/mlx_env312/bin/python`)
 - `FLAMING_HORSE_MLX_MODEL_ID` (default: `mlx-community/Qwen3-TTS-12Hz-0.6B-Base-4bit`)
 - `FLAMING_HORSE_MLX_SERVICE_SCRIPT` (default: repo `flaming_horse_voice/mlx_tts_service.py`)
 

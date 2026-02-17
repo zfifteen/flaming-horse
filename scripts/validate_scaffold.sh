@@ -31,7 +31,6 @@ echo ""
 
 echo "Directories:"
 check "reference_docs"
-check "example_project"
 echo ""
 
 echo "Reference Placeholders:"
@@ -39,14 +38,6 @@ check "reference_docs/manim_content_pipeline.md"
 check "reference_docs/manim_voiceover.md"
 check "reference_docs/manim_template.py.txt"
 check "reference_docs/manim_config_guide.md"
-echo ""
-
-echo "Example Files:"
-check "example_project/plan.json.example"
-check "example_project/narration_script.py.example"
-check "example_project/voice_config.py.example"
-echo ""
-
 echo "══════════════════════════════════════════════════════"
 echo "Results: $PASS passed, $FAIL failed"
 echo "══════════════════════════════════════════════════════"

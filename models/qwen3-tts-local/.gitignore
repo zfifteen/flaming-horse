@@ -1,0 +1,6 @@
+.idea/
+.venv/
+mlx_env/
+mlx_outputs/
+mlx_env312/
+outputs/

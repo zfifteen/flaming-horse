@@ -1,27 +1,19 @@
 import hashlib
 import json
-import os
 import sys
 from pathlib import Path
-
 import soundfile as sf
-import mlx.core as mx  # For eval/cache
-from mlx_audio.tts.generate import generate_audio
 from mlx_audio.tts.utils import load_model
+from mlx_audio.tts.generate import generate_audio
+import mlx.core as mx  # For eval/cache
 
-# Config (env overrides optional; backward-compatible defaults)
-MODEL_ID = os.environ.get(
-    "MLX_MODEL_ID",
-    sys.argv[2] if len(sys.argv) > 2 else "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit",
+# Config (pass via env/args for flexibility)
+MODEL_ID = (
+    sys.argv[2] if len(sys.argv) > 2 else "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit"
 )
-REF_AUDIO = os.environ.get(
-    "MLX_REF_AUDIO", "/Users/velocityworks/IdeaProjects/flaming-horse/models/qwen3-tts-local/voice_ref/ref.wav"
-)
-REF_TEXT = os.environ.get(
-    "MLX_REF_TEXT",
-    Path(REF_AUDIO.replace(".wav", ".txt")).read_text(encoding="utf-8").strip(),
-)
-OUTPUT_DIR = Path(os.environ.get("MLX_OUTPUT_DIR", "mlx_outputs"))
+REF_AUDIO = "/Users/velocityworks/IdeaProjects/flaming-horse/models/qwen3-tts-local/voice_ref/ref.wav"
+REF_TEXT = Path(REF_AUDIO.replace(".wav", ".txt")).read_text().strip()
+OUTPUT_DIR = Path("mlx_outputs")
 OUTPUT_DIR.mkdir(exist_ok=True, parents=True)
 
 # Load once (in subprocess to isolate)
@@ -35,7 +27,7 @@ def cache_key(text: str) -> str:
 
 def synthesize_batch(
     segments: list[dict],
-) -> list[dict]:  # Returns [{"id": "seg1", "path": str, "duration": float}]
+) -> list[dict]:  # Returns [{"id": "seg1", "path": Path, "duration": float}]
     results = []
     for seg in segments:
         key = cache_key(seg["text"])
@@ -64,16 +56,7 @@ def synthesize_batch(
         )
         wav_path = OUTPUT_DIR / f"{seg['id']}_000.wav"
         if not wav_path.exists():
-            direct_path = OUTPUT_DIR / f"{seg['id']}.wav"
-            if direct_path.exists():
-                wav_path = direct_path
-            else:
-                candidates = sorted(OUTPUT_DIR.glob(f"{seg['id']}*.wav"))
-                if not candidates:
-                    raise FileNotFoundError(
-                        f"No output for prefix {seg['id']} in {OUTPUT_DIR}"
-                    )
-                wav_path = candidates[0]
+            raise FileNotFoundError(f"No output: {wav_path}")
         # Rename to cache key
         cached_path = OUTPUT_DIR / f"{key}.wav"
         wav_path.rename(cached_path)
@@ -87,11 +70,8 @@ def synthesize_batch(
             }
         )
         mx.eval(model.parameters())  # Force eval
-        # MLX >=0.30 prefers mx.clear_cache(); keep backward compatibility.
-        if hasattr(mx, "clear_cache"):
-            mx.clear_cache()
-        elif hasattr(mx, "metal") and hasattr(mx.metal, "clear_cache"):
-            mx.metal.clear_cache()
+        if hasattr(mx, "metal") and hasattr(mx.metal, "clear_cache"):
+            mx.metal.clear_cache()  # Memory hygiene
     return results
 
 

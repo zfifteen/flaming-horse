@@ -189,6 +189,16 @@ from manim_voiceover_plus import VoiceoverScene
 from flaming_horse_voice import get_speech_service
 from narration_script import SCRIPT
 
+# Python 3.13 compatibility patch (keep in generated scenes)
+try:
+    from typing import override as _typing_override
+except Exception:
+    try:
+        from typing_extensions import override as _typing_override
+    except Exception:
+        def _typing_override(func):
+            return func
+
 # For Qwen caching: Precache check (New)
 ref_path = Path("assets/voice_ref/ref.wav")
 if not ref_path.exists():
@@ -208,7 +218,7 @@ def safe_position(mobject, max_y=3.8, min_y=-3.8, buff=0.2):
     if top > max_y - buff:
         mobject.shift(DOWN * (top - (max_y - buff)))
     if bottom < min_y + buff:
-        mobject.shift(UP * (bottom - (min_y + buff)))
+        mobject.shift(UP * ((min_y + buff) - bottom))
     return mobject
 
 # Enhanced Visual Helpers (New - from visual_helpers.md)
@@ -265,8 +275,9 @@ class Scene01Intro(VoiceoverScene):
         # Timing is deterministic via BeatPlan helper slots.
         
         with self.voiceover(text=SCRIPT["intro"]) as tracker:
-            # Example cadence: fixed 10 micro-beats (within 8-12 target)
-            beats = BeatPlan(tracker.duration, [1] * 10)
+            # Duration-scaled micro-beats (required for long narration)
+            num_beats = max(10, min(22, int(np.ceil(tracker.duration / 3.0))))
+            beats = BeatPlan(tracker.duration, [1] * num_beats)
 
             # Title (ALWAYS use UP * 3.8, NEVER .to_edge(UP)); Adaptive (New)
             title = Text("{{TITLE}}", font_size=48, weight=BOLD, color=blues[0])
@@ -286,7 +297,7 @@ class Scene01Intro(VoiceoverScene):
             bullet_3 = Text("{{KEY_POINT_3}}", font_size=28).next_to(bullet_2, DOWN, aligned_edge=LEFT, buff=0.3)
             safe_position(bullet_3)
 
-            diagram = RoundedRectangle(width=5.2, height=3.2, corner_radius=0.2, color=blues[2]).move_to(RIGHT * 3.2 + DOWN * 0.4)
+            diagram = RoundedRectangle(width=5.2, height=3.2, corner_radius=0.2, color=blues[2]).move_to(RIGHT * 3.2 + DOWN * 0.6)
             callout = SurroundingRectangle(bullet_2, color=YELLOW, buff=0.15)
             panel_label = Text("{{VISUAL_ANCHOR}}", font_size=24, color=blues[1]).next_to(diagram, UP, buff=0.2)
             safe_position(panel_label)
@@ -294,11 +305,12 @@ class Scene01Intro(VoiceoverScene):
             play_text_next(self, beats, FadeIn(bullet_1))
             play_text_next(self, beats, FadeIn(bullet_2))
             play_text_next(self, beats, FadeIn(bullet_3))
+            play_next(self, beats, FadeOut(subtitle), FadeOut(bullet_1), FadeOut(bullet_2), FadeOut(bullet_3))
             play_next(self, beats, Create(diagram, rate_func=smooth))
             play_text_next(self, beats, FadeIn(panel_label))
             play_next(self, beats, FadeIn(callout), max_run_time=0.8)
             play_next(self, beats, FadeOut(callout), max_run_time=0.8)
-            play_next(self, beats, FadeOut(subtitle), FadeOut(bullet_1), FadeOut(bullet_2), FadeOut(bullet_3), FadeOut(panel_label))
+            play_next(self, beats, FadeOut(panel_label))
 ```
 
 See reference_docs/visual_helpers.md for more on enhanced helpers and aesthetics.
@@ -329,14 +341,14 @@ See reference_docs/visual_helpers.md for more on enhanced helpers and aesthetics
 - ✅ **ALWAYS** call `safe_position()` after `.next_to()`
 - ❌ **NEVER** use `.to_edge(...)` for titles or labels (causes clipping/edge drift)
 - ✅ **ALWAYS** place graphs/diagrams below the subtitle (e.g., `.move_to(DOWN * 0.6)`)
-- ✅ **ALWAYS** call `safe_layout(...)` when positioning 2+ siblings in a group
+- ✅ **ALWAYS** call `safe_layout(...)` for free-positioned sibling clusters (rows/columns or mixed placements)
 
 ### Layout Contract (Mandatory)
 - Title must exist and be visible at `UP * 3.8` (or via `adaptive_title_position`).
 - Subtitle must be `.next_to(title, DOWN, buff=0.4)` and then `safe_position(subtitle)`.
 - Graphs/diagrams must be offset downward (e.g., `DOWN * 0.6` to `DOWN * 1.2`) to avoid title overlap.
 - Labels must attach to nearby elements (e.g., `label.next_to(curve.get_end(), UP, buff=0.2)`), then `safe_position(label)`.
-- After positioning, run `safe_layout(...)` for any group of 2+ elements.
+- After positioning, run `safe_layout(...)` for free-positioned sibling clusters; for strict `.next_to(...)` chains, call `safe_position(...)` per element.
 ### Adaptive Positioning (New)
 - Use enhanced helpers for dynamic layouts:
   ```python
@@ -364,7 +376,7 @@ See reference_docs/visual_helpers.md for more on enhanced helpers and aesthetics
   if not ref_path.exists():
       raise FileNotFoundError("Run precache_voice.sh before building.")
   ```
-- Tolerance: If sum(fractions) >0.95, auto-scale run_times down by 5%.
+- If beat slots are exhausted or become too long (>~3s), increase beat count or split into multiple voiceover blocks.
 
 **Timing Budget Validation:**
 ```python
@@ -401,7 +413,7 @@ with self.voiceover(text=SCRIPT["demo"]) as tracker:  # 10 seconds
 - ❌ **NEVER** place multiple elements at ORIGIN without explicit offsets
 - ❌ **NEVER** use `.next_to()` without immediately calling `safe_position()`
 - ❌ **NEVER** keep `.next_to(...)` inside list comprehensions/loops without explicit per-item `safe_position(...)`
-- ✅ **ALWAYS** call `safe_layout(*elements)` on any VGroup with 2+ sibling elements
+- ✅ **ALWAYS** call `safe_layout(*elements)` for free-positioned sibling clusters (not mandatory for strict `.next_to(...)` chains)
 - ✅ **ALWAYS** use explicit coordinates: `element.move_to(UP * 2 + LEFT * 3)`
 
 **Example - CORRECT pattern:**
@@ -495,7 +507,7 @@ Before rendering any scene, programmatically verify:
 ### Positioning Validation
 - [ ] No elements placed at ORIGIN except if it's the only element on screen
 - [ ] Every element positioned with `.next_to()` has `safe_position()` called immediately after
-- [ ] Any VGroup with 2+ sibling elements has `safe_layout()` called
+- [ ] Free-positioned sibling clusters (rows/columns or mixed placements) call `safe_layout()`; strict `.next_to(...)` chains call `safe_position(...)` per element
 - [ ] All title elements use `.move_to(UP * 3.8)`, NOT `.to_edge(UP)`
 
 ### Timing Validation
