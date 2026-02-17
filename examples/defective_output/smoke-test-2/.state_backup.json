@@ -1,0 +1,151 @@
+{
+  "project_name": "smoke-test",
+  "topic": "Create a tiny video for testing that include three full scenes: Intro, Content and Conclusion (create your own titles). Make the narration a few quotes from the movie The Matrix.",
+  "phase": "assemble",
+  "created_at": "2026-02-17T18:38:18Z",
+  "updated_at": "2026-02-17T18:42:11Z",
+  "run_count": 9,
+  "plan_file": "plan.json",
+  "narration_file": "narration_script.py",
+  "voice_config_file": null,
+  "scenes": [
+    {
+      "id": "scene_01_intro",
+      "title": "Waking from the Dream",
+      "narration_key": "scene_01_intro",
+      "narration_summary": "",
+      "estimated_words": 0,
+      "estimated_duration": "0s",
+      "animations": [],
+      "complexity": "low",
+      "risk_flags": [],
+      "status": "rendered",
+      "file": "scene_01_intro.py",
+      "class_name": "Scene01Intro",
+      "video_file": "media/videos/scene_01_intro/1440p60/Scene01Intro.mp4",
+      "verification": {
+        "file_size_bytes": 534700,
+        "duration_seconds": 15.733333,
+        "audio_present": true,
+        "verified_at": "2026-02-17T18:41:45Z"
+      }
+    },
+    {
+      "id": "scene_02_content",
+      "title": "The Fabric of Deception",
+      "narration_key": "scene_02_content",
+      "narration_summary": "",
+      "estimated_words": 0,
+      "estimated_duration": "0s",
+      "animations": [],
+      "complexity": "low",
+      "risk_flags": [],
+      "status": "rendered",
+      "file": "scene_02_content.py",
+      "class_name": "Scene02Content",
+      "video_file": "media/videos/scene_02_content/1440p60/Scene02Content.mp4",
+      "verification": {
+        "file_size_bytes": 681657,
+        "duration_seconds": 20.133333,
+        "audio_present": true,
+        "verified_at": "2026-02-17T18:41:59Z"
+      }
+    },
+    {
+      "id": "scene_03_conclusion",
+      "title": "The Path to Discovery",
+      "narration_key": "scene_03_conclusion",
+      "narration_summary": "",
+      "estimated_words": 0,
+      "estimated_duration": "0s",
+      "animations": [],
+      "complexity": "low",
+      "risk_flags": [],
+      "status": "rendered",
+      "file": "scene_03_conclusion.py",
+      "class_name": "Scene03Conclusion",
+      "video_file": "media/videos/scene_03_conclusion/1440p60/Scene03Conclusion.mp4",
+      "verification": {
+        "file_size_bytes": 550802,
+        "duration_seconds": 16.216667,
+        "audio_present": true,
+        "verified_at": "2026-02-17T18:42:11Z"
+      }
+    }
+  ],
+  "current_scene_index": 3,
+  "errors": [],
+  "history": [
+    {
+      "timestamp": "2026-02-17T18:38:42Z",
+      "phase": "plan",
+      "action": "Applied plan.json to project_state.json (deterministic)"
+    },
+    {
+      "timestamp": "2026-02-17T18:38:42Z",
+      "phase": "plan",
+      "action": "Applied plan.json to project_state.json (deterministic)"
+    },
+    {
+      "timestamp": "2026-02-17T18:38:43Z",
+      "phase": "review",
+      "action": "Advanced to narration (deterministic)"
+    },
+    {
+      "timestamp": "2026-02-17T18:38:43Z",
+      "phase": "review",
+      "action": "Advanced to narration (deterministic)"
+    },
+    {
+      "timestamp": "2026-02-17T18:38:59Z",
+      "phase": "narration",
+      "action": "Detected narration_script.py; advanced to build_scenes (deterministic)"
+    },
+    {
+      "timestamp": "2026-02-17T18:38:59Z",
+      "phase": "narration",
+      "action": "Detected narration_script.py; advanced to build_scenes (deterministic)"
+    },
+    {
+      "timestamp": "2026-02-17T18:40:33Z",
+      "phase": "build_scenes",
+      "action": "Marked built: scene_01_intro.py (Scene01Intro); advanced index to 1"
+    },
+    {
+      "timestamp": "2026-02-17T18:40:51Z",
+      "phase": "build_scenes",
+      "action": "Marked built: scene_02_content.py (Scene02Content); advanced index to 2"
+    },
+    {
+      "timestamp": "2026-02-17T18:41:09Z",
+      "phase": "build_scenes",
+      "action": "Marked built: scene_03_conclusion.py (Scene03Conclusion); advanced index to 3"
+    },
+    {
+      "timestamp": "2026-02-17T18:41:31Z",
+      "phase": "scene_qc",
+      "action": "Completed deterministic scene validation; advanced to precache_voiceovers"
+    },
+    {
+      "timestamp": "2026-02-17T18:41:31Z",
+      "phase": "scene_qc",
+      "action": "Completed deterministic scene validation; advanced to precache_voiceovers"
+    },
+    {
+      "timestamp": "2026-02-17T18:41:33Z",
+      "phase": "precache_voiceovers",
+      "action": "Detected media/voiceovers/qwen/cache.json; advanced to final_render (deterministic)"
+    },
+    {
+      "timestamp": "2026-02-17T18:41:33Z",
+      "phase": "precache_voiceovers",
+      "action": "Detected media/voiceovers/qwen/cache.json; advanced to final_render (deterministic)"
+    },
+    "Phase final_render: Rendered and verified all scenes (scripted), advancing to assemble"
+  ],
+  "flags": {
+    "needs_human_review": false,
+    "dry_run": false,
+    "force_replan": false
+  }
+}

@@ -1,0 +1,26 @@
+→ Loading TTS backend model (mlx)
+✓ Loaded model in 0.0s
+→ Building voice clone prompt (mlx)
+✓ Prompt built in 0.0s
+✓ Generated scene_01_intro (15.68s) in 24.5s
+✓ Generated scene_02_content (20.08s) in 22.6s
+✓ Generated scene_03_conclusion (16.16s) in 19.1s
+/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/site-packages/manim_voiceover_plus/__init__.py:4: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  import pkg_resources
+/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/site-packages/manim_voiceover_plus/__init__.py:4: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  import pkg_resources
+/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/site-packages/manim_voiceover_plus/__init__.py:4: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  import pkg_resources
+→ Loading TTS backend model (mlx)
+✓ Loaded model in 0.0s
+→ Building voice clone prompt (mlx)
+✓ Prompt built in 0.0s
+✓ Cache hit: scene_01_intro
+✓ Cache hit: scene_02_content
+✓ Cache hit: scene_03_conclusion
+/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/site-packages/manim_voiceover_plus/__init__.py:4: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  import pkg_resources
+/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/site-packages/manim_voiceover_plus/__init__.py:4: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  import pkg_resources
+/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/site-packages/manim_voiceover_plus/__init__.py:4: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  import pkg_resources
