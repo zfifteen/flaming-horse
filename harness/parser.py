@@ -39,18 +39,17 @@ def inject_body_into_scaffold(scaffold_path: Path, body_code: str) -> str:
     if not body_lines:
         raise ValueError("Body code must contain at least one non-comment statement")
 
-    # Header is before start_marker
+    # Header is everything up to and including the start marker
     header = scaffold_text[: start_idx + len(start_marker)]
-    footer_start = scaffold_text.find("\n", end_idx)
-    if footer_start == -1:
-        footer = ""
-    else:
-        footer = scaffold_text[footer_start:]
+    
+    # Footer is everything from the end marker onwards
+    footer = scaffold_text[end_idx:]
 
-    # Inject body
-    full_code = header + "\n" + body_code + "\n" + footer
+    # Inject body - ensure proper spacing
+    # Body code should be indented and between the markers
+    full_code = header + "\n" + body_code.rstrip() + "\n            " + footer
 
-    # Verify header integrity (hash check, but for now just check markers)
+    # Verify markers are still present
     if start_marker not in full_code or end_marker not in full_code:
         raise ValueError("Injection corrupted markers")
 
@@ -456,6 +455,9 @@ def parse_scene_repair_response(response_text: str) -> Optional[str]:
             continue
         # Should be body code: no class/def/import at top level
         if candidate.strip().startswith(("class ", "def ", "import ", "from ")):
+            continue
+        # Reject if has scaffold placeholders
+        if has_scaffold_artifacts(candidate):
             continue
         return candidate
 
