@@ -71,7 +71,7 @@ def selected_mlx_model_id(default_model_id: str) -> str:
         return override
     if default_model_id.startswith("mlx-community/"):
         return default_model_id
-    return "mlx-community/Qwen3-TTS-12Hz-0.6B-Base-4bit"
+    return "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit"
 
 
 def _hf_repo_id_to_cache_dirname(model_id: str) -> str | None:

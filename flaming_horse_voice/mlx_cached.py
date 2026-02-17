@@ -10,10 +10,10 @@ from manim_voiceover_plus.services.base import SpeechService
 
 
 class MLXCachedService(SpeechService):
-    MLX_PYTHON = "/Users/velocityworks/qwen3-tts-local/mlx_env312/bin/python"
+    MLX_PYTHON = "/Users/velocityworks/IdeaProjects/flaming-horse/models/qwen3-tts-local/mlx_env312/bin/python"
     SERVICE_SCRIPT = str(Path(__file__).with_name("mlx_tts_service.py"))
-    DEFAULT_MODEL_ID = "mlx-community/Qwen3-TTS-12Hz-0.6B-Base-4bit"
-    REF_AUDIO = "/Users/velocityworks/qwen3-tts-local/voice_ref/ref.wav"
+    DEFAULT_MODEL_ID = "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit"
+    REF_AUDIO = "/Users/velocityworks/IdeaProjects/flaming-horse/models/qwen3-tts-local/voice_ref/ref.wav"
     REF_TEXT_FILE = REF_AUDIO.replace(".wav", ".txt")
 
     @staticmethod

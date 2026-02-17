@@ -134,7 +134,7 @@ def safe_position(mobject, max_y=3.8, min_y=-3.8, buff=0.2):
     if top > max_y - buff:
         mobject.shift(DOWN * (top - (max_y - buff)))
     if bottom < min_y + buff:
-        mobject.shift(UP * (bottom - (min_y + buff)))
+        mobject.shift(UP * ((min_y + buff) - bottom))
     return mobject
 
 class Scene01Introduction(VoiceoverScene):
