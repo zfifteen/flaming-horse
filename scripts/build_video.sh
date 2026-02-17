@@ -94,16 +94,6 @@ LOG_FILE="${PROJECT_DIR}/build.log"
 ERROR_LOG="${PROJECT_DIR}/errors.log"
 
 
-# Prompt templates (relative to script location)
-PROMPTS_DIR="${SCRIPT_DIR}/../harness/prompt_templates"
-PHASE_PROMPT_MAIN_TEMPLATE="${PROMPTS_DIR}/phase_prompt.md"
-PHASE_PROMPT_TEMPLATE="${PROMPTS_DIR}/phase_prompt_instructions.md"
-PHASE_NARRATION_TEMPLATE="${PROMPTS_DIR}/phase_narration.md"
-PHASE_BUILD_SCENES_TEMPLATE="${PROMPTS_DIR}/phase_build_scenes.md"
-SCENE_FIX_TEMPLATE="${PROMPTS_DIR}/scene_fix_prompt.md"
-SCENE_QC_TEMPLATE="${PROMPTS_DIR}/scene_qc_prompt.md"
-
-
 # ─── Lock File Management ────────────────────────────────────────────
 
 acquire_lock() {
@@ -387,27 +377,6 @@ PY
   fi
 
   return 0
-}
-
-render_template_file() {
-  local template_file="$1"
-  local output_file="$2"
-  shift 2
-
-  python3 - "$template_file" "$output_file" "$@" <<'PY'
-from pathlib import Path
-import sys
-
-template_path = Path(sys.argv[1])
-output_path = Path(sys.argv[2])
-
-text = template_path.read_text(encoding="utf-8")
-for kv in sys.argv[3:]:
-    key, value = kv.split("=", 1)
-    text = text.replace("{{" + key + "}}", value)
-
-output_path.write_text(text, encoding="utf-8")
-PY
 }
 
 # ═══════════════════════════════════════════════════════════════
@@ -1610,18 +1579,6 @@ PY
     return 1
   fi
 
-  local prompt_file=".agent_prompt_scene_qc.md"
-  if [[ ! -f "$SCENE_QC_TEMPLATE" ]]; then
-    echo "❌ Missing prompt template: $SCENE_QC_TEMPLATE" | tee -a "$LOG_FILE" >&2
-    return 1
-  fi
-  render_template_file \
-    "$SCENE_QC_TEMPLATE" \
-    "$prompt_file" \
-    "PROJECT_DIR=${PROJECT_DIR}" \
-    "STATE_FILE=${STATE_FILE}" \
-    "SCENE_FILES=${qc_scene_files}"
-
   echo "Using Python harness for scene QC" | tee -a "$LOG_FILE"
 
   python3 -m harness \
@@ -1631,7 +1588,6 @@ PY
     2> >(tee -a "$LOG_FILE" >&2)
 
   local exit_code=$?
-  rm -f "$prompt_file"
 
   if [[ $exit_code -ne 0 ]]; then
     echo "❌ Scene QC harness failed with exit code: $exit_code" | tee -a "$LOG_FILE"

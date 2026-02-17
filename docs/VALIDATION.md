@@ -163,5 +163,5 @@ class Scene01Intro(VoiceoverScene):
 
 - `AGENTS.md`
 - `scripts/scene_validation.sh`
-- `harness/prompt_templates/scene_fix_prompt.md`
-- `harness/prompt_templates/phase_build_scenes.md`
+- `harness/prompt_templates/repair_system.md`
+- `harness/prompt_templates/build_scenes_system.md`
