@@ -1,0 +1,55 @@
+{
+  "title": "Testing Video: Echoes of The Matrix",
+  "description": "A short test video featuring three scenes with iconic quotes from The Matrix, exploring themes of reality, illusion, and choice through simple explainer visuals.",
+  "target_duration_seconds": 90,
+  "scenes": [
+    {
+      "id": "scene_01_intro",
+      "title": "Awakening to Reality",
+      "narration_key": "scene_01_intro",
+      "description": "Introduce the concept of questioning reality with a famous quote, setting the stage for deeper exploration.",
+      "estimated_duration_seconds": 30,
+      "narrative_beats": [
+        "Present the initial hook about the nature of reality",
+        "Deliver the red pill quote to emphasize choice and revelation"
+      ],
+      "visual_ideas": [
+        "Fade in a title at the top, with a central 'reality illusion' diagram (a simple grid or mirror effect)",
+        "Reveal progressive bullets: 'What is real?', 'The choice awaits'",
+        "Evolve a right-side visual: start with a blurred matrix code background, then sharpen to show a pill icon"
+      ]
+    },
+    {
+      "id": "scene_02_content",
+      "title": "The Matrix Unveiled",
+      "narration_key": "scene_02_content",
+      "description": "Dive into the pervasive nature of the simulated world, building on the intro's theme.",
+      "estimated_duration_seconds": 30,
+      "narrative_beats": [
+        "Explain the ubiquity of the matrix simulation",
+        "Highlight the control and deception inherent in it"
+      ],
+      "visual_ideas": [
+        "Maintain a persistent header, fade in new subtitle below",
+        "Progressive bullets: 'It's everywhere', 'Controlling minds'",
+        "Evolving right-side visual: start with a cityscape diagram, transform to show flowing code streams and human silhouettes trapped in pods"
+      ]
+    },
+    {
+      "id": "scene_03_conclusion",
+      "title": "Freeing the Mind",
+      "narration_key": "scene_03_conclusion",
+      "description": "Conclude with a call to action and liberation, wrapping up the philosophical journey.",
+      "estimated_duration_seconds": 30,
+      "narrative_beats": [
+        "Reiterate the possibility of breaking free",
+        "End with the empowering message of mental freedom"
+      ],
+      "visual_ideas": [
+        "Transition with a fade-out of previous content, new title and subtitle",
+        "Final bullets: 'Break the chains', 'Embrace the truth'",
+        "Evolving right-side visual: start with a locked door icon, unlock and reveal an open path with light, culminating in a Neo-like figure awakening"
+      ]
+    }
+  ]
+}
