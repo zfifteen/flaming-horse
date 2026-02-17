@@ -1,0 +1,53 @@
+{
+  "title": "The Matrix Awakening: A Test Journey",
+  "description": "A short test video featuring iconic quotes from The Matrix, structured into an intro, content, and conclusion scene to demonstrate video production pipeline functionality.",
+  "target_duration_seconds": 75,
+  "scenes": [
+    {
+      "id": "scene_01_intro",
+      "title": "Waking from the Dream",
+      "narration_key": "scene_01_intro",
+      "description": "Introduces the theme of reality versus illusion with a welcoming quote, setting the stage for the Matrix narrative.",
+      "estimated_duration_seconds": 25,
+      "narrative_beats": [
+        "Welcome to the real world.",
+        "Emphasizing the transition from simulation to truth."
+      ],
+      "visual_ideas": [
+        "Display falling green code in the background, fading in a red pill and blue pill on screen.",
+        "Show a simple timeline graphic revealing 'Matrix' as the illusion and 'Reality' as the awakening."
+      ]
+    },
+    {
+      "id": "scene_02_content",
+      "title": "The Fabric of Deception",
+      "narration_key": "scene_02_content",
+      "description": "Explains the pervasive nature of the Matrix using a key quote, building understanding of its omnipresence.",
+      "estimated_duration_seconds": 30,
+      "narrative_beats": [
+        "The Matrix is everywhere.",
+        "It surrounds us in daily life.",
+        "Pulled over our eyes to hide the truth."
+      ],
+      "visual_ideas": [
+        "Progressive bullet points listing examples: window view, television, work, taxes.",
+        "Evolving right-side diagram showing a human figure trapped in a grid, transforming into a cityscape, then dissolving into code."
+      ]
+    },
+    {
+      "id": "scene_03_conclusion",
+      "title": "The Path to Discovery",
+      "narration_key": "scene_03_conclusion",
+      "description": "Concludes with a call to personal experience, reinforcing that truth must be seen firsthand.",
+      "estimated_duration_seconds": 20,
+      "narrative_beats": [
+        "Unfortunately, no one can be told what the Matrix is.",
+        "You have to see it for yourself."
+      ],
+      "visual_ideas": [
+        "Fade in a door graphic with a hand reaching for the knob.",
+        "End with a callout text: 'Choose your path' alongside a split-screen of the blue pill (stay) and red pill (awaken)."
+      ]
+    }
+  ]
+}
