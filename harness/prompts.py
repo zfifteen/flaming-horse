@@ -306,7 +306,7 @@ Please fix the issue and generate a corrected version.
 
 {retry_section}
 
-Generate the body code for the voiceover block in `{scene_id}`.
+Generate the body code (animation statements only) for scene `{scene_id}`.
 
 Hard requirements:
 1. Use the exact SCRIPT key: `SCRIPT["{narration_key}"]`.
@@ -314,7 +314,7 @@ Hard requirements:
 3. Use subtitle and bullets grounded in this scene's plan details; do not use placeholders.
 4. Keep semantics strictly scene-specific: use only this scene's plan details + narration text.
 5. Do not introduce unrelated branding/topics/project names unless they appear in this scene's provided inputs.
-6. Use class name `{scene_class_name}` and output code for file `{scene_file_name}` only.
+6. Context: This code will be injected into `{scene_file_name}` with class `{scene_class_name}`. Do NOT output class/imports/config.
 7. Implement visuals tied to this scene's `narrative_beats` and `visual_ideas`.
 8. Follow positioning rules (title at `UP * 3.8`, `safe_position` after `.next_to`, etc.).
 9. Keep timing budget ≤ 1.0 and keep text animations ≤ 1.5s.

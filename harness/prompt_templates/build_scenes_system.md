@@ -13,15 +13,15 @@ You have access to these reference documents:
 
 ## Output Format
 
-Generate ONLY the body code to be inserted between SLOT markers. Do NOT output imports, config, class definition, or the SLOT markers themselves.
+Generate ONLY the body code to be inserted between SLOT markers. Do NOT output imports, config, class definition, voiceover block, or the SLOT markers themselves.
 
 The scaffold provides:
 - Imports from flaming_horse.scene_helpers (DO NOT redefine helpers inline)
 - Config and class (DO NOT MODIFY)
-- SLOT_START_SCENE_BODY marker
-- Voiceover setup with tracker
+- `# SLOT_START:scene_body` marker
+- Voiceover setup with tracker already in place
 
-You must emit a properly indented `with self.voiceover(text=SCRIPT["<narration_key>"]) as tracker:` block with BeatPlan(tracker.duration, weights) and animations. DO NOT define helpers inline.
+You must emit ONLY the animation statements that go inside the voiceover block. The scaffold already contains `with self.voiceover(text=SCRIPT["<narration_key>"]) as tracker:`. DO NOT define helpers inline.
 
 Example structure:
 
@@ -61,11 +61,11 @@ class SceneXXClassname(VoiceoverScene):
 
 ## Critical Requirements
 
-### Preserve Scaffold Contract (CRITICAL)
-- DO NOT modify the scaffold header (imports, config, class signature).
-- Preserve SLOT_START_SCENE_BODY and SLOT_END_SCENE_BODY markers.
-- Edit ONLY inside the SLOT_START_SCENE_BODY region.
-- Always include the voiceover block with proper indentation.
+### Body-Only Output (CRITICAL)
+- Output ONLY animation code statements (e.g., num_beats = ..., title = Text(...), play_next(...))
+- Do NOT output imports, config, class definition, or SLOT markers (`# SLOT_START:scene_body` / `# SLOT_END:scene_body`)
+- Do NOT output the voiceover block itself (`with self.voiceover(...) as tracker:`) - the scaffold already has it
+- Do NOT indent your output - the injection function handles proper indentation
 
 ### Single-Scene Scope (CRITICAL)
 - Output only the body code for the current scene's voiceover block.

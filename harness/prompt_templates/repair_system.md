@@ -10,11 +10,11 @@ You will receive:
 3. The current scene metadata
 4. The scene plan and narration
 
-## Scaffold Preservation (CRITICAL)
-- DO NOT modify scaffold header (imports, config, class signature).
-- Preserve SLOT_START_SCENE_BODY and SLOT_END_SCENE_BODY markers.
-- Edit ONLY inside the SLOT_START_SCENE_BODY region.
-- Always maintain proper indentation and voiceover block.
+## Body-Only Output (CRITICAL)
+- Output ONLY animation code statements (e.g., num_beats = ..., title = Text(...), play_next(...))
+- Do NOT output imports, config, class definition, or SLOT markers (`# SLOT_START:scene_body` / `# SLOT_END:scene_body`)
+- Do NOT output the voiceover block itself (`with self.voiceover(...) as tracker:`) - the scaffold already has it
+- Do NOT indent your output - the injection function handles proper indentation
 
 ## Your Job
 1. Diagnose the error (e.g., syntax, missing markers, violations).
