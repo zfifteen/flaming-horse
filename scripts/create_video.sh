@@ -16,6 +16,7 @@ Examples:
   ./scripts/create_video.sh my-video --topic "Explain hash functions" --build-args "--topic 'ignored'"
 
 Notes:
+  - Canonical entrypoint for users: this script.
   - This script is a thin wrapper around:
       1) scripts/new_project.sh
       2) scripts/build_video.sh
@@ -29,6 +30,7 @@ Notes:
   - You can also provide the topic via VIDEO_TOPIC.
   - PROJECTS_BASE_DIR sets the default for --projects-dir when omitted.
   - If the project already exists (has project_state.json), this script resumes it and does NOT reinitialize state.
+  - For a command overview: ./scripts/help.sh
 EOF
 }
 

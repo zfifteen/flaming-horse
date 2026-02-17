@@ -47,3 +47,15 @@ bash tests/test_harness_e2e.sh
 
 Requires:
 - `XAI_API_KEY` in environment or `.env`
+
+### 5) CLI help smoke checks
+
+```bash
+bash tests/test_cli_help_smoke.sh
+```
+
+Covers:
+- `scripts/help.sh` output is available
+- `create_video.sh --help` points to `scripts/help.sh`
+- `build_video.sh --help` points to canonical entrypoint/help
+- `new_project.sh --help` points to `scripts/help.sh`

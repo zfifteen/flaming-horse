@@ -21,26 +21,26 @@ Built for:
 Start here for first-time setup and your first build:
 
 ```bash
-# 1) Create a project (topic recommended at creation time)
-./scripts/new_project.sh my_video --topic "Standing waves explained visually"
-
-# 2) Build end-to-end
-./scripts/build_video.sh projects/my_video
-
-# Optional: set/override topic at build time
-./scripts/build_video.sh projects/my_video --topic "Standing waves explained visually"
+# Canonical user entrypoint (create/resume + full build):
+./scripts/create_video.sh my_video --topic "Standing waves explained visually"
 ```
 
 Final output:
 - `projects/my_video/final_video.mp4`
+
+Advanced/manual flow (optional):
+
+```bash
+./scripts/new_project.sh my_video --topic "Standing waves explained visually"
+./scripts/build_video.sh projects/my_video
+```
 
 ## First-Run Checklist
 
 1. Install dependencies (system + Python): `docs/INSTALLATION.md`
 2. Verify environment: `./scripts/check_dependencies.sh`
 3. Confirm `.env` contains required API settings for harness execution
-4. Run `new_project.sh` with a topic
-5. Run `build_video.sh` on that project
+4. Run `./scripts/create_video.sh <project_name> --topic "..."`
 
 ## Pipeline Phases
 
@@ -120,13 +120,16 @@ projects/my_video/
 ## Common Commands
 
 ```bash
+# Canonical user entrypoint (recommended)
+./scripts/create_video.sh my_video --topic "Standing waves explained visually"
+
 # Validate environment
 ./scripts/check_dependencies.sh
 
 # Precache voiceovers explicitly (optional; pipeline can invoke this phase)
 python3 scripts/precache_voiceovers_qwen.py projects/my_video
 
-# Reset project phase manually
+# Manual phase reset (advanced)
 ./scripts/reset_phase.sh projects/my_video narration
 ```
 

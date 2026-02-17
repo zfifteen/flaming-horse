@@ -67,6 +67,14 @@ Model will be cached in `~/.cache/huggingface/`.
 
 All checks should pass (✓) before creating videos.
 
+## Step 6: Create/Run a Video (Canonical Entrypoint)
+
+```bash
+./scripts/create_video.sh my_video --topic "Standing waves explained visually"
+```
+
+Use `new_project.sh` and `build_video.sh` directly only for advanced/manual control.
+
 ## Troubleshooting
 
 **Issue:** Manim import errors

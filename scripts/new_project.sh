@@ -19,10 +19,15 @@ Usage:
 Environment:
   VIDEO_TOPIC can be used instead of --topic.
   PROJECTS_BASE_DIR sets the default project directory root.
+  See ./scripts/help.sh for the full command guide.
 EOF
 }
 
 PROJECT_NAME="${1:-}"
+if [[ "${PROJECT_NAME}" == "-h" || "${PROJECT_NAME}" == "--help" ]]; then
+  usage
+  exit 0
+fi
 if [[ -z "${PROJECT_NAME}" ]]; then
   usage >&2
   exit 1
@@ -163,5 +168,5 @@ if [[ -n "${TOPIC}" ]]; then
 fi
 echo ""
 echo "Next steps:"
-echo "  1. Run: ./scripts/build_video.sh $PROJECT_DIR"
-echo "     (or set topic at build time: ./scripts/build_video.sh $PROJECT_DIR --topic \"...\")"
+echo "  1. Recommended: ./scripts/create_video.sh $PROJECT_NAME --topic \"...\""
+echo "  2. Advanced/manual: ./scripts/build_video.sh $PROJECT_DIR"

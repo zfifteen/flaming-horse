@@ -1,17 +1,22 @@
 #!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="${1:?Usage: $0 <project_dir> <phase>}"
 NEW_PHASE="${2:?Usage: $0 <project_dir> <phase>}"
 
-VALID_PHASES=("init" "plan" "review" "narration" "build_scenes" "final_render" "assemble" "complete")
+mapfile -t VALID_PHASES < <(python3 "${SCRIPT_DIR}/update_project_state.py" --print-phases)
 if [[ ! " ${VALID_PHASES[*]} " =~ " ${NEW_PHASE} " ]]; then
   echo "❌ Invalid phase: $NEW_PHASE" >&2
   echo "Valid phases: ${VALID_PHASES[*]}" >&2
+  echo "See ./scripts/help.sh for command guidance." >&2
   exit 1
 fi
 
 STATE_FILE="${PROJECT_DIR}/project_state.json"
 if [[ ! -f "$STATE_FILE" ]]; then
   echo "❌ State file not found: $STATE_FILE" >&2
+  echo "See ./scripts/help.sh for command guidance." >&2
   exit 1
 fi
 

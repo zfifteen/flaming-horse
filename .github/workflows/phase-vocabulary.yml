@@ -1,0 +1,45 @@
+name: Phase Vocabulary Guard
+
+on:
+  pull_request:
+    paths:
+      - "scripts/update_project_state.py"
+      - "scripts/state_schema.json"
+      - "scripts/reset_phase.sh"
+      - "tests/test_phase_vocabulary.py"
+      - ".github/workflows/phase-vocabulary.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "scripts/update_project_state.py"
+      - "scripts/state_schema.json"
+      - "scripts/reset_phase.sh"
+      - "tests/test_phase_vocabulary.py"
+      - ".github/workflows/phase-vocabulary.yml"
+  workflow_dispatch:
+
+jobs:
+  phase-vocabulary:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install test dependency
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install pytest
+
+      - name: Check schema phase enum against canonical source
+        run: |
+          python3 scripts/update_project_state.py --check-schema-phases scripts/state_schema.json
+
+      - name: Run phase vocabulary parity test
+        run: |
+          python3 -m pytest -q tests/test_phase_vocabulary.py
