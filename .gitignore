@@ -26,3 +26,7 @@ __pycache__/
 
 # Generated harness E2E artifacts
 projects/e2e_test_harness_*/
+
+# Smoke test projects (temporary)
+projects/smoke-test-*/
+projects/smoke-test/
