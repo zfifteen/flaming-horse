@@ -30,6 +30,15 @@ def inject_body_into_scaffold(scaffold_path: Path, body_code: str) -> str:
     if end_idx == -1:
         raise ValueError(f"SLOT_END marker not found in scaffold {scaffold_path}")
 
+    # Validate body has meaningful content (not just comments/whitespace)
+    body_lines = [
+        line.strip()
+        for line in body_code.strip().split("\n")
+        if line.strip() and not line.strip().startswith("#")
+    ]
+    if not body_lines:
+        raise ValueError("Body code must contain at least one non-comment statement")
+
     # Header is before start_marker
     header = scaffold_text[: start_idx + len(start_marker)]
     footer_start = scaffold_text.find("\n", end_idx)
@@ -355,6 +364,9 @@ def parse_build_scenes_response(response_text: str) -> Optional[str]:
         # Should be body code: indented statements, no class/def at top level
         if candidate.strip().startswith(("class ", "def ", "import ", "from ")):
             continue
+        # Reject if has scaffold placeholders
+        if has_scaffold_artifacts(candidate):
+            continue
         return candidate
 
     # Fallback: try raw/single-block extraction.
@@ -369,6 +381,9 @@ def parse_build_scenes_response(response_text: str) -> Optional[str]:
         return None
     # Ensure it's body code
     if code.strip().startswith(("class ", "def ", "import ", "from ")):
+        return None
+    # Reject if has scaffold placeholders
+    if has_scaffold_artifacts(code):
         return None
     return code
 
@@ -457,12 +472,9 @@ def parse_scene_repair_response(response_text: str) -> Optional[str]:
     # Ensure body
     if code.strip().startswith(("class ", "def ", "import ", "from ")):
         return None
-    return code
-
-    # NEW: Reject repaired code that still has scaffold placeholders
+    # Reject repaired code that still has scaffold placeholders
     if has_scaffold_artifacts(code):
         return None
-
     return code
 
 
