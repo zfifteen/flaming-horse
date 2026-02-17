@@ -39,6 +39,31 @@ def inject_body_into_scaffold(scaffold_path: Path, body_code: str) -> str:
     if not body_lines:
         raise ValueError("Body code must contain at least one non-comment statement")
 
+    # Ensure body code is properly indented for the with block (12 spaces)
+    # First, strip any existing indentation from body
+    lines = body_code.strip().split("\n")
+    # Find minimum indentation (ignoring empty lines)
+    min_indent = float('inf')
+    for line in lines:
+        if line.strip():
+            indent = len(line) - len(line.lstrip())
+            min_indent = min(min_indent, indent)
+    
+    if min_indent == float('inf'):
+        min_indent = 0
+    
+    # Re-indent all lines to 12 spaces (3 levels: class, def, with)
+    indented_lines = []
+    for line in lines:
+        if line.strip():
+            # Remove existing indent and add 12 spaces
+            dedented = line[min_indent:] if min_indent < len(line) else line.lstrip()
+            indented_lines.append("            " + dedented)
+        else:
+            indented_lines.append("")
+    
+    indented_body = "\n".join(indented_lines)
+
     # Header is everything up to and including the start marker
     header = scaffold_text[: start_idx + len(start_marker)]
     
@@ -46,8 +71,7 @@ def inject_body_into_scaffold(scaffold_path: Path, body_code: str) -> str:
     footer = scaffold_text[end_idx:]
 
     # Inject body - ensure proper spacing
-    # Body code should be indented and between the markers
-    full_code = header + "\n" + body_code.rstrip() + "\n            " + footer
+    full_code = header + "\n" + indented_body.rstrip() + "\n            " + footer
 
     # Verify markers are still present
     if start_marker not in full_code or end_marker not in full_code:

@@ -188,10 +188,11 @@ class TestBodyInjection:
                 narration_key="test"
             ))
 
-            body_code = '''            num_beats = 12
-            beats = BeatPlan(tracker.duration, [1] * num_beats)
-            title = Text("Test")
-            play_next(self, beats, FadeIn(title))'''
+            # Body code should be unindented (parser provides it this way)
+            body_code = '''num_beats = 12
+beats = BeatPlan(tracker.duration, [1] * num_beats)
+title = Text("Test")
+play_next(self, beats, FadeIn(title))'''
 
             full_code = inject_body_into_scaffold(scaffold_path, body_code)
             
