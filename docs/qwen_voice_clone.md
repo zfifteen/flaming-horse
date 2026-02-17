@@ -17,7 +17,7 @@ Defaults:
 
 ```json
 {
-  "qwen_python": "~/qwen3-tts-local/.venv/bin/python",
+  "qwen_python": "~/IdeaProjects/flaming-horse/models/qwen3-tts-local/.venv/bin/python",
   "model_id": "Qwen/Qwen3-TTS-12Hz-1.7B-Base",
   "device": "cpu",
   "dtype": "float32",

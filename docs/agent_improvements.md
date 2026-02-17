@@ -159,7 +159,7 @@ The plan is structured by category, with rationale, specific updates, implementa
     if not ref_path.exists():
         raise FileNotFoundError("Run precache_voice.sh before building.")
     ```
-  - Tolerance: If sum(fractions) >0.95, auto-scale run_times down by 5%.
+  - If beat slots are exhausted or become too long (>~3s), increase beat count or split into multiple voiceover blocks.
   ```
 
 **Implementation Steps**:

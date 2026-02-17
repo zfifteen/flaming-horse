@@ -21,8 +21,7 @@ Please create the **Incremental Manim Video Builder** project scaffold on my fil
 ├── build_video.sh              # Main orchestration script
 ├── README.md                   # Usage documentation
 ├── system_prompt.md            # Agent instructions template
-├── example_project/            # Demo project for testing
-│   └── .gitkeep
+
 └── reference_docs/             # Symlinks to my Space files
     ├── manim_content_pipeline.md -> ~/path/to/space/manim_content_pipeline.md
     ├── manim_voiceover.md -> ~/path/to/space/manim_voiceover.md
