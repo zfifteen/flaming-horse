@@ -59,3 +59,22 @@ Covers:
 - `create_video.sh --help` points to `scripts/help.sh`
 - `build_video.sh --help` points to canonical entrypoint/help
 - `new_project.sh --help` points to `scripts/help.sh`
+
+### 6) Scene Content Regression Tests
+
+```bash
+python3 -m pytest tests/test_scene_content.py --project_dir=<project_path>
+```
+
+Or use the gate script:
+
+```bash
+python3 scripts/validate_scene_content.py <project_dir>
+```
+
+Covers:
+- No planning text in scenes (derived from narration_script.py)
+- Horizontal bounds respected (LEFT * 3.5 to RIGHT * 3.5, set_max_width(6.0))
+- No stage directions in bullet text
+- No run_time passed to slot helpers
+- No long waits (>1.0s)

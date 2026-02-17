@@ -35,6 +35,11 @@ Hard requirements:
     - After `.next_to(...)`, ensure `safe_position(...)` is called.
     - If `.next_to(...)` appears inside a loop/list-comprehension, enforce per-item `safe_position(...)` (expand to explicit loop if needed).
     - For sibling groups, ensure `safe_layout(...)` is used where appropriate.
+4. Fix content validation issues.
+   - Reject planning text matches: ensure on-screen text is derived from narration_script.py, not narrative_beats from plan.json.
+   - Reject stage directions: remove patterns like ^Deliver\b, ^Pause for\b, ^Transition to\b from bullet text.
+   - Reject horizontal overflow: ensure elements stay within LEFT * 3.5 to RIGHT * 3.5, with Text.set_max_width(6.0).
+   - Reject structural duplication: ensure scenes have unique flows, not identical patterns.
 4. Preserve required repo conventions.
    - Keep locked config and compatibility patch intact.
    - Keep `SCRIPT[...]` narration usage.
@@ -74,6 +79,10 @@ Validation checklist before finishing:
 - [ ] No `run_time=` passed to `play_next(...)` / `play_text_next(...)`
 - [ ] No helper-level slot bypass via `run_time` override
 - [ ] Beat slot count is not exhausted before scene animations complete
+- [ ] No planning text matches in on-screen content
+- [ ] Horizontal bounds respected (elements within LEFT * 3.5 to RIGHT * 3.5)
+- [ ] No stage direction patterns in bullet text
+- [ ] Scenes have unique structural flows
 
 Required report format:
 - Scene-by-scene summary with:

@@ -177,16 +177,18 @@ See docs/reference_docs/phase_scenes.md for details.
 
 ## CRITICAL: Complete Scene Template
 
-**This is the ONLY valid pattern for scene generation. Follow it exactly.**
+**Use these structurally different examples as patterns for scene generation. Mandate unique flows per scene, incorporating ≥1 unique visual from topic_visual_patterns.md (e.g., timeline for history, string modes for acoustics). Follow layout contracts exactly.**
+
+### Example 1: Progressive Bullets + Evolving Right-Panel Diagram (for Explainer Slides)
 
 ```python
 from manim import *
 import numpy as np
-import colorsys  # New: For harmonious_color
 
 from pathlib import Path
 from manim_voiceover_plus import VoiceoverScene
 from flaming_horse_voice import get_speech_service
+from flaming_horse.scene_helpers import safe_position, harmonious_color, polished_fade_in, adaptive_title_position, safe_layout
 from narration_script import SCRIPT
 
 # Python 3.13 compatibility patch (keep in generated scenes)
@@ -199,7 +201,7 @@ except Exception:
         def _typing_override(func):
             return func
 
-# For Qwen caching: Precache check (New)
+# For Qwen caching: Precache check
 ref_path = Path("assets/voice_ref/ref.wav")
 if not ref_path.exists():
     raise FileNotFoundError("Run precache_voice.sh before building.")
@@ -210,110 +212,127 @@ config.frame_width = 10 * 16/9
 config.pixel_height = 1440
 config.pixel_width = 2560
 
-# Safe Positioning Helper (Enhanced)
-def safe_position(mobject, max_y=3.8, min_y=-3.8, buff=0.2):
-    """Enhanced: Adjusts vertically with buffer to prevent edge clipping."""
-    top = mobject.get_top()[1]
-    bottom = mobject.get_bottom()[1]
-    if top > max_y - buff:
-        mobject.shift(DOWN * (top - (max_y - buff)))
-    if bottom < min_y + buff:
-        mobject.shift(UP * ((min_y + buff) - bottom))
-    return mobject
-
-# Enhanced Visual Helpers (New - from visual_helpers.md)
-def harmonious_color(base_color, variations=3, lightness_shift=0.1):
-    rgb = np.array(base_color.to_rgb())
-    h, l, s = colorsys.rgb_to_hls(*rgb)
-    palette = []
-    for i in range(variations):
-        h_shift = i * (360 / variations) / 360
-        new_h = (h + h_shift) % 1
-        new_l = min(1.0, max(0.0, l + lightness_shift * i))
-        new_r, new_g, new_b = colorsys.hls_to_rgb(new_h, new_l, s)
-        palette.append([new_r, new_g, new_b, 1.0])
-    return palette
-
-def polished_fade_in(mobject, lag_ratio=0.2, scale_factor=1.1, glow=False):
-    if glow:
-        mobject.set_stroke(width=3, opacity=0.5)
-    return LaggedStart(
-        FadeIn(mobject),
-        mobject.animate.scale(scale_factor).set_run_time(0.5).scale(1/scale_factor),
-        lag_ratio=lag_ratio,
-    )
-
-def adaptive_title_position(title, content_group, max_shift=0.5):
-    content_height = content_group.height if content_group else 0
-    shift_y = min(max_shift, max(0, content_height - 2.0))
-    title.move_to(UP * (3.8 + shift_y))
-    return title
-
-def safe_layout(*mobjects, alignment=ORIGIN, h_buff=0.5, v_buff=0.3, max_y=3.5, min_y=-3.5):
-    """Enhanced: Positions siblings horizontally/vertically without overlaps, with alignment."""
-    group = VGroup(*mobjects)
-    group.arrange(RIGHT, buff=h_buff, aligned_edge=UP if v_buff else alignment)
-    for mob in mobjects:
-        safe_position(mob, max_y, min_y)
-    for i, mob_a in enumerate(mobjects):
-        for j, mob_b in enumerate(mobjects[i+1:], i+1):
-            if mob_a.get_right()[0] > mob_b.get_left()[0] - h_buff:
-                overlap = mob_a.get_right()[0] - mob_b.get_left()[0] + h_buff
-                mob_b.shift(RIGHT * overlap)
-    return VGroup(*mobjects)
-
-# Scene Class
 class Scene01Intro(VoiceoverScene):
     def construct(self):
-        # Palette for cohesion (New)
+        # Palette for cohesion
         blues = harmonious_color(BLUE, variations=3)
         
-        # Cached Qwen voiceover (precache required)
+        # Cached Qwen voiceover
         self.set_speech_service(get_speech_service(Path(__file__).resolve().parent))
         
-        # Animation Sequence
-        # Timing is deterministic via BeatPlan helper slots.
-        
         with self.voiceover(text=SCRIPT["intro"]) as tracker:
-            # Duration-scaled micro-beats (required for long narration)
-            num_beats = max(10, min(22, int(np.ceil(tracker.duration / 3.0))))
+            num_beats = max(12, min(30, int(np.ceil(tracker.duration / 1.8))))
             beats = BeatPlan(tracker.duration, [1] * num_beats)
 
-            # Title (ALWAYS use UP * 3.8, NEVER .to_edge(UP)); Adaptive (New)
+            # Title
             title = Text("{{TITLE}}", font_size=48, weight=BOLD, color=blues[0])
-            title = adaptive_title_position(title, None)  # No content yet
-            play_text_next(self, beats, Write(title))  # Text helper caps at 1.5s
+            title = adaptive_title_position(title, None)
+            play_text_next(self, beats, Write(title), max_text_seconds=999)
             
-            # Subtitle with safe positioning
+            # Subtitle
             subtitle = Text("{{SUBTITLE}}", font_size=32, color=blues[1])
             subtitle.next_to(title, DOWN, buff=0.4)
-            safe_position(subtitle)  # ALWAYS call after .next_to()
-            play_text_next(self, beats, polished_fade_in(subtitle, lag_ratio=0.1))  # Polished (New)
+            safe_position(subtitle)
+            play_text_next(self, beats, polished_fade_in(subtitle, lag_ratio=0.1), max_text_seconds=999)
             
-            # Explainer-slide cadence: progressive bullets + evolving right-panel visual
-            bullet_1 = Text("{{KEY_POINT_1}}", font_size=28).move_to(LEFT * 4.8 + UP * 1.6)
-            bullet_2 = Text("{{KEY_POINT_2}}", font_size=28).next_to(bullet_1, DOWN, aligned_edge=LEFT, buff=0.3)
+            # Bullets at LEFT * 3.5 with width constraint
+            bullet_1 = Text("{{KEY_POINT_1}}", font_size=28).move_to(LEFT * 3.5 + UP * 1.6).set_max_width(6.0)
+            bullet_2 = Text("{{KEY_POINT_2}}", font_size=28).next_to(bullet_1, DOWN, aligned_edge=LEFT, buff=0.3).set_max_width(6.0)
             safe_position(bullet_2)
-            bullet_3 = Text("{{KEY_POINT_3}}", font_size=28).next_to(bullet_2, DOWN, aligned_edge=LEFT, buff=0.3)
+            bullet_3 = Text("{{KEY_POINT_3}}", font_size=28).next_to(bullet_2, DOWN, aligned_edge=LEFT, buff=0.3).set_max_width(6.0)
             safe_position(bullet_3)
 
+            # Unique visual: Evolving diagram (from topic_visual_patterns.md, e.g., string modes for acoustics)
             diagram = RoundedRectangle(width=5.2, height=3.2, corner_radius=0.2, color=blues[2]).move_to(RIGHT * 3.2 + DOWN * 0.6)
             callout = SurroundingRectangle(bullet_2, color=YELLOW, buff=0.15)
-            panel_label = Text("{{VISUAL_ANCHOR}}", font_size=24, color=blues[1]).next_to(diagram, UP, buff=0.2)
+            panel_label = Text("{{VISUAL_ANCHOR}}", font_size=24, color=blues[1]).next_to(diagram, UP, buff=0.2).set_max_width(6.0)
             safe_position(panel_label)
 
-            play_text_next(self, beats, FadeIn(bullet_1))
-            play_text_next(self, beats, FadeIn(bullet_2))
-            play_text_next(self, beats, FadeIn(bullet_3))
+            play_text_next(self, beats, FadeIn(bullet_1), max_text_seconds=999)
+            play_text_next(self, beats, FadeIn(bullet_2), max_text_seconds=999)
+            play_text_next(self, beats, FadeIn(bullet_3), max_text_seconds=999)
             play_next(self, beats, FadeOut(subtitle), FadeOut(bullet_1), FadeOut(bullet_2), FadeOut(bullet_3))
             play_next(self, beats, Create(diagram, rate_func=smooth))
-            play_text_next(self, beats, FadeIn(panel_label))
+            play_text_next(self, beats, FadeIn(panel_label), max_text_seconds=999)
             play_next(self, beats, FadeIn(callout), max_run_time=0.8)
             play_next(self, beats, FadeOut(callout), max_run_time=0.8)
             play_next(self, beats, FadeOut(panel_label))
 ```
 
-See docs/reference_docs/visual_helpers.md for more on enhanced helpers and aesthetics.
+### Example 2: Timeline/Staged Reveal (for History/Sequence Topics)
+
+```python
+from manim import *
+import numpy as np
+
+from pathlib import Path
+from manim_voiceover_plus import VoiceoverScene
+from flaming_horse_voice import get_speech_service
+from flaming_horse.scene_helpers import safe_position, harmonious_color, polished_fade_in, adaptive_title_position, safe_layout
+from narration_script import SCRIPT
+
+# Python 3.13 compatibility patch
+try:
+    from typing import override as _typing_override
+except Exception:
+    try:
+        from typing_extensions import override as _typing_override
+    except Exception:
+        def _typing_override(func):
+            return func
+
+# For Qwen caching: Precache check
+ref_path = Path("assets/voice_ref/ref.wav")
+if not ref_path.exists():
+    raise FileNotFoundError("Run precache_voice.sh before building.")
+
+# LOCKED CONFIGURATION
+config.frame_height = 10
+config.frame_width = 10 * 16/9
+config.pixel_height = 1440
+config.pixel_width = 2560
+
+class Scene02Timeline(VoiceoverScene):
+    def construct(self):
+        # Palette
+        greens = harmonious_color(GREEN, variations=3)
+        
+        # Cached Qwen voiceover
+        self.set_speech_service(get_speech_service(Path(__file__).resolve().parent))
+        
+        with self.voiceover(text=SCRIPT["timeline"]) as tracker:
+            num_beats = max(12, min(30, int(np.ceil(tracker.duration / 1.8))))
+            beats = BeatPlan(tracker.duration, [1] * num_beats)
+
+            # Title
+            title = Text("{{TITLE}}", font_size=48, weight=BOLD, color=greens[0])
+            title = adaptive_title_position(title, None)
+            play_text_next(self, beats, Write(title), max_text_seconds=999)
+            
+            # Subtitle
+            subtitle = Text("{{SUBTITLE}}", font_size=32, color=greens[1])
+            subtitle.next_to(title, DOWN, buff=0.4)
+            safe_position(subtitle)
+            play_text_next(self, beats, polished_fade_in(subtitle, lag_ratio=0.1), max_text_seconds=999)
+            
+            # Unique visual: Horizontal timeline (from topic_visual_patterns.md)
+            timeline = Line(LEFT * 6, RIGHT * 6, color=greens[2]).move_to(DOWN * 0.6)
+            event1 = Dot(timeline.get_start() + RIGHT * 2, color=YELLOW)
+            event2 = Dot(timeline.get_start() + RIGHT * 4, color=YELLOW)
+            label1 = Text("{{EVENT_1}}", font_size=24).next_to(event1, UP, buff=0.2).set_max_width(6.0)
+            safe_position(label1)
+            label2 = Text("{{EVENT_2}}", font_size=24).next_to(event2, UP, buff=0.2).set_max_width(6.0)
+            safe_position(label2)
+
+            play_next(self, beats, Create(timeline, rate_func=smooth))
+            play_text_next(self, beats, FadeIn(label1), max_text_seconds=999)
+            play_next(self, beats, FadeIn(event1))
+            play_text_next(self, beats, FadeIn(label2), max_text_seconds=999)
+            play_next(self, beats, FadeIn(event2))
+            play_next(self, beats, FadeOut(subtitle), FadeOut(timeline), FadeOut(event1), FadeOut(event2), FadeOut(label1), FadeOut(label2))
+```
+
+See flaming_horse/scene_helpers.py for centralized helpers and aesthetics.
 
 ---
 
@@ -335,6 +354,13 @@ See docs/reference_docs/visual_helpers.md for more on enhanced helpers and aesth
 - ❌ **NEVER** hardcode narration in scene files
 - ✅ **ALWAYS** use `SCRIPT["key"]` from `narration_script.py`
 
+### 3.1 Bullet Content Rule
+- ❌ **NEVER** use `narrative_beats` or `visual_ideas` from `plan.json` as on-screen text
+- ✅ **ALWAYS** derive bullet content from `narration_script.py` narration
+- ✅ **ALWAYS** cap bullets at 30 characters or 6 words for readability (enforced by `Text.set_max_width(6.0)`)
+- ❌ **NEVER** include stage directions in on-screen text
+- **Example:** For math topics, derive 'a² + b² = c²' from narration, not 'Explain the theorem.'
+
 ### 4. Positioning
 - ❌ **NEVER** use `.to_edge(UP)` for titles (causes clipping)
 - ✅ **ALWAYS** use `.move_to(UP * 3.8)` for titles (or adaptive_title_position)
@@ -342,6 +368,12 @@ See docs/reference_docs/visual_helpers.md for more on enhanced helpers and aesth
 - ❌ **NEVER** use `.to_edge(...)` for titles or labels (causes clipping/edge drift)
 - ✅ **ALWAYS** place graphs/diagrams below the subtitle (e.g., `.move_to(DOWN * 0.6)`)
 - ✅ **ALWAYS** call `safe_layout(...)` for free-positioned sibling clusters (rows/columns or mixed placements)
+
+#### Horizontal Bounds
+- Frame width is 10 * 16/9 ≈ 17.78 units; safe horizontal range: LEFT * 3.5 to RIGHT * 3.5
+- ✅ **ALWAYS** position bullets at `LEFT * 3.5`
+- ✅ **ALWAYS** use `Text.set_max_width(6.0)` on all positioned text elements as primary constraint
+- ✅ **ALWAYS** use horizontal-safe helpers like extended `safe_position()` for clamping
 
 ### Layout Contract (Mandatory)
 - Title must exist and be visible at `UP * 3.8` (or via `adaptive_title_position`).
@@ -366,9 +398,12 @@ See docs/reference_docs/visual_helpers.md for more on enhanced helpers and aesth
 - ❌ **NEVER** let timing fractions exceed 1.0
 - ✅ **ALWAYS** calculate timing budget before writing animations
 - ✅ Example: `0.4 + 0.3 + 0.3 = 1.0` ✓ Perfect sync
+- ✅ **ALWAYS** use `num_beats = max(12, min(30, int(np.ceil(tracker.duration / 1.8))))`
 - ✅ **ALWAYS** use scaffold timing helpers (`BeatPlan`, `play_next`, `play_text_next`) instead of raw `self.wait(...)`/`run_time` math
 - ❌ **NEVER** write expressions that can evaluate to zero/negative waits (e.g. `a - a`)
+- ❌ **NEVER** double-consume timing slots
 - ❌ **NEVER** pass `run_time=` to `play_next(...)`/`play_text_next(...)`; slot helpers are the single timing source
+- ✅ **ALWAYS** set `max_text_seconds=999` in `play_text_next` to eliminate `self.wait()` micro-pauses
 ### Sync Enhancements (New)
 - For Qwen caching: In scaffold, add precache check:
   ```python
