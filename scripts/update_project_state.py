@@ -19,13 +19,12 @@ import json
 import os
 import re
 import sys
-from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 
-VALID_PHASES = {
+PHASE_SEQUENCE = (
     "init",
     "plan",
     "review",
@@ -37,7 +36,8 @@ VALID_PHASES = {
     "assemble",
     "complete",
     "error",
-}
+)
+VALID_PHASES = frozenset(PHASE_SEQUENCE)
 
 
 def _add_error_unique(state: dict, msg: str) -> None:
@@ -107,6 +107,32 @@ def read_json_best_effort(path: Path) -> dict:
 
 def write_json(path: Path, obj: dict) -> None:
     path.write_text(json.dumps(obj, indent=2) + "\n", encoding="utf-8")
+
+
+def sync_schema_phase_enum(schema_path: Path, check_only: bool) -> int:
+    schema = json.loads(schema_path.read_text(encoding="utf-8"))
+    phase_obj = (
+        schema.get("properties", {})
+        .get("phase", {})
+    )
+    enum = phase_obj.get("enum")
+    desired = list(PHASE_SEQUENCE)
+    if not isinstance(enum, list):
+        raise ValueError("schema phase enum is missing or not a list")
+
+    if enum == desired:
+        return 0
+
+    if check_only:
+        print(
+            f"Phase enum drift detected in {schema_path}: expected {desired}, got {enum}",
+            file=sys.stderr,
+        )
+        return 1
+
+    phase_obj["enum"] = desired
+    write_json(schema_path, schema)
+    return 0
 
 
 def normalize_state(project_dir: Path, state: dict) -> dict:
@@ -468,20 +494,52 @@ def apply_phase(project_dir: Path, state: dict, phase: str) -> dict:
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser()
-    p.add_argument("--project-dir", required=True)
+    p.add_argument("--project-dir")
     p.add_argument("--state-file", default="project_state.json")
     p.add_argument(
         "--mode",
         choices=["normalize", "apply"],
-        required=True,
         help="normalize: repair/schema-coerce only; apply: advance based on phase artifacts",
     )
     p.add_argument("--phase", default=None)
+    p.add_argument(
+        "--print-phases",
+        action="store_true",
+        help="Print canonical phase names, one per line.",
+    )
+    p.add_argument(
+        "--check-schema-phases",
+        default=None,
+        help="Check that a state schema's phase enum matches canonical phases.",
+    )
+    p.add_argument(
+        "--sync-schema-phases",
+        default=None,
+        help="Overwrite a state schema phase enum with canonical phases.",
+    )
     return p.parse_args()
 
 
 def main() -> int:
     args = parse_args()
+    if args.print_phases:
+        for phase in PHASE_SEQUENCE:
+            print(phase)
+        return 0
+
+    if args.check_schema_phases:
+        return sync_schema_phase_enum(Path(args.check_schema_phases), check_only=True)
+
+    if args.sync_schema_phases:
+        return sync_schema_phase_enum(Path(args.sync_schema_phases), check_only=False)
+
+    if not args.project_dir or not args.mode:
+        print(
+            "--project-dir and --mode are required unless using --print-phases / --check-schema-phases / --sync-schema-phases",
+            file=sys.stderr,
+        )
+        return 2
+
     project_dir = Path(args.project_dir).resolve()
     state_path = Path(args.state_file)
     if not state_path.is_absolute():

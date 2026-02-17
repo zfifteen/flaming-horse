@@ -25,6 +25,7 @@
         "review",
         "narration",
         "build_scenes",
+        "scene_qc",
         "precache_voiceovers",
         "final_render",
         "assemble",
