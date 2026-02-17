@@ -22,14 +22,14 @@ Please create the **Incremental Manim Video Builder** project scaffold on my fil
 ├── README.md                   # Usage documentation
 ├── system_prompt.md            # Agent instructions template
 
-└── reference_docs/             # Symlinks to my Space files
+└── docs/reference_docs/             # Symlinks to my Space files
     ├── manim_content_pipeline.md -> ~/path/to/space/manim_content_pipeline.md
     ├── manim_voiceover.md -> ~/path/to/space/manim_voiceover.md
     ├── manim_template.py.txt -> ~/path/to/space/manim_template.py.txt
     └── manim_config_guide.md -> ~/path/to/space/manim_config_guide.md
 ```
 
-**Note**: For the reference_docs symlinks, please ask me for the actual paths to my Space files, or just create placeholder files with comments indicating they should be symlinked.
+**Note**: For the docs/reference_docs symlinks, please ask me for the actual paths to my Space files, or just create placeholder files with comments indicating they should be symlinked.
 
 ***
 
@@ -126,10 +126,10 @@ MAX_RUNS=50
 # Reference docs (relative to script location)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REFERENCE_DOCS=(
-  "${SCRIPT_DIR}/reference_docs/manim_content_pipeline.md"
-  "${SCRIPT_DIR}/reference_docs/manim_voiceover.md"
-  "${SCRIPT_DIR}/reference_docs/manim_template.py.txt"
-  "${SCRIPT_DIR}/reference_docs/manim_config_guide.md"
+  "${SCRIPT_DIR}/docs/reference_docs/manim_content_pipeline.md"
+  "${SCRIPT_DIR}/docs/reference_docs/manim_voiceover.md"
+  "${SCRIPT_DIR}/docs/reference_docs/manim_template.py.txt"
+  "${SCRIPT_DIR}/docs/reference_docs/manim_config_guide.md"
 )
 
 # Qwen voice clone config
@@ -165,7 +165,7 @@ invoke_agent() {
   #   -H "Authorization: Bearer $AGENT_API_KEY" \
   #   -d @"$STATE_FILE" \
   #   -d "phase=$phase" \
-  #   -d "reference_docs=$(cat ${REFERENCE_DOCS[@]})"
+  #   -d "docs/reference_docs=$(cat ${REFERENCE_DOCS[@]})"
   #
   # Option 3: Python script
   # python3 "${SCRIPT_DIR}/agent_runner.py" \

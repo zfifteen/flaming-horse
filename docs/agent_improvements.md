@@ -186,7 +186,7 @@ The plan is structured by category, with rationale, specific updates, implementa
   - helpers/visual_helpers.md: Code snippets for aesthetics
   - tests/README.md: Unit test instructions
   ```
-- In **Reference Documentation**, add links to new files (e.g., `reference_docs/visual_helpers.md` with the enhanced functions).
+- In **Reference Documentation**, add links to new files (e.g., `docs/reference_docs/visual_helpers.md` with the enhanced functions).
 - Add a new section at the end:
   ```
   ### Testing and Maintenance (New)
@@ -206,7 +206,7 @@ The plan is structured by category, with rationale, specific updates, implementa
   ```
 
 **Implementation Steps**:
-- Split AGENTS.md: Extract sections into new .md files in `reference_docs/`; update cross-references.
+- Split AGENTS.md: Extract sections into new .md files in `docs/reference_docs/`; update cross-references.
 - Add `tests/` folder with 2-3 Manim test scenes; include `run_tests.sh`.
 - Test: Refactor a section, run pipeline, verify no breakage.
 

@@ -65,7 +65,7 @@ This is the single most damaging disconnect in the entire reference set. `HOW_TO
 
 The project uses **Manim Community Edition** (`from manim import *`, `Scene`/`VoiceoverScene`, `manim render` CLI). These are two different, incompatible rendering engines with different APIs.
 
-The agent reads `HOW_TO_ANIMATE.md` as instructed by AGENTS.md ("Understand `reference_docs/HOW_TO_ANIMATE.md` before creating any animations"), encounters advanced techniques it cannot replicate in Manim CE, and falls back to the most basic primitives it knows will compile: `Circle`, `Rectangle`, `FadeIn`, `Write`.
+The agent reads `HOW_TO_ANIMATE.md` as instructed by AGENTS.md ("Understand `docs/reference_docs/HOW_TO_ANIMATE.md` before creating any animations"), encounters advanced techniques it cannot replicate in Manim CE, and falls back to the most basic primitives it knows will compile: `Circle`, `Rectangle`, `FadeIn`, `Write`.
 
 **This is the root cause of Pain Point #2.** The agent's "planning capability" draws from the ambitious examples in HOW_TO_ANIMATE.md, but its "code generation" is constrained to the trivial Manim CE patterns actually shown in the working template.
 
