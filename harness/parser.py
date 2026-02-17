@@ -30,18 +30,50 @@ def inject_body_into_scaffold(scaffold_path: Path, body_code: str) -> str:
     if end_idx == -1:
         raise ValueError(f"SLOT_END marker not found in scaffold {scaffold_path}")
 
-    # Header is before start_marker
+    # Validate body has meaningful content (not just comments/whitespace)
+    body_lines = [
+        line.strip()
+        for line in body_code.strip().split("\n")
+        if line.strip() and not line.strip().startswith("#")
+    ]
+    if not body_lines:
+        raise ValueError("Body code must contain at least one non-comment statement")
+
+    # Ensure body code is properly indented for the with block (12 spaces)
+    # First, strip any existing indentation from body
+    lines = body_code.strip().split("\n")
+    # Find minimum indentation (ignoring empty lines)
+    min_indent = float('inf')
+    for line in lines:
+        if line.strip():
+            indent = len(line) - len(line.lstrip())
+            min_indent = min(min_indent, indent)
+    
+    if min_indent == float('inf'):
+        min_indent = 0
+    
+    # Re-indent all lines to 12 spaces (3 levels: class, def, with)
+    indented_lines = []
+    for line in lines:
+        if line.strip():
+            # Remove existing indent and add 12 spaces
+            dedented = line[min_indent:] if min_indent < len(line) else line.lstrip()
+            indented_lines.append("            " + dedented)
+        else:
+            indented_lines.append("")
+    
+    indented_body = "\n".join(indented_lines)
+
+    # Header is everything up to and including the start marker
     header = scaffold_text[: start_idx + len(start_marker)]
-    footer_start = scaffold_text.find("\n", end_idx)
-    if footer_start == -1:
-        footer = ""
-    else:
-        footer = scaffold_text[footer_start:]
+    
+    # Footer is everything from the end marker onwards
+    footer = scaffold_text[end_idx:]
 
-    # Inject body
-    full_code = header + "\n" + body_code + "\n" + footer
+    # Inject body - ensure proper spacing
+    full_code = header + "\n" + indented_body.rstrip() + "\n            " + footer
 
-    # Verify header integrity (hash check, but for now just check markers)
+    # Verify markers are still present
     if start_marker not in full_code or end_marker not in full_code:
         raise ValueError("Injection corrupted markers")
 
@@ -355,6 +387,9 @@ def parse_build_scenes_response(response_text: str) -> Optional[str]:
         # Should be body code: indented statements, no class/def at top level
         if candidate.strip().startswith(("class ", "def ", "import ", "from ")):
             continue
+        # Reject if has scaffold placeholders
+        if has_scaffold_artifacts(candidate):
+            continue
         return candidate
 
     # Fallback: try raw/single-block extraction.
@@ -369,6 +404,9 @@ def parse_build_scenes_response(response_text: str) -> Optional[str]:
         return None
     # Ensure it's body code
     if code.strip().startswith(("class ", "def ", "import ", "from ")):
+        return None
+    # Reject if has scaffold placeholders
+    if has_scaffold_artifacts(code):
         return None
     return code
 
@@ -442,6 +480,9 @@ def parse_scene_repair_response(response_text: str) -> Optional[str]:
         # Should be body code: no class/def/import at top level
         if candidate.strip().startswith(("class ", "def ", "import ", "from ")):
             continue
+        # Reject if has scaffold placeholders
+        if has_scaffold_artifacts(candidate):
+            continue
         return candidate
 
     # Fallback
@@ -457,12 +498,9 @@ def parse_scene_repair_response(response_text: str) -> Optional[str]:
     # Ensure body
     if code.strip().startswith(("class ", "def ", "import ", "from ")):
         return None
-    return code
-
-    # NEW: Reject repaired code that still has scaffold placeholders
+    # Reject repaired code that still has scaffold placeholders
     if has_scaffold_artifacts(code):
         return None
-
     return code
 
 

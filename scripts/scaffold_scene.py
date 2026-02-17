@@ -13,7 +13,16 @@ import numpy as np
 from manim_voiceover_plus import VoiceoverScene
 
 from flaming_horse_voice import get_speech_service
-from flaming_horse.scene_helpers import safe_position, harmonious_color, polished_fade_in, adaptive_title_position, safe_layout, BeatPlan, play_next, play_text_next
+from flaming_horse.scene_helpers import (
+    safe_position,
+    harmonious_color,
+    polished_fade_in,
+    adaptive_title_position,
+    safe_layout,
+    BeatPlan,
+    play_next,
+    play_text_next,
+)
 from narration_script import SCRIPT
 
 
@@ -22,31 +31,6 @@ config.frame_height = 10
 config.frame_width = 10 * 16 / 9
 config.pixel_height = 1440
 config.pixel_width = 2560
-
-
-# Helpers imported from flaming_horse.scene_helpers
-
-
-def play_next(scene, beats, *animations, max_run_time=None, min_run_time=0.3, **play_kwargs):
-    return play_in_slot(
-        scene,
-        beats.next_slot(),
-        *animations,
-        max_run_time=max_run_time,
-        min_run_time=min_run_time,
-        **play_kwargs,
-    )
-
-
-def play_text_next(scene, beats, *animations, max_text_seconds=1.5, min_run_time=0.3, **play_kwargs):
-    return play_text_in_slot(
-        scene,
-        beats.next_slot(),
-        *animations,
-        max_text_seconds=max_text_seconds,
-        min_run_time=min_run_time,
-        **play_kwargs,
-    )
 
 
 class {class_name}(VoiceoverScene):

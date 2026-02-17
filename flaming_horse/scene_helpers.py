@@ -3,6 +3,19 @@ import numpy as np
 import colorsys  # New: For harmonious_color
 
 
+# Public API - these are meant to be imported by scene files
+__all__ = [
+    'safe_position',
+    'harmonious_color',
+    'polished_fade_in',
+    'adaptive_title_position',
+    'safe_layout',
+    'BeatPlan',
+    'play_next',
+    'play_text_next',
+]
+
+
 def safe_position(mobject, max_y=3.8, min_y=-3.8, max_x=7.5, min_x=-7.5, buff=0.2):
     """Enhanced: Adjusts vertically and horizontally with buffer to prevent edge clipping."""
     # Vertical clamping
