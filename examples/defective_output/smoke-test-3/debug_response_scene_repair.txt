@@ -1,0 +1,50 @@
+            # Create title
+            title = Text("The Choice", font_size=48)
+            title.move_to(UP * 3.8)
+            self.add(title)
+
+            # Set up BeatPlan
+            beat_plan = BeatPlan(num_beats=max(12, min(30, int(np.ceil(tracker.duration / 1.8)))))
+
+            # Create bullets from narration
+            bullets = VGroup(
+                Text("Blue Pill: Comfort, familiarity, safety, unchallenged, illusion", font_size=24, color=BLUE),
+                Text("Red Pill: Truth, messy, uncertain, shake everything, reality", font_size=24, color=RED)
+            )
+            bullets.arrange(DOWN, aligned_edge=LEFT, buff=0.3)
+            bullets.move_to(LEFT * 3.5)
+            for bullet in bullets:
+                bullet.set_max_width(6.0)
+
+            # Create pill graphics
+            blue_pill = VGroup(Circle(radius=0.5, color=BLUE, fill_opacity=0.5), Text("Blue Pill", font_size=20))
+            blue_pill.arrange(RIGHT, buff=0.2)
+            red_pill = VGroup(Circle(radius=0.5, color=RED, fill_opacity=0.5), Text("Red Pill", font_size=20))
+            red_pill.arrange(RIGHT, buff=0.2)
+
+            # Create diverging paths graph
+            axes = Axes(x_range=[-1, 1], y_range=[-1, 1], axis_config={"include_tip": True})
+            illusion_path = axes.plot(lambda x: 0.5 * x, color=BLUE, x_range=[0, 1])
+            reality_path = axes.plot(lambda x: -0.5 * x, color=RED, x_range=[0, 1])
+            graph = VGroup(axes, illusion_path, reality_path).move_to(DOWN * 0.6).scale(0.8)
+
+            # Animation sequence
+            play_text_next(self, beat_plan, title, max_text_seconds=999)
+
+            # Fade in pills sequentially
+            play_next(self, beat_plan, polished_fade_in(blue_pill, scale_factor=1.1))
+            play_next(self, beat_plan, polished_fade_in(red_pill, scale_factor=1.1))
+
+            # Show bullets progressively
+            for i, bullet in enumerate(bullets):
+                if i == 0:
+                    play_text_next(self, beat_plan, bullet, max_text_seconds=999)
+                else:
+                    play_next(self, beat_plan, FadeIn(bullet))
+
+            # Show graph
+            play_next(self, beat_plan, FadeIn(graph))
+
+            # Ensure safe positioning
+            safe_layout(blue_pill, red_pill)
+            safe_position(graph)

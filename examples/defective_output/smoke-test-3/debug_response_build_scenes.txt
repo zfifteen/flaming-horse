@@ -1,0 +1,76 @@
+from pathlib import Path
+
+from manim import *
+import numpy as np
+from manim_voiceover_plus import VoiceoverScene
+
+from flaming_horse_voice import get_speech_service
+from flaming_horse.scene_helpers import safe_position, harmonious_color, polished_fade_in, adaptive_title_position, safe_layout, BeatPlan, play_next, play_text_next
+from narration_script import SCRIPT
+
+# LOCKED CONFIGURATION (DO NOT MODIFY)
+config.frame_height = 10
+config.frame_width = 10 * 16 / 9
+config.pixel_height = 1440
+config.pixel_width = 2560
+
+class Scene01Intro(VoiceoverScene):
+    def construct(self):
+        ref_path = Path("assets/voice_ref/ref.wav")
+        if not ref_path.exists():
+            raise FileNotFoundError("Run precache_voice.sh before building.")
+
+        self.set_speech_service(get_speech_service(Path(__file__).resolve().parent))
+
+        with self.voiceover(text=SCRIPT["scene_01_intro"]) as tracker:
+            num_beats = max(12, min(30, int(np.ceil(tracker.duration / 1.8))))
+            beats = BeatPlan(tracker.duration, [1] * num_beats)
+
+            # Title
+            blues = harmonious_color(BLUE, variations=3)
+            title = Text("The Choice", font_size=48, weight=BOLD, color=blues[0])
+            title = adaptive_title_position(title, None)
+            play_text_next(self, beats, Write(title))
+
+            # Subtitle
+            subtitle = Text("The Red Pill vs Blue Pill Dilemma", font_size=32, color=blues[1])
+            subtitle.next_to(title, DOWN, buff=0.4)
+            safe_position(subtitle)
+            play_text_next(self, beats, polished_fade_in(subtitle))
+
+            # Bullets from narrative_beats
+            bullet_1 = Text("Blue Pill: Path to continued ignorance", font_size=28).move_to(LEFT * 3.5 + UP * 1.6)
+            bullet_1.set_max_width(6.0)
+            bullet_2 = Text("Red Pill: Path to truth and uncertainty", font_size=28).next_to(bullet_1, DOWN, aligned_edge=LEFT, buff=0.3)
+            bullet_2.set_max_width(6.0)
+            safe_position(bullet_2)
+
+            play_text_next(self, beats, FadeIn(bullet_1))
+            play_text_next(self, beats, FadeIn(bullet_2))
+
+            # Pill visuals
+            blue_pill_circle = Circle(radius=0.5, color=BLUE).move_to(LEFT * 1.5 + DOWN * 0.6)
+            blue_pill_text = Text("Blue Pill", font_size=24, color=BLUE).next_to(blue_pill_circle, DOWN, buff=0.2)
+            safe_position(blue_pill_text)
+            red_pill_circle = Circle(radius=0.5, color=RED).move_to(RIGHT * 1.5 + DOWN * 0.6)
+            red_pill_text = Text("Red Pill", font_size=24, color=RED).next_to(red_pill_circle, DOWN, buff=0.2)
+            safe_position(red_pill_text)
+
+            play_next(self, beats, FadeIn(blue_pill_circle), FadeIn(blue_pill_text))
+            play_next(self, beats, FadeIn(red_pill_circle), FadeIn(red_pill_text))
+
+            # Illusion vs Reality paths diverging
+            axis = NumberLine(x_range=[-3, 3, 1], include_numbers=False).move_to(DOWN * 1.8)
+            illusion_path = Line(start=axis.n2p(0), end=axis.n2p(-3), color=BLUE)
+            reality_path = Line(start=axis.n2p(0), end=axis.n2p(3), color=RED)
+            illusion_label = Text("Illusion", font_size=20, color=BLUE).next_to(illusion_path.get_end(), LEFT, buff=0.3)
+            safe_position(illusion_label)
+            reality_label = Text("Reality", font_size=20, color=RED).next_to(reality_path.get_end(), RIGHT, buff=0.3)
+            safe_position(reality_label)
+
+            play_next(self, beats, Create(axis))
+            play_next(self, beats, Create(illusion_path), Create(reality_path))
+            play_text_next(self, beats, FadeIn(illusion_label), FadeIn(reality_label))
+
+            # Cleanup
+            play_next(self, beats, FadeOut(bullet_1), FadeOut(bullet_2), FadeOut(blue_pill_circle), FadeOut(blue_pill_text), FadeOut(red_pill_circle), FadeOut(red_pill_text), FadeOut(axis), FadeOut(illusion_path), FadeOut(reality_path), FadeOut(illusion_label), FadeOut(reality_label), FadeOut(subtitle), FadeOut(title))

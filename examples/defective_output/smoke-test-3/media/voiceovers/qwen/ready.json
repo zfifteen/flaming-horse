@@ -1,0 +1,18 @@
+{
+  "fingerprint": "fadcf803ddb1c539684a08eabc21713c3dc717530ef1e1835cb037faa23e9e75",
+  "model_id": "Qwen/Qwen3-TTS-12Hz-1.7B-Base",
+  "model_source": "Qwen/Qwen3-TTS-12Hz-1.7B-Base",
+  "device": "cpu",
+  "dtype": "float32",
+  "ref_audio": "/Users/velocityworks/IdeaProjects/flaming-horse/assets/voice_ref_2/ref.wav",
+  "ref_text": "/Users/velocityworks/IdeaProjects/flaming-horse/assets/voice_ref_2/ref.txt",
+  "offline": true,
+  "timings": {
+    "model_load_seconds": 0.0,
+    "prompt_build_seconds": 0.0,
+    "dry_run_generate_seconds": 2.244,
+    "dry_run_audio_seconds": 0.96
+  },
+  "prepared_in_seconds": 4.366,
+  "prepared_at": 1771358058.836287
+}

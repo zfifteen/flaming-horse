@@ -1,0 +1,52 @@
+{
+  "title": "The Matrix Awakens",
+  "description": "A testing video that explores key themes from The Matrix through iconic quotes, presented in three scenes with progressive visual storytelling to simulate an awakening journey.",
+  "target_duration_seconds": 90,
+  "scenes": [
+    {
+      "id": "scene_01_intro",
+      "title": "The Choice",
+      "narration_key": "scene_01_intro",
+      "description": "Introduce the concept of choice between illusion and reality using the famous red pill/blue pill dilemma.",
+      "estimated_duration_seconds": 30,
+      "narrative_beats": [
+        "Present the blue pill as a path to continued ignorance.",
+        "Contrast it with the red pill leading to truth and uncertainty."
+      ],
+      "visual_ideas": [
+        "Display two Text objects representing 'Blue Pill' and 'Red Pill' with pill-shaped Circle graphics next to them, fading in sequentially.",
+        "Use a simple graph or axis to show 'Illusion' vs 'Reality' paths diverging."
+      ]
+    },
+    {
+      "id": "scene_02_content",
+      "title": "The System",
+      "narration_key": "scene_02_content",
+      "description": "Explain the Matrix as a controlling system and its impact on humanity.",
+      "estimated_duration_seconds": 30,
+      "narrative_beats": [
+        "Describe the Matrix as a pervasive system enslaving minds.",
+        "Highlight the dependency of people on the system and their resistance to change."
+      ],
+      "visual_ideas": [
+        "Create a flowchart using Arrow and Text elements showing 'System' at the center connected to 'Businessmen', 'Teachers', etc., as nodes.",
+        "Animate a network of connected dots (Dots) representing minds, with some highlighting as 'Enemies' via color changes."
+      ]
+    },
+    {
+      "id": "scene_03_conclusion",
+      "title": "The Awakening",
+      "narration_key": "scene_03_conclusion",
+      "description": "Conclude with the idea of freeing the mind and personal responsibility for awakening.",
+      "estimated_duration_seconds": 30,
+      "narrative_beats": [
+        "Acknowledge the shared thought of resistance.",
+        "Emphasize that true freedom requires walking through the door oneself."
+      ],
+      "visual_ideas": [
+        "Show a door graphic (Rectangle with handle) that opens, revealing a new scene.",
+        "Use progressive Text reveals for key phrases, with a background of scrolling code-like lines (using Line or Tex for matrix-style text)."
+      ]
+    }
+  ]
+}
