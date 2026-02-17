@@ -13,7 +13,7 @@ from typing import Tuple, Optional, Dict, Any
 # Get the repository root
 REPO_ROOT = Path(__file__).parent.parent
 PROMPT_TEMPLATES_DIR = Path(__file__).parent / "prompt_templates"
-REFERENCE_DOCS_DIR = REPO_ROOT / "reference_docs"
+REFERENCE_DOCS_DIR = REPO_ROOT / "docs" / "reference_docs"
 
 
 def read_file(path: Path) -> str:
