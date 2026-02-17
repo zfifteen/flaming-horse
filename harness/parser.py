@@ -7,8 +7,56 @@ Extracts artifacts from model responses and writes them to disk.
 import json
 import ast
 import re
+import hashlib
 from pathlib import Path
 from typing import Dict, Any, Optional, List, Tuple
+
+
+def inject_body_into_scaffold(scaffold_path: Path, body_code: str) -> str:
+    """
+    Inject body code into scaffold between SLOT markers.
+
+    Returns the full code string, or raises if invalid.
+    """
+    scaffold_text = scaffold_path.read_text(encoding="utf-8")
+    start_marker = "# SLOT_START:scene_body"
+    end_marker = "# SLOT_END:scene_body"
+
+    start_idx = scaffold_text.find(start_marker)
+    if start_idx == -1:
+        raise ValueError(f"SLOT_START marker not found in scaffold {scaffold_path}")
+
+    end_idx = scaffold_text.find(end_marker, start_idx)
+    if end_idx == -1:
+        raise ValueError(f"SLOT_END marker not found in scaffold {scaffold_path}")
+
+    # Header is before start_marker
+    header = scaffold_text[: start_idx + len(start_marker)]
+    footer_start = scaffold_text.find("\n", end_idx)
+    if footer_start == -1:
+        footer = ""
+    else:
+        footer = scaffold_text[footer_start:]
+
+    # Inject body
+    full_code = header + "\n" + body_code + "\n" + footer
+
+    # Verify header integrity (hash check, but for now just check markers)
+    if start_marker not in full_code or end_marker not in full_code:
+        raise ValueError("Injection corrupted markers")
+
+    return full_code
+
+
+def validate_scene_body_syntax(body_code: str) -> bool:
+    """Check if body code compiles as indented statements."""
+    # Try to compile as part of a function
+    test_code = f"def test():\n{body_code}\n    pass"
+    try:
+        compile(test_code, "<string>", "exec")
+        return True
+    except (SyntaxError, ValueError):
+        return False
 
 
 def extract_json_block(text: str) -> Optional[str]:
@@ -272,29 +320,40 @@ def parse_narration_response(response_text: str) -> Optional[str]:
 
 def parse_build_scenes_response(response_text: str) -> Optional[str]:
     """
-    Parse build_scenes phase response to extract scene file.
+    Parse build_scenes phase response to extract scene body code only.
 
     Args:
         response_text: Model response
 
     Returns:
-        Python code string or None if parsing failed
+        Python body code string or None if parsing failed
     """
-    required_imports = [
+    forbidden_tokens = [
         "from manim import",
-        "VoiceoverScene",
-        "from narration_script import SCRIPT",
+        "from pathlib import",
+        "import numpy",
+        "config.frame",
+        "class Scene",
+        "def construct",
+        "SLOT_START:scene_body",
+        "SLOT_END:scene_body",
+        "def BeatPlan",
+        "def play_in_slot",
+        "def play_text_in_slot",
+        "def play_next",
+        "def play_text_next",
     ]
 
-    # Prefer fenced Python blocks that pass all checks.
+    # Extract Python blocks
     for _filename_hint, block_code in extract_python_code_blocks(response_text):
         candidate = sanitize_code(block_code)
         if not verify_python_syntax(candidate):
             continue
-        if not all(imp in candidate for imp in required_imports):
+        # Reject if contains forbidden header tokens
+        if any(token in candidate for token in forbidden_tokens):
             continue
-        # NEW: Reject code with scaffold placeholders
-        if has_scaffold_artifacts(candidate):
+        # Should be body code: indented statements, no class/def at top level
+        if candidate.strip().startswith(("class ", "def ", "import ", "from ")):
             continue
         return candidate
 
@@ -305,10 +364,11 @@ def parse_build_scenes_response(response_text: str) -> Optional[str]:
     code = sanitize_code(code)
     if not verify_python_syntax(code):
         return None
-    if not all(imp in code for imp in required_imports):
+    # Reject forbidden tokens
+    if any(token in code for token in forbidden_tokens):
         return None
-    # NEW: Reject code with scaffold placeholders
-    if has_scaffold_artifacts(code):
+    # Ensure it's body code
+    if code.strip().startswith(("class ", "def ", "import ", "from ")):
         return None
     return code
 
@@ -348,23 +408,56 @@ def parse_scene_qc_response(
 
 def parse_scene_repair_response(response_text: str) -> Optional[str]:
     """
-    Parse scene_repair phase response to extract fixed scene file.
+    Parse scene_repair phase response to extract fixed scene body.
 
     Args:
         response_text: Model response
 
     Returns:
-        Python code string or None if parsing failed
+        Python body code string or None if parsing failed
     """
-    # Same as build_scenes parsing
+    forbidden_tokens = [
+        "from manim import",
+        "from pathlib import",
+        "import numpy",
+        "config.frame",
+        "class Scene",
+        "def construct",
+        "SLOT_START:scene_body",
+        "SLOT_END:scene_body",
+        "def BeatPlan",
+        "def play_in_slot",
+        "def play_text_in_slot",
+        "def play_next",
+        "def play_text_next",
+    ]
+
+    for _filename_hint, block_code in extract_python_code_blocks(response_text):
+        candidate = sanitize_code(block_code)
+        if not verify_python_syntax(candidate):
+            continue
+        # Reject if contains forbidden header tokens
+        if any(token in candidate for token in forbidden_tokens):
+            continue
+        # Should be body code: no class/def/import at top level
+        if candidate.strip().startswith(("class ", "def ", "import ", "from ")):
+            continue
+        return candidate
+
+    # Fallback
     code = extract_single_python_code(response_text)
     if not code:
         return None
-
     code = sanitize_code(code)
-
     if not verify_python_syntax(code):
         return None
+    # Reject forbidden
+    if any(token in code for token in forbidden_tokens):
+        return None
+    # Ensure body
+    if code.strip().startswith(("class ", "def ", "import ", "from ")):
+        return None
+    return code
 
     # NEW: Reject repaired code that still has scaffold placeholders
     if has_scaffold_artifacts(code):
@@ -420,21 +513,37 @@ def parse_and_write_artifacts(
 
             if current_index >= len(scenes):
                 print("❌ No more scenes to build")
-                return False
+                return
 
             current_scene = scenes[current_index]
             scene_id = current_scene.get("id", f"scene_{current_index + 1:02d}")
             scene_file_name = current_scene.get("file", f"{scene_id}.py")
 
-            code = parse_build_scenes_response(response_text)
-            if not code:
-                print(f"❌ Failed to parse {scene_file_name} from response")
-                return False
+            body_code = parse_build_scenes_response(response_text)
+
+            if not body_code:
+                print(f"❌ Failed to parse scene body from response")
+                return
+
+            # Validate body syntax
+            if not validate_scene_body_syntax(body_code):
+                print(f"❌ Body code has syntax errors")
+                return
 
             scene_file = project_dir / scene_file_name
-            scene_file.write_text(code)
 
-            print(f"✅ Wrote {scene_file}")
+            # If scaffold doesn't exist, create it (but it should)
+            if not scene_file.exists():
+                print(f"⚠️  Scaffold not found, skipping injection")
+                return
+
+            try:
+                full_code = inject_body_into_scaffold(scene_file, body_code)
+                scene_file.write_text(full_code)
+                print(f"✅ Injected body into {scene_file}")
+            except ValueError as e:
+                print(f"❌ Injection failed: {e}")
+                return
             return True
 
         elif phase == "scene_qc":
@@ -474,10 +583,16 @@ def parse_and_write_artifacts(
             return True
 
         elif phase == "scene_repair":
-            code = parse_scene_repair_response(response_text)
-            if not code:
-                print("❌ Failed to parse repaired scene from response")
-                return False
+            body_code = parse_scene_repair_response(response_text)
+
+            if not body_code:
+                print("❌ Failed to parse repaired scene body from response")
+                return
+
+            # Validate body syntax
+            if not validate_scene_body_syntax(body_code):
+                print(f"❌ Body code has syntax errors")
+                return
 
             scene_file = None
             explicit_scene_file = state.get("scene_file")
@@ -494,7 +609,7 @@ def parse_and_write_artifacts(
 
                 if current_index >= len(scenes):
                     print("❌ No scene to repair")
-                    return False
+                    return
 
                 current_scene = scenes[current_index]
                 scene_file_name = current_scene.get(
@@ -502,8 +617,13 @@ def parse_and_write_artifacts(
                 )
                 scene_file = project_dir / scene_file_name
 
-            scene_file.write_text(code)
-            print(f"✅ Wrote repaired {scene_file}")
+            try:
+                full_code = inject_body_into_scaffold(scene_file, body_code)
+                scene_file.write_text(full_code)
+                print(f"✅ Injected repaired body into {scene_file}")
+            except ValueError as e:
+                print(f"❌ Injection failed: {e}")
+                return
             return True
 
         else:

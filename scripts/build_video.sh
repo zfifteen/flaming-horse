@@ -758,6 +758,7 @@ PY
     harness_args+=(--retry-context "$retry_context")
   fi
 
+  export XAI_API_KEY="$XAI_API_KEY"
   python3 -m harness "${harness_args[@]}" \
     > >(tee -a "$LOG_FILE") \
     2> >(tee -a "$LOG_FILE" >&2)
