@@ -118,6 +118,35 @@ beats = BeatPlan(tracker.duration, [1] * num_beats)
 - Use harmonious_color for palettes; polished_fade_in for reveals.
 - Continuous motion; no long static spans.
 
+### Color Values (CRITICAL - READ THIS)
+Manim v0.19+ has strict color type requirements. You MUST use valid color values:
+
+**VALID color options:**
+- Built-in colors: `BLUE`, `RED`, `GREEN`, `YELLOW`, `WHITE`, `BLACK`, `GRAY`, `ORANGE`, `PURPLE`, `TEAL`, `PINK`, etc.
+- Hex strings: `"#FF5500"`, `"#12AB34"` (use string quotes!)
+- RGB tuples: `(0.5, 0.3, 0.8)` or `(0.5, 0.3, 0.8, 1.0)` (use float 0-1 range, tuple, NOT list)
+
+**INVALID (will cause runtime errors):**
+- `colors[0]` where colors comes from harmonious_color() - returns a list!
+- Numpy arrays or numpy scalars: `np.array([...])`, `some_value * 0.5` (creates numpy.float64)
+- Integer RGB values: `(255, 0, 0)` - must be float 0-1 range
+
+**How to use harmonious_color():**
+```python
+# WRONG - will crash:
+colors = harmonious_color(BLUE, variations=3)
+title = Text("Hello", color=colors[0])  # colors[0] is a list [r,g,b,a], not a color!
+
+# CORRECT - use harmonious_color as the ENTIRE color argument:
+title = Text("Hello", color=harmonious_color(BLUE, variations=3))  # Passes entire palette
+
+# OR CORRECT - use built-in colors directly:
+title = Text("Hello", color=BLUE)
+title2 = Text("World", color=RED)
+```
+
+The safest approach: Use built-in Manim colors directly (`BLUE`, `RED`, etc.) instead of harmonious_color() unless you specifically need a palette.
+
 ## Think Step-by-Step
 
 1. Preserve scaffold: Keep header, markers, and voiceover setup intact.

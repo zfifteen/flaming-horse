@@ -7,6 +7,7 @@ Extracts artifacts from model responses and writes them to disk.
 import json
 import ast
 import re
+import textwrap
 import hashlib
 from pathlib import Path
 from typing import Dict, Any, Optional, List, Tuple
@@ -43,15 +44,15 @@ def inject_body_into_scaffold(scaffold_path: Path, body_code: str) -> str:
     # First, strip any existing indentation from body
     lines = body_code.strip().split("\n")
     # Find minimum indentation (ignoring empty lines)
-    min_indent = float('inf')
+    min_indent = float("inf")
     for line in lines:
         if line.strip():
             indent = len(line) - len(line.lstrip())
             min_indent = min(min_indent, indent)
-    
-    if min_indent == float('inf'):
+
+    if min_indent == float("inf"):
         min_indent = 0
-    
+
     # Re-indent all lines to 12 spaces (3 levels: class, def, with)
     indented_lines = []
     for line in lines:
@@ -61,12 +62,12 @@ def inject_body_into_scaffold(scaffold_path: Path, body_code: str) -> str:
             indented_lines.append("            " + dedented)
         else:
             indented_lines.append("")
-    
+
     indented_body = "\n".join(indented_lines)
 
     # Header is everything up to and including the start marker
     header = scaffold_text[: start_idx + len(start_marker)]
-    
+
     # Footer is everything from the end marker onwards
     footer = scaffold_text[end_idx:]
 
@@ -82,8 +83,10 @@ def inject_body_into_scaffold(scaffold_path: Path, body_code: str) -> str:
 
 def validate_scene_body_syntax(body_code: str) -> bool:
     """Check if body code compiles as indented statements."""
+    # Add indentation to make it valid inside a function
+    indented_body = "\n".join("    " + line for line in body_code.split("\n"))
     # Try to compile as part of a function
-    test_code = f"def test():\n{body_code}\n    pass"
+    test_code = f"def test():\n{indented_body}\n    pass"
     try:
         compile(test_code, "<string>", "exec")
         return True
@@ -350,6 +353,65 @@ def parse_narration_response(response_text: str) -> Optional[str]:
     return code
 
 
+def extract_scene_body_xml(text: str) -> Optional[str]:
+    """
+    Extract scene body from <scene_body> XML tags.
+
+    This matches the output format specified in build_scenes_system.md
+
+    Returns:
+        Body code string or None if not found
+    """
+    # Match <scene_body>...</scene_body> tags
+    pattern = r"<scene_body>(.*?)</scene_body>"
+    match = re.search(pattern, text, re.DOTALL)
+    if match:
+        raw_body = match.group(1)
+        # Dedent to remove common leading whitespace
+        # The LLM may output already-indented code (12 spaces for with block context)
+        dedented = textwrap.dedent(raw_body)
+        return dedented.strip()
+    return None
+
+
+def extract_scene_body_from_full_file(code: str) -> Optional[str]:
+    """
+    Extract scene body from a full Python file response.
+
+    This handles the case where the LLM outputs a complete scene file
+    instead of just the <scene_body> content.
+
+    Returns:
+        Body code (indented for with block) or None if not found
+    """
+    import re
+
+    # Find the with self.voiceover block
+    # Pattern: with self.voiceover(text=SCRIPT["..."]) as tracker:\n<indented body>
+    pattern = r"with\s+self\.voiceover\([^)]+\)\s+as\s+tracker:\s*\n((?:[ \t]+.+\n*)*)"
+    match = re.search(pattern, code)
+    if not match:
+        return None
+
+    body_indented = match.group(1)
+    # Remove one level of indentation (12 spaces) to dedent for injection
+    lines = body_indented.split("\n")
+    dedented_lines = []
+    for line in lines:
+        if line.strip():
+            # Remove up to 12 spaces of leading whitespace
+            if line.startswith("            "):  # 12 spaces
+                dedented_lines.append(line[12:])
+            elif line.startswith("        "):  # 8 spaces
+                dedented_lines.append(line[8:])
+            else:
+                dedented_lines.append(line.lstrip())
+        else:
+            dedented_lines.append("")
+
+    return "\n".join(dedented_lines).strip()
+
+
 def parse_build_scenes_response(response_text: str) -> Optional[str]:
     """
     Parse build_scenes phase response to extract scene body code only.
@@ -360,6 +422,19 @@ def parse_build_scenes_response(response_text: str) -> Optional[str]:
     Returns:
         Python body code string or None if parsing failed
     """
+    # First, try to extract from <scene_body> XML tags (primary format per system prompt)
+    xml_body = extract_scene_body_xml(response_text)
+    if xml_body:
+        # Validate it's not empty
+        body_lines = [
+            line.strip()
+            for line in xml_body.split("\n")
+            if line.strip() and not line.strip().startswith("#")
+        ]
+        if body_lines:
+            return xml_body
+
+    # Fall back to checking for ```python code blocks (legacy format)
     forbidden_tokens = [
         "from manim import",
         "from pathlib import",
@@ -399,15 +474,21 @@ def parse_build_scenes_response(response_text: str) -> Optional[str]:
     code = sanitize_code(code)
     if not verify_python_syntax(code):
         return None
-    # Reject forbidden tokens
-    if any(token in code for token in forbidden_tokens):
+
+    # Check if this looks like a full Python file - if so, extract body directly
+    if code.strip().startswith(("from ", "import ", "class ", "def ")):
+        # This is likely a full file - try to extract body from voiceover block
+        if "with self.voiceover" in code and "def construct" in code:
+            full_file_body = extract_scene_body_from_full_file(code)
+            if full_file_body and verify_python_syntax(full_file_body):
+                return full_file_body
+        # Otherwise reject as full file we can't handle
         return None
-    # Ensure it's body code
-    if code.strip().startswith(("class ", "def ", "import ", "from ")):
-        return None
+
     # Reject if has scaffold placeholders
     if has_scaffold_artifacts(code):
         return None
+
     return code
 
 
@@ -454,6 +535,19 @@ def parse_scene_repair_response(response_text: str) -> Optional[str]:
     Returns:
         Python body code string or None if parsing failed
     """
+    # First, try to extract from <scene_body> XML tags (primary format per system prompt)
+    xml_body = extract_scene_body_xml(response_text)
+    if xml_body:
+        # Validate it's not empty
+        body_lines = [
+            line.strip()
+            for line in xml_body.split("\n")
+            if line.strip() and not line.strip().startswith("#")
+        ]
+        if body_lines:
+            return xml_body
+
+    # Fall back to checking for ```python code blocks (legacy format)
     forbidden_tokens = [
         "from manim import",
         "from pathlib import",

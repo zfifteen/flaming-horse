@@ -9,9 +9,14 @@ ENV_FILE="${REPO_ROOT}/.env"
 # phase when rendering from project directories.
 export PYTHONPATH="${REPO_ROOT}:${SCRIPT_DIR}:${PYTHONPATH:-}"
 
+# Python interpreter - use environment variable or default to $PYTHON_BIN
+PYTHON_BIN="${PYTHON:-${PYTHON3:-$PYTHON_BIN}}"
+
 if [[ -f "${ENV_FILE}" ]]; then
   # shellcheck disable=SC1090
   source "${ENV_FILE}"
+  # Re-resolve PYTHON_BIN after sourcing env (in case env sets it)
+  PYTHON_BIN="${PYTHON:-${PYTHON3:-$PYTHON_BIN}}"
 fi
 
 AGENT_MODEL="${AGENT_MODEL:-xai/grok-4-1-fast}"
@@ -95,7 +100,7 @@ if [[ "${PROJECT_DIR_INPUT}" = /* ]]; then
 else
   PROJECT_DIR_RAW="${INITIAL_PWD}/${PROJECT_DIR_INPUT}"
 fi
-PROJECT_DIR="$(python3 -c 'import os,sys; print(os.path.abspath(sys.argv[1]))' "${PROJECT_DIR_RAW}")" # Absolute path to project directory
+PROJECT_DIR="$($PYTHON_BIN -c 'import os,sys; print(os.path.abspath(sys.argv[1]))' "${PROJECT_DIR_RAW}")" # Absolute path to project directory
 
 STATE_FILE="${PROJECT_DIR}/project_state.json"
 STATE_BACKUP="${PROJECT_DIR}/.state_backup.json"
@@ -107,7 +112,8 @@ ERROR_LOG="${PROJECT_DIR}/errors.log"
 # ─── Lock File Management ────────────────────────────────────────────
 
 acquire_lock() {
-  if [[ -f "$LOCK_FILE" ]]; then
+  
+if [[ -f "$LOCK_FILE" ]]; then
     local lock_pid
     lock_pid=$(cat "$LOCK_FILE")
     if kill -0 "$lock_pid" 2>/dev/null; then
@@ -139,31 +145,32 @@ on_exit() {
   # Also notify on logical failures that intentionally exit 0 for human review.
   if [[ -f "$STATE_FILE" ]]; then
     local needs_review
-    needs_review=$(python3 -c "import json; print(json.load(open('${STATE_FILE}')).get('flags', {}).get('needs_human_review', False))" 2>/dev/null || echo "False")
+    needs_review=$($PYTHON_BIN -c "import json; print(json.load(open('${STATE_FILE}')).get('flags', {}).get('needs_human_review', False))" 2>/dev/null || echo "False")
     if [[ "$needs_review" == "True" ]]; then
       play_error_sound
     fi
   fi
 }
 
-trap on_exit EXIT INT TERM
+trap 'echo "🛑 SIGINT/TRAP received - killing children and exiting..."; jobs -p | xargs -r kill -TERM 2>/dev/null || true; pkill -P $$ 2>/dev/null || true; sleep 2; kill_tree() { jobs -p | xargs -r kill -KILL 2>/dev/null || true; }; kill_tree; exit 130' INT TERM
+trap on_exit EXIT
 
 
 # ─── State Management ────────────────────────────────────────────────
 
 get_phase() {
   normalize_state_json >/dev/null 2>&1 || true
-  python3 -c "import json; print(json.load(open('${STATE_FILE}'))['phase'])"
+  $PYTHON_BIN -c "import json; print(json.load(open('${STATE_FILE}'))['phase'])"
 }
 
 get_run_count() {
   normalize_state_json >/dev/null 2>&1 || true
-  python3 -c "import json; print(json.load(open('${STATE_FILE}'))['run_count'])"
+  $PYTHON_BIN -c "import json; print(json.load(open('${STATE_FILE}'))['run_count'])"
 }
 
 increment_run_count() {
   normalize_state_json >/dev/null 2>&1 || true
-  python3 <<EOF
+  $PYTHON_BIN <<EOF
 import json
 from datetime import datetime, UTC
 with open('${STATE_FILE}', 'r') as f:
@@ -184,7 +191,7 @@ backup_state() {
 
 validate_state() {
   normalize_state_json >/dev/null 2>&1 || true
-  python3 <<EOF
+  $PYTHON_BIN <<EOF
 import json
 import sys
 
@@ -236,7 +243,7 @@ EOF
 normalize_state_json() {
   # Deterministically repair + schema-normalize state after any agent run.
   # This is the single safety net against malformed JSON / missing fields.
-  python3 "${SCRIPT_DIR}/update_project_state.py" \
+  $PYTHON_BIN "${SCRIPT_DIR}/update_project_state.py" \
     --project-dir "${PROJECT_DIR}" \
     --mode normalize \
     >/dev/null
@@ -247,7 +254,7 @@ apply_state_phase() {
   # The agent is allowed to write plan.json / narration_script.py / scenes,
   # but this script owns project_state.json.
   local phase="$1"
-  python3 "${SCRIPT_DIR}/update_project_state.py" \
+  $PYTHON_BIN "${SCRIPT_DIR}/update_project_state.py" \
     --project-dir "${PROJECT_DIR}" \
     --mode apply \
     --phase "${phase}" \
@@ -277,7 +284,7 @@ build_retry_context() {
   local context_file
   context_file="$(get_retry_context_file "$phase")"
 
-  python3 - <<PY > "$context_file"
+  $PYTHON_BIN - <<PY > "$context_file"
 import json
 import re
 from pathlib import Path
@@ -366,7 +373,7 @@ ensure_topic_present_for_plan() {
   normalize_state_json >/dev/null 2>&1 || true
 
   local topic
-  topic=$(python3 - <<PY
+  topic=$($PYTHON_BIN - <<PY
 import json
 try:
     state = json.load(open("${STATE_FILE}", "r"))
@@ -423,7 +430,7 @@ validate_scene_template_structure() {
     return 1
   fi
 
-  python3 - <<PY \
+  $PYTHON_BIN - <<PY \
     > >(tee -a "$LOG_FILE") \
     2> >(tee -a "$ERROR_LOG" | tee -a "$LOG_FILE" >&2)
 from pathlib import Path
@@ -509,7 +516,7 @@ validate_scene_imports() {
   
   # Try Python import validation, but don't fail if environment issue
   echo "  Attempting Python syntax check..." | tee -a "$LOG_FILE"
-  python3 -c "
+  $PYTHON_BIN -c "
 import sys
 sys.path.insert(0, '.')
 try:
@@ -635,7 +642,7 @@ ensure_qwen_cache_index() {
   fi
 
   echo "→ Voice cache index missing; generating cache before runtime validation..." | tee -a "$LOG_FILE"
-  if ! python3 "${SCRIPT_DIR}/precache_voiceovers_qwen.py" "$PROJECT_DIR" \
+  if ! $PYTHON_BIN "${SCRIPT_DIR}/precache_voiceovers_qwen.py" "$PROJECT_DIR" \
     > >(tee -a "$LOG_FILE") \
     2> >(tee -a "$ERROR_LOG" | tee -a "$LOG_FILE" >&2); then
     echo "✗ ERROR: Failed to generate voice cache index for runtime validation" | tee -a "$LOG_FILE"
@@ -670,7 +677,7 @@ invoke_agent() {
   local run_num="$2"
 
   if ! ensure_topic_present_for_plan "$phase"; then
-    python3 - <<PY
+    $PYTHON_BIN - <<PY
 import json
 from datetime import datetime, UTC
 
@@ -695,7 +702,7 @@ PY
 
   # If a topic override was provided, persist it into state so the agent can rely on project_state.json.
   if [[ "$phase" == "plan" && -n "${TOPIC_OVERRIDE}" ]]; then
-    STATE_FILE="${STATE_FILE}" TOPIC_OVERRIDE_FOR_PY="${TOPIC_OVERRIDE}" python3 - <<'PY'
+    STATE_FILE="${STATE_FILE}" TOPIC_OVERRIDE_FOR_PY="${TOPIC_OVERRIDE}" $PYTHON_BIN - <<'PY'
 import json
 import os
 from datetime import datetime, UTC
@@ -717,7 +724,7 @@ PY
   # Load topic from state (if present), overridden by CLI flag.
   local topic_from_state
   normalize_state_json >/dev/null 2>&1 || true
-  topic_from_state=$(python3 - <<PY
+  topic_from_state=$($PYTHON_BIN - <<PY
 import json
 try:
     state = json.load(open("${STATE_FILE}", "r"))
@@ -759,7 +766,7 @@ PY
   fi
 
   export XAI_API_KEY="$XAI_API_KEY"
-  python3 -m harness "${harness_args[@]}" \
+  $PYTHON_BIN -m harness "${harness_args[@]}" \
     > >(tee -a "$LOG_FILE") \
     2> >(tee -a "$LOG_FILE" >&2)
 
@@ -776,7 +783,7 @@ PY
 scene_python_syntax_ok() {
   local scene_file="$1"
   cd "$PROJECT_DIR"
-  python3 - <<PY >/dev/null 2>&1
+  $PYTHON_BIN - <<PY >/dev/null 2>&1
 import pathlib
 path = pathlib.Path("${scene_file}")
 if not path.exists():
@@ -788,7 +795,7 @@ PY
 scene_python_syntax_error_excerpt() {
   local scene_file="$1"
   cd "$PROJECT_DIR"
-  python3 - <<PY
+  $PYTHON_BIN - <<PY
 import pathlib
 import traceback
 
@@ -822,7 +829,7 @@ PY
 
 infer_scene_class_name() {
   local scene_file="$1"
-  python3 - <<PY
+  $PYTHON_BIN - <<PY
 import re
 from pathlib import Path
 
@@ -851,7 +858,7 @@ PY
 }
 
 get_current_scene_id() {
-  python3 - <<PY
+  $PYTHON_BIN - <<PY
 import json
 
 try:
@@ -871,7 +878,7 @@ PY
 
 get_scene_narration_key() {
   local scene_id="$1"
-  python3 - <<PY
+  $PYTHON_BIN - <<PY
 import json
 
 scene_id = "${scene_id}"
@@ -918,7 +925,7 @@ reset_scene_from_scaffold() {
     cp "$scene_file" "$previous_file"
   fi
 
-  if ! python3 "${SCRIPT_DIR}/scaffold_scene.py" \
+  if ! $PYTHON_BIN "${SCRIPT_DIR}/scaffold_scene.py" \
     --project "$PROJECT_DIR" \
     --scene-id "$scene_file" \
     --class-name "$scene_class" \
@@ -931,7 +938,7 @@ reset_scene_from_scaffold() {
   fi
 
   if [[ -f "$previous_file" ]]; then
-    python3 - <<PY
+    $PYTHON_BIN - <<PY
 from pathlib import Path
 
 old_path = Path("${previous_file}")
@@ -966,7 +973,7 @@ PY
 
 extract_recent_error_excerpt() {
   local scene_file="$1"
-  python3 - <<PY
+  $PYTHON_BIN - <<PY
 from pathlib import Path
 import re
 
@@ -1027,7 +1034,7 @@ invoke_scene_fix_agent() {
 Error details:
 ${error_excerpt}"
 
-  python3 -m harness \
+  $PYTHON_BIN -m harness \
     --phase scene_repair \
     --project-dir "$PROJECT_DIR" \
     --scene-file "$scene_file" \
@@ -1125,7 +1132,7 @@ handle_plan() {
   # If plan.json is missing, recover the latest plan object from build.log.
   cd "$PROJECT_DIR"
   if [[ ! -f "plan.json" ]]; then
-    python3 - <<'PY' \
+    $PYTHON_BIN - <<'PY' \
       > >(tee -a "$LOG_FILE") \
       2> >(tee -a "$ERROR_LOG" | tee -a "$LOG_FILE" >&2)
 import json
@@ -1200,7 +1207,7 @@ handle_review() {
   cd "$PROJECT_DIR"
   if [[ ! -f "plan.json" ]]; then
     echo "❌ plan.json missing; cannot review." | tee -a "$LOG_FILE" >&2
-    python3 - <<PY
+    $PYTHON_BIN - <<PY
 import json
 from datetime import datetime, UTC
 
@@ -1218,7 +1225,7 @@ PY
   fi
 
   # Minimal structural validation of plan.json.
-  python3 - <<'PY' \
+  $PYTHON_BIN - <<'PY' \
     > >(tee -a "$LOG_FILE") \
     2> >(tee -a "$ERROR_LOG" | tee -a "$LOG_FILE" >&2)
 import json
@@ -1259,7 +1266,7 @@ handle_narration() {
   # If narration_script.py is missing, recover it from build.log.
   cd "$PROJECT_DIR"
   if [[ ! -f "narration_script.py" ]]; then
-    python3 - <<'PY' \
+    $PYTHON_BIN - <<'PY' \
       > >(tee -a "$LOG_FILE") \
       2> >(tee -a "$ERROR_LOG" | tee -a "$LOG_FILE" >&2)
 import re
@@ -1313,7 +1320,7 @@ PY
   # Post-step: ensure narration_script.py is valid Python.
   # Some agent outputs have been observed to include stray XML-like artifacts.
   cd "$PROJECT_DIR"
-  python3 - <<'PY'
+  $PYTHON_BIN - <<'PY'
 import re
 from pathlib import Path
 
@@ -1362,15 +1369,15 @@ handle_precache_voiceovers() {
     return 1
   fi
   # Use mediator to check voice reference (supports FLAMING_HORSE_VOICE_REF_DIR env var)
-  if ! python3 -c "import sys; sys.path.insert(0, '${SCRIPT_DIR}'); from voice_ref_mediator import check_voice_ref_exists; sys.exit(0 if check_voice_ref_exists(None, None)[0] else 1)" 2>/dev/null; then
+  if ! $PYTHON_BIN -c "import sys; sys.path.insert(0, '${SCRIPT_DIR}'); from voice_ref_mediator import check_voice_ref_exists; sys.exit(0 if check_voice_ref_exists(None, None)[0] else 1)" 2>/dev/null; then
     # Fallback: try direct check if import fails
-    if ! python3 "${SCRIPT_DIR}/voice_ref_mediator.py" --check "$PROJECT_DIR" >/dev/null 2>&1; then
+    if ! $PYTHON_BIN "${SCRIPT_DIR}/voice_ref_mediator.py" --check "$PROJECT_DIR" >/dev/null 2>&1; then
       echo "✗ ERROR: Missing voice reference assets (set FLAMING_HORSE_VOICE_REF_DIR or ensure ref.wav + ref.txt exist)" | tee -a "$LOG_FILE"
       return 1
     fi
   fi
   echo "→ Running precache script" | tee -a "$LOG_FILE"
-  python3 "${SCRIPT_DIR}/precache_voiceovers_qwen.py" "$PROJECT_DIR" \
+  $PYTHON_BIN "${SCRIPT_DIR}/precache_voiceovers_qwen.py" "$PROJECT_DIR" \
     > >(tee -a "$LOG_FILE") \
     2> >(tee -a "$ERROR_LOG" | tee -a "$LOG_FILE" >&2)
 
@@ -1385,7 +1392,7 @@ handle_build_scenes() {
   cd "$PROJECT_DIR"
 
   local scene_meta
-  scene_meta=$(python3 - <<PY
+  scene_meta=$($PYTHON_BIN - <<PY
 import json
 import re
 
@@ -1430,7 +1437,7 @@ PY
 
   if [[ ! "$scene_id" =~ ^scene_[0-9]{2}(_[a-z0-9_]+)?$ ]]; then
     echo "✗ ERROR: Invalid scene id format '${scene_id}'. Expected scene_XX or scene_XX_slug (e.g., scene_01 or scene_01_intro)." | tee -a "$LOG_FILE" >&2
-    python3 - <<PY
+    $PYTHON_BIN - <<PY
 import json
 from datetime import datetime, UTC
 
@@ -1449,7 +1456,7 @@ PY
 
   if [[ ! -f "$scene_file" ]]; then
     echo "→ Scaffolding deterministic scene file: $scene_file" | tee -a "$LOG_FILE"
-    if ! python3 "${SCRIPT_DIR}/scaffold_scene.py" \
+    if ! $PYTHON_BIN "${SCRIPT_DIR}/scaffold_scene.py" \
       --project "$PROJECT_DIR" \
       --scene-id "$scene_id" \
       --class-name "$scene_class" \
@@ -1484,7 +1491,7 @@ PY
   fi
 
   # Syntax validation (Python) with self-heal on failure.
-  if ! python3 -m py_compile "$new_scene" \
+  if ! $PYTHON_BIN -m py_compile "$new_scene" \
     > >(tee -a "$LOG_FILE") \
     2> >(tee -a "$ERROR_LOG" | tee -a "$LOG_FILE" >&2); then
     echo "✗ Syntax check failed for $new_scene. Attempting self-heal..." | tee -a "$LOG_FILE"
@@ -1554,7 +1561,7 @@ handle_scene_qc() {
   cd "$PROJECT_DIR"
 
   local qc_scene_files
-  qc_scene_files=$(python3 - <<PY
+  qc_scene_files=$($PYTHON_BIN - <<PY
 import json
 from pathlib import Path
 
@@ -1592,7 +1599,7 @@ PY
 
   echo "Using Python harness for scene QC" | tee -a "$LOG_FILE"
 
-  python3 -m harness \
+  $PYTHON_BIN -m harness \
     --phase scene_qc \
     --project-dir "$PROJECT_DIR" \
     > >(tee -a "$LOG_FILE") \
@@ -1626,7 +1633,7 @@ handle_final_render() {
 
   # Clear prior final_render-related errors so the loop can proceed.
   # Keep unrelated errors intact.
-  python3 - <<PY
+  $PYTHON_BIN - <<PY
 import json
 from datetime import datetime, UTC
 
@@ -1660,7 +1667,7 @@ PY
     echo "→ Missing voice cache index; running precache step..." | tee -a "$LOG_FILE"
     if ! handle_precache_voiceovers; then
       echo "❌ Precaching voiceovers failed; cannot render." | tee -a "$LOG_FILE" >&2
-      python3 - <<PY
+      $PYTHON_BIN - <<PY
 import json
 from datetime import datetime, UTC
 
@@ -1678,7 +1685,7 @@ PY
 
   # Best-effort repair: ensure scene metadata needed for rendering exists.
   # (Some agents forget to persist scene file/class_name into project_state.json.)
-  STATE_FILE="$STATE_FILE" PROJECT_DIR="$PROJECT_DIR" python3 - <<'PY'
+  STATE_FILE="$STATE_FILE" PROJECT_DIR="$PROJECT_DIR" $PYTHON_BIN - <<'PY'
 import json
 import os
 import re
@@ -1759,7 +1766,7 @@ PY
   # Render scenes sequentially from state (do not trust agent output)
   # Output format: scene_id|file|class_name|estimated_duration
   local scene_lines
-  scene_lines=$(python3 - <<PY
+  scene_lines=$($PYTHON_BIN - <<PY
 import json
 from pathlib import Path
 
@@ -1797,7 +1804,7 @@ PY
   if [[ $scene_extract_rc -eq 2 ]]; then
     echo "❌ final_render cannot start: project_state.json is missing scene 'file' and/or 'class_name'." | tee -a "$LOG_FILE" >&2
     echo "   Fix: rebuild scenes so state includes metadata, or ensure scene files exist as <scene_id>.py and declare class <...>(VoiceoverScene)." | tee -a "$LOG_FILE" >&2
-    python3 - <<PY
+    $PYTHON_BIN - <<PY
 import json
 from datetime import datetime, UTC
 
@@ -1857,7 +1864,7 @@ PY
       duration_sec=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$video_path" 2>/dev/null || echo 0)
     fi
 
-    python3 - <<PY
+    $PYTHON_BIN - <<PY
 import json
 from datetime import datetime, UTC
 
@@ -1899,7 +1906,7 @@ PY
       syntax_reason=$(extract_recent_error_excerpt "$scene_file")
       if ! repair_scene_until_valid "$scene_id" "$scene_file" "$scene_class" "$syntax_reason"; then
         echo "❌ Could not repair ${scene_file} after ${PHASE_RETRY_LIMIT} attempts" | tee -a "$LOG_FILE" >&2
-        python3 - <<PY
+        $PYTHON_BIN - <<PY
 import json
 from datetime import datetime, UTC
 
@@ -1924,7 +1931,7 @@ PY
       invalid_reason="Invalid animation 'ShowCreation' detected. Use Create(...) for mobjects/curves." 
       if ! repair_scene_until_valid "$scene_id" "$scene_file" "$scene_class" "$invalid_reason"; then
         echo "❌ Could not repair ${scene_file} after ${PHASE_RETRY_LIMIT} attempts" | tee -a "$LOG_FILE" >&2
-        python3 - <<PY
+        $PYTHON_BIN - <<PY
 import json
 from datetime import datetime, UTC
 
@@ -2021,7 +2028,7 @@ PY
 
     if [[ $ok -ne 1 ]]; then
       echo "❌ Render failed for $scene_id ($scene_class)" | tee -a "$LOG_FILE" >&2
-      python3 - <<PY
+      $PYTHON_BIN - <<PY
 import json
 from datetime import datetime, UTC
 
@@ -2059,7 +2066,7 @@ PY
 
     if ! verify_scene_video "$scene_id" "$scene_class"; then
       echo "❌ Verification failed for $scene_id ($scene_class)" | tee -a "$LOG_FILE" >&2
-      python3 - <<PY
+      $PYTHON_BIN - <<PY
 import json
 from datetime import datetime, UTC
 
@@ -2083,7 +2090,7 @@ PY
   done <<< "$scene_lines"
 
   # Advance to assemble
-  python3 - <<PY
+  $PYTHON_BIN - <<PY
 import json
 from datetime import datetime, UTC
 with open("${STATE_FILE}", "r") as f:
@@ -2103,7 +2110,7 @@ handle_assemble() {
   cd "$PROJECT_DIR"
 
   # Generate scenes.txt from state (script is in repo root)
-  python3 "${SCRIPT_DIR}/generate_scenes_txt.py" "$PROJECT_DIR" \
+  $PYTHON_BIN "${SCRIPT_DIR}/generate_scenes_txt.py" "$PROJECT_DIR" \
     > >(tee -a "$LOG_FILE") \
     2> >(tee -a "$ERROR_LOG" | tee -a "$LOG_FILE" >&2)
 
@@ -2128,7 +2135,7 @@ handle_assemble() {
     fi
   done
   if [[ $missing -ne 0 ]]; then
-    python3 - <<PY
+    $PYTHON_BIN - <<PY
 import json
 from datetime import datetime, UTC
 with open("${STATE_FILE}", "r") as f:
@@ -2171,7 +2178,7 @@ PY
     > >(tee -a "$LOG_FILE") \
     2> >(tee -a "$LOG_FILE" >&2); then
     echo "❌ ffmpeg assembly command failed" | tee -a "$LOG_FILE" >&2
-    python3 - <<PY
+    $PYTHON_BIN - <<PY
 import json
 from datetime import datetime, UTC
 with open("${STATE_FILE}", "r") as f:
@@ -2191,7 +2198,7 @@ PY
   fi
 
   # Update phase (QC still runs below)
-  python3 - <<PY
+  $PYTHON_BIN - <<PY
 import json
 from datetime import datetime, UTC
 with open("${STATE_FILE}", "r") as f:
@@ -2211,7 +2218,7 @@ PY
   if [[ -x "${SCRIPT_DIR}/qc_final_video.sh" ]]; then
     if ! "${SCRIPT_DIR}/qc_final_video.sh" "${PROJECT_DIR}/final_video.mp4" "$PROJECT_DIR"; then
       echo "✗ QC FAILED! Video has quality issues." | tee -a "$LOG_FILE"
-      python3 <<PYEOF
+      $PYTHON_BIN <<PYEOF
 import json
 with open('${STATE_FILE}', 'r') as f:
     state = json.load(f)
@@ -2231,7 +2238,7 @@ PYEOF
   
   # Only advance to complete if QC passes
   echo "✓ Advancing to complete phase." | tee -a "$LOG_FILE"
-  python3 <<PYEOF
+  $PYTHON_BIN <<PYEOF
 import json
 with open('${STATE_FILE}', 'r') as f:
     state = json.load(f)
@@ -2278,7 +2285,7 @@ run_phase_once() {
 mark_retry_exhausted() {
   local phase="$1"
 
-  python3 - <<PY
+  $PYTHON_BIN - <<PY
 import json
 from datetime import datetime, UTC
 
@@ -2432,7 +2439,7 @@ while [[ $iteration -lt $MAX_RUNS ]]; do
 
       normalize_state_json || true
       local fail_needs_review
-      fail_needs_review=$(python3 -c "import json; print(json.load(open('${STATE_FILE}'))['flags'].get('needs_human_review', False))")
+      fail_needs_review=$($PYTHON_BIN -c "import json; print(json.load(open('${STATE_FILE}'))['flags'].get('needs_human_review', False))")
       if [[ "$fail_needs_review" == "True" ]]; then
         break
       fi
@@ -2460,7 +2467,7 @@ while [[ $iteration -lt $MAX_RUNS ]]; do
 
       normalize_state_json || true
       local needs_review_fail
-      needs_review_fail=$(python3 -c "import json; print(json.load(open('${STATE_FILE}'))['flags'].get('needs_human_review', False))")
+      needs_review_fail=$($PYTHON_BIN -c "import json; print(json.load(open('${STATE_FILE}'))['flags'].get('needs_human_review', False))")
       if [[ "$needs_review_fail" == "True" ]]; then
         echo "⚠️  Human review required. Pausing build loop." | tee -a "$LOG_FILE"
         echo "Check $STATE_FILE for details" | tee -a "$LOG_FILE"
@@ -2487,7 +2494,7 @@ while [[ $iteration -lt $MAX_RUNS ]]; do
     increment_run_count
     
     local needs_review
-    needs_review=$(python3 -c "import json; print(json.load(open('${STATE_FILE}'))['flags'].get('needs_human_review', False))")
+    needs_review=$($PYTHON_BIN -c "import json; print(json.load(open('${STATE_FILE}'))['flags'].get('needs_human_review', False))")
     
     if [[ "$needs_review" == "True" ]]; then
       echo "⚠️  Human review required. Pausing build loop." | tee -a "$LOG_FILE"
