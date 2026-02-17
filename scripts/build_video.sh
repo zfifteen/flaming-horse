@@ -165,11 +165,11 @@ increment_run_count() {
   normalize_state_json >/dev/null 2>&1 || true
   python3 <<EOF
 import json
-from datetime import datetime
+from datetime import datetime, UTC
 with open('${STATE_FILE}', 'r') as f:
     state = json.load(f)
 state['run_count'] += 1
-state['updated_at'] = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+state['updated_at'] = datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')
 with open('${STATE_FILE}', 'w') as f:
     json.dump(state, f, indent=2)
 EOF
@@ -281,7 +281,7 @@ build_retry_context() {
 import json
 import re
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, UTC
 
 phase = "${phase}"
 attempt = int("${attempt}")
@@ -345,7 +345,7 @@ if log_path.exists():
 
 print(f"Retry context for phase '{phase}'")
 print(f"Attempt: {attempt}/{limit}")
-print(f"Generated: {datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')}")
+print(f"Generated: {datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')}")
 print()
 print("The previous attempt failed. Fix the failure and execute ONLY this same phase.")
 print("Do not modify project_state.json.")
@@ -672,19 +672,19 @@ invoke_agent() {
   if ! ensure_topic_present_for_plan "$phase"; then
     python3 - <<PY
 import json
-from datetime import datetime
+from datetime import datetime, UTC
 
 with open("${STATE_FILE}", "r") as f:
     state = json.load(f)
 
 state.setdefault("errors", []).append("Phase plan failed: No video topic set. Provide project_state.json.topic or pass --topic.")
 state.setdefault("flags", {})["needs_human_review"] = True
-state["updated_at"] = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+state["updated_at"] = datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')
 state.setdefault("history", []).append({
     "phase": "plan",
     "action": "failed",
     "reason": "No video topic set",
-    "timestamp": datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ'),
+    "timestamp": datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ'),
 })
 
 with open("${STATE_FILE}", "w") as f:
@@ -698,7 +698,7 @@ PY
     STATE_FILE="${STATE_FILE}" TOPIC_OVERRIDE_FOR_PY="${TOPIC_OVERRIDE}" python3 - <<'PY'
 import json
 import os
-from datetime import datetime
+from datetime import datetime, UTC
 
 state_file = os.environ["STATE_FILE"]
 topic = os.environ["TOPIC_OVERRIDE_FOR_PY"]
@@ -707,7 +707,7 @@ with open(state_file, "r") as f:
     state = json.load(f)
 
 state["topic"] = topic
-state["updated_at"] = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+state["updated_at"] = datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')
 
 with open(state_file, "w") as f:
     json.dump(state, f, indent=2)
@@ -1201,14 +1201,14 @@ handle_review() {
     echo "❌ plan.json missing; cannot review." | tee -a "$LOG_FILE" >&2
     python3 - <<PY
 import json
-from datetime import datetime
+from datetime import datetime, UTC
 
 with open("${STATE_FILE}", "r") as f:
     state = json.load(f)
 
 state.setdefault("errors", []).append("review failed: plan.json missing")
 state.setdefault("flags", {})["needs_human_review"] = True
-state["updated_at"] = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+state["updated_at"] = datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')
 
 with open("${STATE_FILE}", "w") as f:
     json.dump(state, f, indent=2)
@@ -1431,14 +1431,14 @@ PY
     echo "✗ ERROR: Invalid scene id format '${scene_id}'. Expected scene_XX or scene_XX_slug (e.g., scene_01 or scene_01_intro)." | tee -a "$LOG_FILE" >&2
     python3 - <<PY
 import json
-from datetime import datetime
+from datetime import datetime, UTC
 
 with open("${STATE_FILE}", "r") as f:
     state = json.load(f)
 
 state.setdefault("errors", []).append("build_scenes failed: scene id must match ^scene_[0-9]{2}(_[a-z0-9_]+)?$")
 state.setdefault("flags", {})["needs_human_review"] = True
-state["updated_at"] = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+state["updated_at"] = datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')
 
 with open("${STATE_FILE}", "w") as f:
     json.dump(state, f, indent=2)
@@ -1627,7 +1627,7 @@ handle_final_render() {
   # Keep unrelated errors intact.
   python3 - <<PY
 import json
-from datetime import datetime
+from datetime import datetime, UTC
 
 with open("${STATE_FILE}", "r") as f:
     state = json.load(f)
@@ -1644,7 +1644,7 @@ state["errors"] = [
     )
 ]
 state.setdefault("flags", {})["needs_human_review"] = False
-state["updated_at"] = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+state["updated_at"] = datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')
 
 with open("${STATE_FILE}", "w") as f:
     json.dump(state, f, indent=2)
@@ -1661,13 +1661,13 @@ PY
       echo "❌ Precaching voiceovers failed; cannot render." | tee -a "$LOG_FILE" >&2
       python3 - <<PY
 import json
-from datetime import datetime
+from datetime import datetime, UTC
 
 with open("${STATE_FILE}", "r") as f:
     state = json.load(f)
 state.setdefault("errors", []).append("final_render failed: precache_voiceovers failed")
 state.setdefault("flags", {})["needs_human_review"] = True
-state["updated_at"] = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+state["updated_at"] = datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')
 with open("${STATE_FILE}", "w") as f:
     json.dump(state, f, indent=2)
 PY
@@ -1681,7 +1681,7 @@ PY
 import json
 import os
 import re
-from datetime import datetime
+from datetime import datetime, UTC
 from typing import Optional
 
 state_file = os.environ.get("STATE_FILE")
@@ -1736,10 +1736,10 @@ for s in scenes:
             notes.append(f"set class_name for {scene_id} -> {class_name}")
 
 if changed:
-    state["updated_at"] = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+    state["updated_at"] = datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')
     state.setdefault("history", []).append(
         {
-            "timestamp": datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ'),
+            "timestamp": datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ'),
             "phase": "final_render",
             "action": "Repaired missing scene metadata in state: " + "; ".join(notes),
         }
@@ -1798,13 +1798,13 @@ PY
     echo "   Fix: rebuild scenes so state includes metadata, or ensure scene files exist as <scene_id>.py and declare class <...>(VoiceoverScene)." | tee -a "$LOG_FILE" >&2
     python3 - <<PY
 import json
-from datetime import datetime
+from datetime import datetime, UTC
 
 with open("${STATE_FILE}", "r") as f:
     state = json.load(f)
 state.setdefault("errors", []).append("final_render failed: missing scene file/class_name metadata in state")
 state.setdefault("flags", {})["needs_human_review"] = True
-state["updated_at"] = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+state["updated_at"] = datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')
 with open("${STATE_FILE}", "w") as f:
     json.dump(state, f, indent=2)
 PY
@@ -1858,7 +1858,7 @@ PY
 
     python3 - <<PY
 import json
-from datetime import datetime
+from datetime import datetime, UTC
 
 scene_id = "${scene_id}"
 class_name = "${class_name}"
@@ -1877,7 +1877,7 @@ for s in state.get("scenes", []):
             "file_size_bytes": file_size,
             "duration_seconds": duration,
             "audio_present": True,
-            "verified_at": datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ'),
+            "verified_at": datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ'),
         }
         break
 
@@ -1900,14 +1900,14 @@ PY
         echo "❌ Could not repair ${scene_file} after ${PHASE_RETRY_LIMIT} attempts" | tee -a "$LOG_FILE" >&2
         python3 - <<PY
 import json
-from datetime import datetime
+from datetime import datetime, UTC
 
 with open("${STATE_FILE}", "r") as f:
     state = json.load(f)
 
 state.setdefault("errors", []).append("final_render failed: scene ${scene_id} self-heal exhausted")
 state.setdefault("flags", {})["needs_human_review"] = True
-state["updated_at"] = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+state["updated_at"] = datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')
 
 with open("${STATE_FILE}", "w") as f:
     json.dump(state, f, indent=2)
@@ -1925,14 +1925,14 @@ PY
         echo "❌ Could not repair ${scene_file} after ${PHASE_RETRY_LIMIT} attempts" | tee -a "$LOG_FILE" >&2
         python3 - <<PY
 import json
-from datetime import datetime
+from datetime import datetime, UTC
 
 with open("${STATE_FILE}", "r") as f:
     state = json.load(f)
 
 state.setdefault("errors", []).append("final_render failed: invalid animation in scene ${scene_id} (ShowCreation)")
 state.setdefault("flags", {})["needs_human_review"] = True
-state["updated_at"] = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+state["updated_at"] = datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')
 
 with open("${STATE_FILE}", "w") as f:
     json.dump(state, f, indent=2)
@@ -2022,7 +2022,7 @@ PY
       echo "❌ Render failed for $scene_id ($scene_class)" | tee -a "$LOG_FILE" >&2
       python3 - <<PY
 import json
-from datetime import datetime
+from datetime import datetime, UTC
 
 scene_id = "${scene_id}"
 failure_reason = """${failure_reason}"""
@@ -2033,7 +2033,7 @@ with open("${STATE_FILE}", "r") as f:
 state.setdefault("errors", []).append(f"final_render failed for {scene_id}: {failure_reason}")
 state.setdefault("flags", {})["needs_human_review"] = False
 state["phase"] = "build_scenes"
-state["updated_at"] = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+state["updated_at"] = datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')
 
 for i, s in enumerate(state.get("scenes", [])):
     if s.get("id") == scene_id:
@@ -2042,7 +2042,7 @@ for i, s in enumerate(state.get("scenes", [])):
         break
 
 state.setdefault("history", []).append({
-    "timestamp": datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ'),
+    "timestamp": datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ'),
     "phase": "final_render",
     "scene": scene_id,
     "action": "revert_to_build_scenes",
@@ -2060,7 +2060,7 @@ PY
       echo "❌ Verification failed for $scene_id ($scene_class)" | tee -a "$LOG_FILE" >&2
       python3 - <<PY
 import json
-from datetime import datetime
+from datetime import datetime, UTC
 
 scene_id = "${scene_id}"
 
@@ -2069,7 +2069,7 @@ with open("${STATE_FILE}", "r") as f:
 
 state["errors"].append(f"final_render verification failed for {scene_id}: missing/invalid mp4 or audio")
 state["flags"]["needs_human_review"] = True
-state["updated_at"] = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+state["updated_at"] = datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')
 
 with open("${STATE_FILE}", "w") as f:
     json.dump(state, f, indent=2)
@@ -2084,11 +2084,11 @@ PY
   # Advance to assemble
   python3 - <<PY
 import json
-from datetime import datetime
+from datetime import datetime, UTC
 with open("${STATE_FILE}", "r") as f:
     state = json.load(f)
 state["phase"] = "assemble"
-state["updated_at"] = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+state["updated_at"] = datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')
 state["history"].append("Phase final_render: Rendered and verified all scenes (scripted), advancing to assemble")
 with open("${STATE_FILE}", "w") as f:
     json.dump(state, f, indent=2)
@@ -2129,15 +2129,15 @@ handle_assemble() {
   if [[ $missing -ne 0 ]]; then
     python3 - <<PY
 import json
-from datetime import datetime
+from datetime import datetime, UTC
 with open("${STATE_FILE}", "r") as f:
     state = json.load(f)
 state.setdefault("errors", []).append("Assemble incomplete: one or more scene video files are missing; routing back to final_render")
 state.setdefault("flags", {})["needs_human_review"] = False
 state["phase"] = "final_render"
-state["updated_at"] = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+state["updated_at"] = datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')
 state.setdefault("history", []).append({
-    "timestamp": datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ'),
+    "timestamp": datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ'),
     "phase": "assemble",
     "action": "Missing scene inputs detected; moved phase back to final_render",
 })
@@ -2172,12 +2172,12 @@ PY
     echo "❌ ffmpeg assembly command failed" | tee -a "$LOG_FILE" >&2
     python3 - <<PY
 import json
-from datetime import datetime
+from datetime import datetime, UTC
 with open("${STATE_FILE}", "r") as f:
     state = json.load(f)
 state.setdefault("errors", []).append("assemble failed: ffmpeg concat command failed")
 state.setdefault("flags", {})["needs_human_review"] = False
-state["updated_at"] = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+state["updated_at"] = datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')
 with open("${STATE_FILE}", "w") as f:
     json.dump(state, f, indent=2)
 PY
@@ -2192,10 +2192,10 @@ PY
   # Update phase (QC still runs below)
   python3 - <<PY
 import json
-from datetime import datetime
+from datetime import datetime, UTC
 with open("${STATE_FILE}", "r") as f:
     state = json.load(f)
-state["updated_at"] = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+state["updated_at"] = datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')
 state["history"].append("Phase assemble: Assembled final_video.mp4 (scripted)")
 with open("${STATE_FILE}", "w") as f:
     json.dump(state, f, indent=2)
@@ -2279,7 +2279,7 @@ mark_retry_exhausted() {
 
   python3 - <<PY
 import json
-from datetime import datetime
+from datetime import datetime, UTC
 
 with open("${STATE_FILE}", "r") as f:
     state = json.load(f)
@@ -2288,10 +2288,10 @@ state.setdefault("errors", []).append(
     "Phase ${phase} failed after ${PHASE_RETRY_LIMIT} attempts: see build.log"
 )
 state.setdefault("flags", {})["needs_human_review"] = True
-state["updated_at"] = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+state["updated_at"] = datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')
 state.setdefault("history", []).append(
     {
-        "timestamp": datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ'),
+        "timestamp": datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ'),
         "phase": "${phase}",
         "action": "retry_exhausted",
         "reason": "self-healing attempts exhausted",
