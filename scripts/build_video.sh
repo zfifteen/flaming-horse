@@ -95,7 +95,7 @@ ERROR_LOG="${PROJECT_DIR}/errors.log"
 
 
 # Prompt templates (relative to script location)
-PROMPTS_DIR="${SCRIPT_DIR}/../prompts"
+PROMPTS_DIR="${SCRIPT_DIR}/../harness/prompt_templates"
 PHASE_PROMPT_MAIN_TEMPLATE="${PROMPTS_DIR}/phase_prompt.md"
 PHASE_PROMPT_TEMPLATE="${PROMPTS_DIR}/phase_prompt_instructions.md"
 PHASE_NARRATION_TEMPLATE="${PROMPTS_DIR}/phase_narration.md"

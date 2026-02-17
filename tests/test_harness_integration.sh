@@ -62,19 +62,40 @@ else
 fi
 echo ""
 
-# Test 4: Verify dry-run mode works (uses test project)
+# Test 4: Verify dry-run mode works (self-contained fixture)
 echo "Test 4: Dry-run mode..."
-TEST_PROJECT="${REPO_ROOT}/projects/matrix-multiplication"
+TMP_ROOT="$(mktemp -d /tmp/flaming-horse-integration.XXXXXX)"
+TEST_PROJECT="${TMP_ROOT}/project"
+mkdir -p "$TEST_PROJECT"
+trap 'rm -rf "${TMP_ROOT}"' EXIT
 
-if [ -d "$TEST_PROJECT" ]; then
-  if python3 -m harness --phase plan --project-dir "$TEST_PROJECT" --topic "Test" --dry-run >/dev/null 2>&1; then
-    echo "✅ PASS: Dry-run mode works"
-  else
-    echo "❌ FAIL: Dry-run mode failed"
-    exit 1
-  fi
+cat > "${TEST_PROJECT}/project_state.json" <<'EOF'
+{
+  "project_name": "integration_fixture",
+  "topic": "Fixture Topic",
+  "phase": "plan",
+  "created_at": "2026-01-01T00:00:00Z",
+  "updated_at": "2026-01-01T00:00:00Z",
+  "run_count": 0,
+  "plan_file": "plan.json",
+  "narration_file": "narration_script.py",
+  "voice_config_file": null,
+  "scenes": [],
+  "current_scene_index": 0,
+  "errors": [],
+  "history": [],
+  "flags": {
+    "needs_human_review": false,
+    "dry_run": true
+  }
+}
+EOF
+
+if python3 -m harness --phase plan --project-dir "$TEST_PROJECT" --topic "Test" --dry-run >/dev/null 2>&1; then
+  echo "✅ PASS: Dry-run mode works"
 else
-  echo "⚠️  SKIP: Test project not found, skipping dry-run test"
+  echo "❌ FAIL: Dry-run mode failed"
+  exit 1
 fi
 echo ""
 

@@ -6,13 +6,72 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(realpath "${SCRIPT_DIR}/..")"
 
-# Use matrix-multiplication project as test fixture
-TEST_PROJECT="${REPO_ROOT}/projects/matrix-multiplication"
+TMP_ROOT="$(mktemp -d /tmp/flaming-horse-dry-run.XXXXXX)"
+TEST_PROJECT="${TMP_ROOT}/project"
+mkdir -p "${TEST_PROJECT}"
+trap 'rm -rf "${TMP_ROOT}"' EXIT
 
-if [[ ! -d "$TEST_PROJECT" ]]; then
-  echo "❌ Test project not found: $TEST_PROJECT"
-  exit 1
-fi
+cat > "${TEST_PROJECT}/project_state.json" <<'EOF'
+{
+  "project_name": "dry_run_fixture",
+  "topic": "Dry-run harness fixture",
+  "phase": "build_scenes",
+  "created_at": "2026-01-01T00:00:00Z",
+  "updated_at": "2026-01-01T00:00:00Z",
+  "run_count": 0,
+  "plan_file": "plan.json",
+  "narration_file": "narration_script.py",
+  "voice_config_file": null,
+  "scenes": [
+    {
+      "id": "scene_01_intro",
+      "title": "Intro",
+      "file": "scene_01_intro.py",
+      "class_name": "Scene01Intro",
+      "narration_key": "scene_01_intro",
+      "status": "pending"
+    }
+  ],
+  "current_scene_index": 0,
+  "errors": [],
+  "history": [],
+  "flags": {
+    "needs_human_review": false,
+    "dry_run": true
+  }
+}
+EOF
+
+cat > "${TEST_PROJECT}/plan.json" <<'EOF'
+{
+  "title": "Dry-run Fixture",
+  "scenes": [
+    {
+      "id": "scene_01_intro",
+      "title": "Intro",
+      "narrative_beats": ["Beat 1", "Beat 2"],
+      "visual_ideas": ["Bullet list", "Simple diagram"]
+    }
+  ]
+}
+EOF
+
+cat > "${TEST_PROJECT}/narration_script.py" <<'EOF'
+SCRIPT = {
+    "scene_01_intro": "This is a dry-run narration fixture for scene one."
+}
+EOF
+
+cat > "${TEST_PROJECT}/scene_01_intro.py" <<'EOF'
+from manim import *
+from manim_voiceover_plus import VoiceoverScene
+from narration_script import SCRIPT
+
+class Scene01Intro(VoiceoverScene):
+    def construct(self):
+        title = Text("Intro")
+        self.add(title)
+EOF
 
 echo "🧪 Testing harness dry-run mode for all phases"
 echo "Test project: $TEST_PROJECT"

@@ -1,34 +1,49 @@
 # Tests README
 
-## Unit Test Instructions
+## Active Test Suite
 
-Create `tests/` folder for validating agent helpers and rules. Run with `manim -ql tests/test_helpers.py TestSafeLayout`.
+This folder currently validates the harness layer (`/harness`) rather than Manim
+scene helper functions.
 
-### Example Test for safe_layout
-
-```python
-# tests/test_helpers.py
-from manim import *
-
-def safe_layout(*mobjects, alignment=ORIGIN, h_buff=0.5, v_buff=0.3, max_y=3.5, min_y=-3.5):
-    # [Full function from AGENTS.md or visual_helpers.md]
-    pass
-
-class TestSafeLayout(Scene):
-    def construct(self):
-        circle1 = Circle().move_to(LEFT * 2)
-        circle2 = Circle().move_to(ORIGIN)  # Potential overlap
-        safe_layout(circle1, circle2)
-        # Assert no overlap
-        self.assert_true(circle1.get_right()[0] < circle2.get_left()[0] - 0.5)
-        # Note: Manim Scene doesn't have assert_true; use print/debug for now
-        print("Test passed: No overlap detected")
-```
-
-Add tests for other helpers (e.g., harmonious_color, adaptive_title_position). Include `run_tests.sh`:
+### 1) Mock parser/prompt E2E (no API calls)
 
 ```bash
-#!/bin/bash
-manim -ql tests/test_helpers.py TestSafeLayout
-echo "All tests completed."
+python3 -m pytest -q tests/test_harness_mock_e2e.py
 ```
+
+Covers:
+- Parsing plan/narration/build-scene responses
+- Prompt composition for scene-specific narration scoping
+- End-to-end artifact writing in a temporary project
+
+### 2) Harness integration smoke checks (no API calls)
+
+```bash
+bash tests/test_harness_integration.sh
+```
+
+Covers:
+- Module imports and required functions
+- CLI availability
+- Prompt-template presence
+- `build_video.sh` harness integration hook
+- Core parser helper functions
+
+### 3) Harness dry-run phase coverage (no API calls)
+
+```bash
+bash tests/test_harness_dry_run.sh
+```
+
+Covers:
+- `plan`, `narration`, `build_scenes`, `scene_qc`, `scene_repair` in `--dry-run`
+- Uses a self-contained temporary fixture project
+
+### 4) Live API end-to-end
+
+```bash
+bash tests/test_harness_e2e.sh
+```
+
+Requires:
+- `XAI_API_KEY` in environment or `.env`

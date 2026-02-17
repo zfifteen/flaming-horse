@@ -25,7 +25,10 @@ echo "📋 Checking prerequisites..."
 
 # Check XAI_API_KEY
 if [ -f "${REPO_ROOT}/.env" ]; then
+  set -a
+  # shellcheck disable=SC1091
   source "${REPO_ROOT}/.env"
+  set +a
 fi
 
 if [ -z "${XAI_API_KEY:-}" ]; then
