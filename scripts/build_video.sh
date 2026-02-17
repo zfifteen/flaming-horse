@@ -29,10 +29,22 @@ export HF_HUB_OFFLINE
 export TRANSFORMERS_OFFLINE
 export TOKENIZERS_PARALLELISM
 
+usage() {
+  cat <<EOF
+Usage: $0 [project_dir] [--topic "<video topic>"] [--max-runs N]
+  --max-runs N limits loop iterations (phase transitions), not full project completion.
+
+Recommended user entrypoint:
+  ./scripts/create_video.sh <project_name> --topic "<video topic>"
+
+For command overview:
+  ./scripts/help.sh
+EOF
+}
+
 # ─── Configuration ───────────────────────────────────────────────────
 if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
-  echo "Usage: $0 [project_dir] [--topic \"<video topic>\"] [--max-runs N]" >&2
-  echo "  --max-runs N limits loop iterations (phase transitions), not full project completion." >&2
+  usage >&2
   exit 0
 fi
 
@@ -66,14 +78,12 @@ while [[ ${#} -gt 0 ]]; do
       shift 2
       ;;
     -h|--help)
-      echo "Usage: $0 [project_dir] [--topic \"<video topic>\"] [--max-runs N]" >&2
-      echo "  --max-runs N limits loop iterations (phase transitions), not full project completion." >&2
+      usage >&2
       exit 0
       ;;
     *)
       echo "❌ Unknown argument: ${1}" >&2
-      echo "Usage: $0 [project_dir] [--topic \"<video topic>\"] [--max-runs N]" >&2
-      echo "  --max-runs N limits loop iterations (phase transitions), not full project completion." >&2
+      usage >&2
       exit 1
       ;;
   esac
