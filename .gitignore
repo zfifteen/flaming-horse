@@ -20,6 +20,9 @@ __pycache__/
 # Exceptions for specific project assets
 !projects/matrix-multiplication/assets/voice_ref/ref.txt
 !projects/matrix-multiplication/assets/voice_ref/ref.wav
+!examples/defective_output/smoke-test/.state_backup.json
+!examples/defective_output/smoke-test/build.log
+!examples/defective_output/smoke-test/errors.log
 
 # Generated harness E2E artifacts
 projects/e2e_test_harness_*/

@@ -43,7 +43,8 @@ class {class_name}(VoiceoverScene):
 
         with self.voiceover(text=SCRIPT["{narration_key}"]) as tracker:
             # SLOT_START:scene_body
-            # PROMPT: Design unique visual flow per scene, incorporating ≥1 unique visual from topic_visual_patterns.md.
+            pass  # TEMP scaffold stub: Agent replaces entire block from here to SLOT_END
+            # PROMPT: Output ONLY the indented Python code (12 spaces) to replace from SLOT_START to SLOT_END. NO ```python fences, NO full class/imports/config. Start with num_beats = ...
             # PROMPT: Use structurally different patterns (e.g., progressive bullets + evolving diagram or timeline/staged reveal).
             # PROMPT: Position bullets at LEFT * 3.5 with set_max_width(6.0); derive content from narration_script.py, not plan.json.
             # PROMPT: Ensure layout contracts: title at UP * 3.8, subtitle next_to(title, DOWN, buff=0.4), visuals below subtitle.
