@@ -2,149 +2,144 @@
 
 # Flaming Horse
 
-**Transform ideas into professional math videos with a single prompt.**
+Turn a topic into a polished narrated Manim video with a deterministic, production-minded pipeline.
 
-Flaming Horse is an AI-powered video production system that generates complete Manim animations with synchronized professional voiceovers. Describe your concept, and watch as it builds publication-ready mathematical visualizations automatically.
+What you get:
+- End-to-end orchestration from topic to `final_video.mp4`
+- Reliable phase progression with explicit state tracking in `project_state.json`
+- Scene validation and QC passes before final assembly
+- Cached local Qwen voice clone integration for consistent narration
+- Retry/self-heal loops that pause only when human review is required
 
-## Why Flaming Horse?
-
-### From Concept to Video in Minutes
-
-Skip the tedious coding. Provide a description or mathematical concept, and Flaming Horse handles scene composition, animation sequencing, narration scripting, and voice synthesis.
-
-### Professional Quality Output
-
-- **Studio-grade voiceovers** powered by cached Qwen voice clones
-- **Manim-native animations** with full mathematical typesetting
-- **Multi-scene orchestration** with intelligent pacing and transitions
-- **Production-ready exports** suitable for YouTube, courses, and presentations
-
-
-### Built for Math Communicators
-
-Whether you're an educator creating course content, a researcher presenting findings, or a content creator explaining complex topics, Flaming Horse eliminates the production bottleneck between your ideas and your audience.
+Built for:
+- Math explainers and technical education videos
+- Repeatable, scriptable video generation workflows
+- Teams that want clear artifacts, logs, and recoverable state
 
 ## Quick Start
 
-```bash
-# Create your first project
-./scripts/new_project.sh my_video
+Start here for first-time setup and your first build:
 
-# Build from a prompt (configure your AI agent in build_video.sh)
+```bash
+# 1) Create a project (topic recommended at creation time)
+./scripts/new_project.sh my_video --topic "Standing waves explained visually"
+
+# 2) Build end-to-end
 ./scripts/build_video.sh projects/my_video
 
-# (Optional) Scaffold a new scene file before adding animations
-./scripts/scaffold_scene.py \
-  --project projects/my_video \
-  --scene-id scene_01_intro \
-  --class-name Scene01Intro \
-  --narration-key intro
+# Optional: set/override topic at build time
+./scripts/build_video.sh projects/my_video --topic "Standing waves explained visually"
 ```
 
-Your video appears in `projects/my_video/final_video.mp4`.
+Final output:
+- `projects/my_video/final_video.mp4`
 
-## How It Works
+## First-Run Checklist
 
-Flaming Horse uses an intelligent agentic workflow to decompose your concept into:
+1. Install dependencies (system + Python): `docs/INSTALLATION.md`
+2. Verify environment: `./scripts/check_dependencies.sh`
+3. Confirm `.env` contains required API settings for harness execution
+4. Run `new_project.sh` with a topic
+5. Run `build_video.sh` on that project
 
-1. **Video plan** with scene breakdown and timing
-2. **Narration script** synchronized to visual elements
-3. **Scene generation** with Manim code for each segment
-4. **Voice synthesis** with cached Qwen narration
-5. **Final assembly** into a polished video
+## Pipeline Phases
 
-The system iterates until each component meets quality standards, then assembles everything into your final video.
+The orchestrator (`scripts/build_video.sh`) runs one phase at a time and advances deterministically:
 
-## Installation
+`plan -> review -> narration -> build_scenes -> scene_qc -> precache_voiceovers -> final_render -> assemble -> complete`
+
+Notes:
+- Projects created by `new_project.sh` start at `plan`.
+- The loop pauses when `project_state.json.flags.needs_human_review` becomes `true`.
+
+## Voice Policy (Mandatory)
+
+Flaming Horse uses cached local Qwen voice clone audio only.
+
+- Required model: `Qwen/Qwen3-TTS-12Hz-1.7B-Base`
+- Required project config: `voice_clone_config.json`
+- Required reference assets: `assets/voice_ref/ref.wav` and `assets/voice_ref/ref.txt`
+- No fallback TTS services
+
+See `docs/VOICE_POLICY.md` for full policy.
+
+## Installation and Environment
+
+1. Install system + Python dependencies.
+2. Ensure voice reference assets exist.
+3. Verify prerequisites.
 
 ```bash
-# Install dependencies
-pip install manim manim-voiceover-plus
-brew install sox ffmpeg
-
-# Precache Qwen voiceovers
-python3 scripts/precache_voiceovers_qwen.py projects/my_video
-```
-
-**Voice Requirements:** Flaming Horse uses cached Qwen voice clones configured via `voice_clone_config.json`. Run the precache step before building.
-
-## Environment Setup
-
-Before your first build:
-
-```bash
-# 1. Check dependencies
 ./scripts/check_dependencies.sh
-
-# 2. Set up voice reference (one-time)
-# Record a 5-10 second voice sample and place:
-# - assets/voice_ref/ref.wav (audio file)
-# - assets/voice_ref/ref.txt (transcript of audio)
-
-# 3. Test Qwen model access
-python3 -c "from scripts.qwen_tts_mediator import load_model; load_model()"
 ```
 
-For detailed installation instructions, see [docs/INSTALLATION.md](docs/INSTALLATION.md).
+Detailed setup: `docs/INSTALLATION.md`
 
 ## Configuration
 
-Edit `./scripts/build_video.sh` to connect your preferred AI agent (Claude, GPT-4, Gemini, etc.) in the `invoke_agent()` function. The agent receives context about the current build phase and returns the appropriate output.
+### Agent/harness
+
+The orchestrator calls the Python harness (`python3 -m harness`) for agent phases.
+Configure behavior via environment variables (typically in `.env`):
+
+- `XAI_API_KEY` (required by harness)
+- `AGENT_MODEL` (default in orchestrator is `xai/grok-4-1-fast`)
+- `AGENT_TEMPERATURE` (optional)
+
+Harness details: `harness/README.md`
+
+### Voice backend
+
+Primary backend is Qwen cached voice.
+The pipeline also recognizes `FLAMING_HORSE_TTS_BACKEND` for backend routing in current scripts.
 
 ## Project Structure
 
-Projects are self-contained and portable:
+A generated project directory typically looks like:
 
-```
+```text
 projects/my_video/
-├── final_video.mp4          # Your finished video
-├── plan.json                # Scene breakdown
-├── narration_script.py      # Voice script
-├── scenes/                  # Generated Manim code
-└── project_state.json       # Build state
+├── project_state.json
+├── plan.json
+├── narration_script.py
+├── scene_01_intro.py
+├── scene_02_*.py
+├── scene_qc_report.md
+├── build.log
+├── errors.log
+├── media/
+│   └── voiceovers/
+├── assets/
+│   └── voice_ref/
+│       ├── ref.wav
+│       └── ref.txt
+├── voice_clone_config.json
+└── final_video.mp4
 ```
 
+## Common Commands
 
-## Use Cases
+```bash
+# Validate environment
+./scripts/check_dependencies.sh
 
-- **Educational Content**: Lecture supplements, online courses, tutorial series
-- **Research Communication**: Paper visualizations, conference presentations
-- **Content Creation**: YouTube explainers, social media educational content
-- **Corporate Training**: Technical onboarding, concept explanations
+# Precache voiceovers explicitly (optional; pipeline can invoke this phase)
+python3 scripts/precache_voiceovers_qwen.py projects/my_video
 
-
-## Advanced Features
-
-- **Custom project locations** for organizing video libraries
-- **Phase reset capability** for iterative refinement
-- **State machine persistence** for reliable long-running builds
-- **Extensible agent integration** supporting any LLM provider
-
+# Reset project phase manually
+./scripts/reset_phase.sh projects/my_video narration
+```
 
 ## Documentation
 
-- [Voice Service Policy](docs/VOICE_POLICY.md) - Audio configuration details
-- Script documentation - See inline comments in `./scripts/` directory
-
-
-## Requirements
-
-- Python 3.8+
-- Manim Community Edition
-- FFmpeg and Sox
-- Cached Qwen voice clone assets
-
+- `AGENTS.md`
+- `docs/reference_docs/phase_plan.md`
+- `docs/reference_docs/phase_narration.md`
+- `docs/reference_docs/phase_scenes.md`
+- `docs/reference_docs/visual_helpers.md`
+- `docs/reference_docs/topic_visual_patterns.md`
+- `tests/README.md`
 
 ## License
 
-MIT License - see LICENSE file for details.
-
-## Contributing
-
-Contributions welcome! This is an open-source project under active development. Feel free to submit issues, feature requests, or pull requests.
-
-***
-
-**Ready to create your first math video?** Start with `./scripts/new_project.sh` and bring your concepts to life.
-
-***
+MIT License.
