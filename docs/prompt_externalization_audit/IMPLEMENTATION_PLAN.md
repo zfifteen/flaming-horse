@@ -6,6 +6,11 @@ Move all LLM-facing prompt and instruction text out of Python code and into temp
 `/Users/velocityworks/IdeaProjects/flaming-horse/harness/prompts`
 
 This enables fast prompt iteration without code edits and enforces a single source of truth.
+The prompt folder layout must mirror pipeline phase order so users can find prompts by workflow step immediately.
+
+Also keep non-prompt reusable runtime reference content under:
+
+`/Users/velocityworks/IdeaProjects/flaming-horse/harness/templates`
 
 ## Inputs Reviewed
 - `PROMPT_INFRACTION_REPORT.md`
@@ -15,6 +20,10 @@ This enables fast prompt iteration without code edits and enforces a single sour
 - Current check script: `scripts/check_prompt_compliance.sh`
 
 ## Current Gaps
+Status baseline (already done):
+- `harness/prompt_templates` was renamed to `harness/prompts`.
+- Runtime-included reference docs were moved from `docs/reference_docs` into `harness/templates`.
+
 1. User prompts are embedded in `harness/prompts.py` for:
 - plan
 - narration
@@ -36,17 +45,71 @@ This enables fast prompt iteration without code edits and enforces a single sour
 
 3. Compliance check passes with no false positives.
 4. Prompt edits require no Python code changes in normal iteration.
+5. Runtime prompt includes that are not prompts (long reusable reference blocks) are sourced from `harness/templates`, not `docs/`.
+6. Prompt directories are numerically ordered to match the pipeline sequence.
+7. Each phase directory exposes task-level prompt files and a phase manifest.
+
+## Desired Prompt Structure (Pipeline-Ordered)
+```text
+harness/prompts/
+  00_plan/
+    system.md
+    user.md
+    manifest.yaml
+  01_review/
+    system.md
+    user.md
+    manifest.yaml
+  02_narration/
+    system.md
+    user.md
+    manifest.yaml
+  03_training/
+    system.md
+    user.md
+    manifest.yaml
+  04_build_scenes/
+    system.md
+    user.md
+    task_retry.md
+    manifest.yaml
+  05_scene_qc/
+    system.md
+    user.md
+    manifest.yaml
+  06_scene_repair/
+    system.md
+    user.md
+    task_retry.md
+    manifest.yaml
+  07_precache_voiceovers/
+    README.md
+  08_final_render/
+    README.md
+  09_assemble/
+    README.md
+  10_complete/
+    README.md
+  INDEX.md
+  README.md
+```
+
+Notes:
+- For phases not currently LLM-driven, keep `README.md` describing why no prompt files exist yet.
+- `manifest.yaml` should define: phase, task list, source files, required placeholders, compose order.
 
 ## Implementation Phases
 
 ### Phase 1: Add missing user templates
-Create:
-- `harness/prompts/plan_user.md`
-- `harness/prompts/narration_user.md`
-- `harness/prompts/build_scenes_user.md`
-- `harness/prompts/scene_qc_user.md`
-- `harness/prompts/scene_repair_user.md`
-- `harness/prompts/training_user.md`
+Create pipeline-ordered phase directories and initial task files.
+At minimum for active LLM phases:
+- `harness/prompts/00_plan/{system.md,user.md,manifest.yaml}`
+- `harness/prompts/02_narration/{system.md,user.md,manifest.yaml}`
+- `harness/prompts/03_training/{system.md,user.md,manifest.yaml}`
+- `harness/prompts/04_build_scenes/{system.md,user.md,task_retry.md,manifest.yaml}`
+- `harness/prompts/05_scene_qc/{system.md,user.md,manifest.yaml}`
+- `harness/prompts/06_scene_repair/{system.md,user.md,task_retry.md,manifest.yaml}`
+- `harness/prompts/01_review/{system.md,user.md,manifest.yaml}` (stub or active per harness support)
 
 Use explicit placeholders (double-curly style), for example:
 - `{{topic}}`
@@ -55,21 +118,17 @@ Use explicit placeholders (double-curly style), for example:
 - `{{retry_context}}`
 
 ### Phase 2: Externalize system wrappers
-Create per-phase system wrapper templates that include headings/separators and references to existing content templates, or fully inline complete system prompts in phase-specific template files. Preferred approach:
-- `plan_system_full.md`
-- `narration_system_full.md`
-- `build_scenes_system_full.md`
-- `scene_qc_system_full.md`
-- `scene_repair_system_full.md`
-- `training_system_full.md`
-
-Then retain `core_rules.md` and reference docs as reusable content blocks where useful.
+Move all system wrappers into per-phase `system.md` files.
+Move all user prompt bodies into per-phase `user.md` files.
+Use task files (for example `task_retry.md`) when a phase has materially different prompts for retry/repair flows.
+Retain shared non-prompt includes in `harness/templates`.
 
 ### Phase 3: Refactor `harness/prompts.py`
 1. Add a deterministic interpolation helper (single-pass, explicit placeholder substitution).
-2. Replace embedded f-string prompt bodies with template loading + interpolation maps.
-3. Keep phase logic and scene selection logic in code; keep instructions/content in templates.
+2. Replace embedded f-string prompt bodies with loading from pipeline-ordered directories.
+3. Keep phase logic and scene selection logic in code; keep all instructions/content in templates.
 4. Ensure empty optional sections (`reference_section`, `retry_section`) are handled cleanly.
+5. Add a phase-to-directory mapping table in code (single source), aligned to pipeline order.
 
 ### Phase 4: Consolidate docs prompt duplication
 For `docs/issues/SCENE_QC_AGENT_PROMPT.md`:
@@ -79,8 +138,10 @@ For `docs/issues/SCENE_QC_AGENT_PROMPT.md`:
 ### Phase 5: Strengthen compliance checks
 Update `scripts/check_prompt_compliance.sh` to verify:
 1. No embedded prompt text blocks in `harness/prompts.py`.
-2. All expected template files exist.
-3. `compose_*_prompt()` loads templates for both system and user prompts.
+2. All expected pipeline-ordered phase directories exist.
+3. Required files exist in active LLM phases (`system.md`, `user.md`, `manifest.yaml`).
+4. `compose_*_prompt()` loads templates from phase directories (not flat files).
+5. `INDEX.md` references each active phase/task file.
 
 ## Verification
 Run:
@@ -104,10 +165,13 @@ bash tests/test_harness_integration.sh
 
 ## Acceptance Criteria
 1. Zero LLM-instruction strings remain embedded in `harness/prompts.py`.
-2. All prompt content used by harness is located in `harness/prompts`.
+2. All prompt content used by harness is located in pipeline-ordered phase folders under `harness/prompts`.
 3. Compliance checker passes.
 4. Dry-run prompt generation passes for all phases.
-5. Documentation points to canonical template paths.
+5. Runtime non-prompt includes are loaded from `harness/templates` (no runtime `docs/` dependency for these blocks).
+6. Prompt folder order matches pipeline sequence via numeric prefixes (`00_...` to `10_...`).
+7. Each active LLM phase has task-level prompt files and `manifest.yaml`.
+8. `harness/prompts/INDEX.md` gives one-click navigation by phase and task.
 
 ## Risks and Mitigations
 - Risk: Placeholder mismatch causes malformed prompts.
@@ -120,9 +184,11 @@ bash tests/test_harness_integration.sh
   - Mitigation: tighten grep patterns to target true prompt blocks only.
 
 ## Execution Order
-1. Add templates
-2. Refactor `harness/prompts.py`
-3. Update compliance script
-4. Consolidate docs duplicate prompt
-5. Run verification suite
-6. Commit with focused diff
+1. Create pipeline-ordered phase directory skeleton + `INDEX.md`
+2. Move existing flat prompts into phase directories (no content changes first)
+3. Externalize remaining embedded user/system prompt content into phase task files
+4. Refactor `harness/prompts.py` loader and mappings
+5. Update compliance script for directory/manifest model
+6. Consolidate docs duplicate prompt
+7. Run verification suite
+8. Commit with focused diff

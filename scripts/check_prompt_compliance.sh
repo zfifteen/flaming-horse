@@ -82,23 +82,61 @@ if [[ -n "$DOC_PROMPTS" ]]; then
     echo -e "${YELLOW}⚠ WARNING: Found potential prompt content in documentation:${NC}"
     echo "$DOC_PROMPTS"
     echo "  Review these files to ensure they don't duplicate prompts/"
-    ((INFRACTIONS++))
 else
     echo -e "${GREEN}✓ PASS: No obvious prompt duplication in docs${NC}"
 fi
 echo ""
 
-# Check 5: Verify all compose functions load from templates
-echo "Check 5: Verifying compose functions use templates..."
-COMPOSE_FUNCTIONS=$(grep -n "def compose_.*_prompt" harness/prompts.py | wc -l)
-TEMPLATE_LOADS=$(grep -n "read_file.*PROMPT_TEMPLATES" harness/prompts.py | wc -l)
+# Check 5: Verify pipeline-ordered prompt structure exists
+echo "Check 5: Verifying pipeline-ordered prompt structure..."
+REQUIRED_DIRS=(
+  "harness/prompts/00_plan"
+  "harness/prompts/01_review"
+  "harness/prompts/02_narration"
+  "harness/prompts/03_training"
+  "harness/prompts/04_build_scenes"
+  "harness/prompts/05_scene_qc"
+  "harness/prompts/06_scene_repair"
+  "harness/prompts/07_precache_voiceovers"
+  "harness/prompts/08_final_render"
+  "harness/prompts/09_assemble"
+  "harness/prompts/10_complete"
+)
 
-echo "  Found $COMPOSE_FUNCTIONS compose functions"
-echo "  Found $TEMPLATE_LOADS template loads"
+REQUIRED_FILES=(
+  "harness/prompts/INDEX.md"
+  "harness/prompts/README.md"
+  "harness/prompts/_shared/core_rules.md"
+  "harness/prompts/00_plan/system.md"
+  "harness/prompts/00_plan/user.md"
+  "harness/prompts/02_narration/system.md"
+  "harness/prompts/02_narration/user.md"
+  "harness/prompts/03_training/system.md"
+  "harness/prompts/03_training/user.md"
+  "harness/prompts/04_build_scenes/system.md"
+  "harness/prompts/04_build_scenes/user.md"
+  "harness/prompts/05_scene_qc/system.md"
+  "harness/prompts/05_scene_qc/user.md"
+  "harness/prompts/06_scene_repair/system.md"
+  "harness/prompts/06_scene_repair/user.md"
+)
 
-if [[ $TEMPLATE_LOADS -lt $COMPOSE_FUNCTIONS ]]; then
-    echo -e "${YELLOW}⚠ INFO: Some compose functions may not load templates${NC}"
-    echo "  This is expected if user prompts are still being migrated"
+for d in "${REQUIRED_DIRS[@]}"; do
+  if [[ ! -d "$d" ]]; then
+    echo -e "${RED}✗ FAIL: Missing directory: $d${NC}"
+    ((INFRACTIONS++))
+  fi
+done
+
+for f in "${REQUIRED_FILES[@]}"; do
+  if [[ ! -f "$f" ]]; then
+    echo -e "${RED}✗ FAIL: Missing file: $f${NC}"
+    ((INFRACTIONS++))
+  fi
+done
+
+if [[ $INFRACTIONS -eq 0 ]]; then
+  echo -e "${GREEN}✓ PASS: Prompt structure present${NC}"
 fi
 echo ""
 

@@ -1,0 +1,9 @@
+phase: scene_repair
+status: active
+tasks:
+  - name: default
+    system: system.md
+    user: user.md
+required_placeholders:
+  system: [core_rules, repair_system]
+  user: [scene_id, scene_file_name, scene_class_name, narration_key, scene_title, scene_details, scene_narration, broken_file_name, broken_file_content, retry_context]

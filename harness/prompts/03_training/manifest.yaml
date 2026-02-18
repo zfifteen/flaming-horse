@@ -1,0 +1,9 @@
+phase: training
+status: active
+tasks:
+  - name: default
+    system: system.md
+    user: user.md
+required_placeholders:
+  system: [manim_training]
+  user: []

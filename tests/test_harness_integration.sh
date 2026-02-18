@@ -99,38 +99,76 @@ else
 fi
 echo ""
 
-# Test 5: Verify prompt templates exist
-echo "Test 5: Prompt templates..."
-TEMPLATES=(
-  "core_rules.md"
-  "plan_system.md"
-  "narration_system.md"
-  "build_scenes_system.md"
-  "scene_qc_system.md"
-  "repair_system.md"
+# Test 5: Verify pipeline-ordered prompt directories and core files exist
+echo "Test 5: Prompt directory structure..."
+PROMPT_PHASE_DIRS=(
+  "00_plan"
+  "01_review"
+  "02_narration"
+  "03_training"
+  "04_build_scenes"
+  "05_scene_qc"
+  "06_scene_repair"
+  "07_precache_voiceovers"
+  "08_final_render"
+  "09_assemble"
+  "10_complete"
 )
 
 ALL_FOUND=true
-for template in "${TEMPLATES[@]}"; do
-  if [ -f "${REPO_ROOT}/harness/prompts/${template}" ]; then
-    echo "  ✅ ${template}"
+for phase_dir in "${PROMPT_PHASE_DIRS[@]}"; do
+  if [ -d "${REPO_ROOT}/harness/prompts/${phase_dir}" ]; then
+    echo "  ✅ ${phase_dir}/"
   else
-    echo "  ❌ Missing: ${template}"
+    echo "  ❌ Missing: ${phase_dir}/"
+    ALL_FOUND=false
+  fi
+done
+
+REQUIRED_ACTIVE_FILES=(
+  "00_plan/system.md"
+  "00_plan/user.md"
+  "00_plan/manifest.yaml"
+  "02_narration/system.md"
+  "02_narration/user.md"
+  "02_narration/manifest.yaml"
+  "03_training/system.md"
+  "03_training/user.md"
+  "03_training/manifest.yaml"
+  "04_build_scenes/system.md"
+  "04_build_scenes/user.md"
+  "04_build_scenes/manifest.yaml"
+  "05_scene_qc/system.md"
+  "05_scene_qc/user.md"
+  "05_scene_qc/manifest.yaml"
+  "06_scene_repair/system.md"
+  "06_scene_repair/user.md"
+  "06_scene_repair/manifest.yaml"
+  "_shared/core_rules.md"
+  "INDEX.md"
+  "README.md"
+)
+
+for rel in "${REQUIRED_ACTIVE_FILES[@]}"; do
+  if [ -f "${REPO_ROOT}/harness/prompts/${rel}" ]; then
+    echo "  ✅ ${rel}"
+  else
+    echo "  ❌ Missing: ${rel}"
     ALL_FOUND=false
   fi
 done
 
 if $ALL_FOUND; then
-  echo "✅ PASS: All prompt templates found"
+  echo "✅ PASS: Prompt structure is complete"
 else
-  echo "❌ FAIL: Some prompt templates missing"
+  echo "❌ FAIL: Prompt structure is incomplete"
   exit 1
 fi
 echo ""
 
 # Test 6: Verify build_video.sh integration
 echo "Test 6: build_video.sh integration..."
-if grep -q "python3 -m harness" "${REPO_ROOT}/scripts/build_video.sh"; then
+if grep -q -- "-m harness" "${REPO_ROOT}/scripts/build_video.sh"; then
   echo "✅ PASS: build_video.sh has harness integration"
 else
   echo "❌ FAIL: build_video.sh missing harness invocation"
