@@ -50,7 +50,8 @@ def harmonious_color(base_color, variations=3, lightness_shift=0.1):
         new_h = (h + h_shift) % 1
         new_l = min(1.0, max(0.0, l + lightness_shift * i))
         new_r, new_g, new_b = colorsys.hls_to_rgb(new_h, new_l, s)
-        palette.append([new_r, new_g, new_b, 1.0])
+        # Convert numpy.float64 to Python float for ManimColor compatibility
+        palette.append([float(new_r), float(new_g), float(new_b), 1.0])
     return palette
 
 
