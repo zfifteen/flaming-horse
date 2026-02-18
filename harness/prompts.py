@@ -335,9 +335,6 @@ def compose_scene_repair_prompt(
         "system.md",
         {
             "core_rules": read_file(PROMPTS_DIR / "_shared" / "core_rules.md"),
-            "repair_system": read_file(
-                PROMPTS_DIR / "06_scene_repair" / "repair_system.md"
-            ),
         },
     )
     user_prompt = load_prompt_template(
