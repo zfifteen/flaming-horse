@@ -33,7 +33,7 @@ You specialize in diagnosing Flaming Horse pipeline failures from defective proj
 2. **Divergence**: Grep build.log "Failed to parse|IndentationError|Rendered.*blank|No mobjects".
 3. **Contracts**:
    - Slot materialized? Indentation 12 spaces under `with`?
-   - Timing: BeatPlan(duration, weights)? play_next only? No run_time/self.wait()?
+   - Timing: Uses standard self.play() for animations? No raw run_time/self.wait() timing math?
    - Visibility: self.add()? FadeIn/Create? safe_position()? No off-screen (e.g., *10)?
    - Manim: MathTex for equations? config.pixel_height=1440?
 4. **Video**: ffprobe final_video.mp4 (duration/blank frames?); ffmpeg thumbs.

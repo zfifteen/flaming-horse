@@ -550,11 +550,6 @@ def parse_build_scenes_response(response_text: str) -> Optional[str]:
         "def construct",
         "SLOT_START:scene_body",
         "SLOT_END:scene_body",
-        "def BeatPlan",
-        "def play_in_slot",
-        "def play_text_in_slot",
-        "def play_next",
-        "def play_text_next",
     ]
 
     for _filename_hint, block_code in extract_python_code_blocks(response_text):
@@ -640,19 +635,11 @@ def parse_scene_repair_response(response_text: str) -> Optional[str]:
         "def construct",
         "SLOT_START:scene_body",
         "SLOT_END:scene_body",
-        "def BeatPlan",
-        "def play_in_slot",
-        "def play_text_in_slot",
-        "def play_next",
-        "def play_text_next",
     ]
 
     for _filename_hint, block_code in extract_python_code_blocks(response_text):
         candidate = sanitize_code(block_code)
         if not verify_python_syntax(candidate):
-            continue
-        # Reject if contains forbidden header tokens
-        if any(token in candidate for token in forbidden_tokens):
             continue
         # Should be body code: no class/def/import at top level
         if candidate.strip().startswith(("class ", "def ", "import ", "from ")):
@@ -720,6 +707,12 @@ def parse_and_write_artifacts(
             narration_file.write_text(code)
 
             print(f"✅ Wrote {narration_file}")
+            return True
+
+        elif phase == "training":
+            # Training phase: accept any response, no artifacts to write
+            # The response is just to prime the model with Manim docs
+            print("✅ Training phase completed (response received)")
             return True
 
         elif phase == "build_scenes":

@@ -15,14 +15,8 @@
        --narration-key <script_key>
    ```
 3. Fill in animations inside the scaffolded `# TODO: Add animations here` block
-   - Parse narration beats: Use `BeatPlan(tracker.duration, [beat_durations])` where durations = tracker.duration * (words_per_beat / total_words).
-   - Use the full narration duration with staged visual beats; avoid long tail idle waits.
-   - Prefer duration-scaled micro-beats per scene: `num_beats = max(10, min(22, int(np.ceil(tracker.duration / 3.0))))`.
-   - Fixed 8-12 beats is only acceptable for short scenes; longer narration must use proportionally more beats.
-   - Beat slot count must be sufficient for animation call count; if slots are exhausted, increase beat count or split into multiple voiceover blocks.
-   - Never pass `run_time=` into `play_next(...)` or `play_text_next(...)`; slot helpers are the timing source.
-   - If deviation >10% in dry-run, rebalance beat slots and flag in state.
-4. Keep the generated boilerplate structure unchanged unless absolutely necessary
+    - Use Manim's standard `self.play()` and `self.wait()` for animations
+    - Keep the generated boilerplate structure unchanged unless absolutely necessary
 5. Update scene status to `'built'` AND persist required render metadata into state:
    - `scene['file'] = '<scene_id>.py'`
    - `scene['class_name'] = '<SceneClassName>'`

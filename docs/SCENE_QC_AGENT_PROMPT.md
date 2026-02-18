@@ -36,7 +36,7 @@ Hard requirements:
     - If `.next_to(...)` appears inside a loop/list-comprehension, enforce per-item `safe_position(...)` (expand to explicit loop if needed).
     - For sibling groups, ensure `safe_layout(...)` is used where appropriate.
 4. Fix content validation issues.
-   - Reject planning text matches: ensure on-screen text is derived from narration_script.py, not narrative_beats from plan.json.
+   - Reject planning text matches: ensure on-screen text is derived from narration_script.py, not from plan details.
    - Reject stage directions: remove patterns like ^Deliver\b, ^Pause for\b, ^Transition to\b from bullet text.
    - Reject horizontal overflow: ensure elements stay within LEFT * 3.5 to RIGHT * 3.5, with Text.set_max_width(6.0).
    - Reject structural duplication: ensure scenes have unique flows, not identical patterns.
@@ -54,12 +54,10 @@ Hard requirements:
 6. Enforce scene energy and content density for non-math topics.
    - Reject scenes that are mostly static/black for long stretches.
    - Reject scenes that only show title/subtitle plus one trivial late animation.
-    - Require explainer-slide cadence: progressive bullets and an evolving topic-specific visual.
+   - Require explainer-slide cadence: progressive bullets and an evolving topic-specific visual.
     - If dense visuals start after text bullets, require cleanup transition (`FadeOut`/`FadeTransform`) before adding the new layer.
-7. Protect slot-timing contract.
-   - Never allow `run_time=` to be passed into `play_next(...)` or `play_text_next(...)`.
-   - Detect helper implementations that allow `run_time` override and remove that override path.
-   - Ensure beat slot count is sufficient for animation count, or split content into additional voiceover blocks.
+7. Protect animation timing contract.
+    - Use standard `self.play()` calls for animations
 
 Repair strategy:
 - Prefer minimal edits to timing/layout lines.
@@ -76,9 +74,6 @@ Validation checklist before finishing:
 - [ ] Prior section content cleaned up before new dense section
 - [ ] No long static spans (>~3s without meaningful visual change)
 - [ ] Non-math scenes use progressive bullets + evolving right-side visuals
-- [ ] No `run_time=` passed to `play_next(...)` / `play_text_next(...)`
-- [ ] No helper-level slot bypass via `run_time` override
-- [ ] Beat slot count is not exhausted before scene animations complete
 - [ ] No planning text matches in on-screen content
 - [ ] Horizontal bounds respected (elements within LEFT * 3.5 to RIGHT * 3.5)
 - [ ] No stage direction patterns in bullet text

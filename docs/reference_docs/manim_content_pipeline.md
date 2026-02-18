@@ -95,7 +95,7 @@ Assistants should think of this as the **bridge between "understanding" and "sto
 Scripts are meant to be **spoken**, not read. They should be:
 
 - Clear, concise, and conversational.
-- Divided into segments that can map naturally to scenes or major beats.
+- Divided into segments that can map naturally to scenes or major sections.
 
 ### Inputs
 

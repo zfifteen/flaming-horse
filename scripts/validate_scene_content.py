@@ -25,7 +25,6 @@ def main():
             "tests/test_scene_content.py::test_no_planning_text_in_scenes",
             "tests/test_scene_content.py::test_horizontal_bounds",
             "tests/test_scene_content.py::test_stage_direction_blacklist",
-            "tests/test_scene_content.py::test_no_runtime_passed_to_play_next",
             "tests/test_scene_content.py::test_no_long_waits",
             f"--project_dir={project_dir}",
         ],

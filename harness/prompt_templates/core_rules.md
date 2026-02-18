@@ -61,26 +61,19 @@ The intent of this system is to generate videos from a single prompt without app
 - ✅ **ALWAYS** place graphs/diagrams below the subtitle (e.g., `.move_to(DOWN * 0.6)`)
 - ✅ **ALWAYS** call `safe_layout(...)` when positioning 2+ siblings in a group
 
-### 5. Timing Budget (CRITICAL FOR SYNC)
-- ❌ **NEVER** let timing fractions exceed 1.0
-- ✅ **ALWAYS** calculate timing budget before writing animations
-- ✅ Example: `0.4 + 0.3 + 0.3 = 1.0` ✓ Perfect sync
-- ✅ **ALWAYS** use scaffold timing helpers (`BeatPlan`, `play_next`, `play_text_next`) instead of raw `self.wait(...)`/`run_time` math
-- ❌ **NEVER** write expressions that can evaluate to zero/negative waits (e.g. `a - a`)
-
-### 6. Configuration Lock
+### 5. Configuration Lock
 - ✅ **ALWAYS** use locked config block (frame size, resolution)
 - ✅ **ALWAYS** include Python 3.13 compatibility patch
 - ✅ **ALWAYS** include `safe_position()` helper
 
-### 7. LaTeX Rendering
+### 6. LaTeX Rendering
 - ✅ **ALWAYS** use `MathTex` for mathematical expressions: `MathTex(r"\\frac{GMm}{r^2}")`
 - ✅ **ALWAYS** use `Tex` for plain text with LaTeX formatting only
 - ❌ **NEVER** use `Tex` for equations (causes rendering failures)
 - ❌ **NEVER** pass `weight=` to `MathTex`/`Tex` (unsupported; causes runtime TypeError)
 - ✅ Use `weight=` only with `Text(...)`, or emphasize math with color/scale/animation instead
 
-### 8. Positioning and Overlap Prevention
+### 7. Positioning and Overlap Prevention
 - ❌ **NEVER** place multiple elements at ORIGIN without explicit offsets
 - ❌ **NEVER** use `.next_to()` without immediately calling `safe_position()`
 - ✅ **ALWAYS** call `safe_layout(*elements)` on any VGroup with 2+ sibling elements
@@ -93,7 +86,6 @@ The intent of this system is to generate videos from a single prompt without app
 ### Text Animation Speed
 - ✅ Text must appear quickly and consistently
 - ❌ NEVER let any text animation take longer than 1.5 seconds
-- ✅ Use timing *slots* tied to the voiceover, and fill the remaining time with waits
 - ✅ For staggered reveals, use `LaggedStart(FadeIn(a), FadeIn(b), ..., lag_ratio=0.15)`
 
 ### Content Density Per Scene
@@ -116,6 +108,5 @@ The intent of this system is to generate videos from a single prompt without app
 ### Continuous Motion Standard
 - ❌ NEVER leave long static/black intervals where little changes on screen
 - ✅ Target a visible visual state change every ~1.5-3 seconds
-- ✅ Derive BeatPlan density from narration duration (at least `ceil(duration/3)` beats, clamped to practical range)
 - ✅ For non-math topics, default to explainer-slide cadence: title/subtitle, progressive bullets, evolving diagram, recap/callout
 - ❌ Avoid generic filler visuals (single circle/ellipse/equation) unless explicitly topic-relevant

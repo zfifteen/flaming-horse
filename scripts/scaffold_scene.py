@@ -19,9 +19,6 @@ from flaming_horse.scene_helpers import (
     polished_fade_in,
     adaptive_title_position,
     safe_layout,
-    BeatPlan,
-    play_next,
-    play_text_next,
 )
 from narration_script import SCRIPT
 
@@ -44,12 +41,10 @@ class {class_name}(VoiceoverScene):
         with self.voiceover(text=SCRIPT["{narration_key}"]) as tracker:
             # SLOT_START:scene_body
             pass  # TEMP scaffold stub: Agent replaces entire block from here to SLOT_END
-            # PROMPT: Output ONLY the indented Python code (12 spaces) to replace from SLOT_START to SLOT_END. NO ```python fences, NO full class/imports/config. Start with num_beats = ...
+            # PROMPT: Output ONLY the indented Python code (12 spaces) to replace from SLOT_START to SLOT_END. NO ```python fences, NO full class/imports/config.
             # PROMPT: Use structurally different patterns (e.g., progressive bullets + evolving diagram or timeline/staged reveal).
             # PROMPT: Position bullets at LEFT * 3.5 with set_max_width(6.0); derive content from narration_script.py, not plan.json.
             # PROMPT: Ensure layout contracts: title at UP * 3.8, subtitle next_to(title, DOWN, buff=0.4), visuals below subtitle.
-            # PROMPT: Use BeatPlan with num_beats = max(12, min(30, int(np.ceil(tracker.duration / 1.8)))).
-            # PROMPT: Set max_text_seconds=999 in play_text_next to avoid micro-pauses.
             # SLOT_END:scene_body
 """
 

@@ -50,7 +50,7 @@ Rules:
 
 Agent role for timing:
 
-- Provide beat order and intent only (what appears when), not low-level duration math.
+- Provide animation order and intent only (what appears when), not low-level duration math.
 
 ## Validation Policy
 

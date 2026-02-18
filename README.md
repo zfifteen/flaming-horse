@@ -46,7 +46,7 @@ Advanced/manual flow (optional):
 
 The orchestrator (`scripts/build_video.sh`) runs one phase at a time and advances deterministically:
 
-`plan -> review -> narration -> build_scenes -> scene_qc -> precache_voiceovers -> final_render -> assemble -> complete`
+`plan -> review -> narration -> training -> build_scenes -> scene_qc -> precache_voiceovers -> final_render -> assemble -> complete`
 
 Notes:
 - Projects created by `new_project.sh` start at `plan`.

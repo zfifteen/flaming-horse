@@ -39,7 +39,7 @@ Please create the **Incremental Manim Video Builder** project scaffold on my fil
 
 Full bash script implementing:
 
-- State machine loop (init → plan → review → narration → build_scenes → final_render → assemble → complete)
+- State machine loop (init → plan → review → narration → training → build_scenes → final_render → assemble → complete)
 - Lock file mechanism (`.build.lock` with PID)
 - JSON state file read/write (`project_state.json`)
 - Agent invocation placeholder (with clear TODO showing where to add my actual agent CLI call)

@@ -32,7 +32,14 @@ def main() -> int:
     parser.add_argument(
         "--phase",
         required=True,
-        choices=["plan", "narration", "build_scenes", "scene_qc", "scene_repair"],
+        choices=[
+            "plan",
+            "narration",
+            "training",
+            "build_scenes",
+            "scene_qc",
+            "scene_repair",
+        ],
         help="Phase to execute",
     )
     parser.add_argument(

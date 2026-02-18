@@ -9,8 +9,16 @@ ENV_FILE="${REPO_ROOT}/.env"
 # phase when rendering from project directories.
 export PYTHONPATH="${REPO_ROOT}:${SCRIPT_DIR}:${PYTHONPATH:-}"
 
-# Python interpreter - use environment variable or default to $PYTHON_BIN
-PYTHON_BIN="${PYTHON:-${PYTHON3:-$PYTHON_BIN}}"
+# Python interpreter - use environment variable or default to python3.13
+PYTHON_BIN="${PYTHON:-${PYTHON3:-python3.13}}"
+
+# Enforce Python 3.13 requirement
+PYTHON_VERSION=$("$PYTHON_BIN" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null || echo "none")
+if [[ "$PYTHON_VERSION" != "3.13" ]]; then
+  echo "❌ Python 3.13 is required. Found: $PYTHON_VERSION" >&2
+  echo "   Use: PYTHON=/usr/local/bin/python3.13 ./scripts/build_video.sh ..." >&2
+  exit 1
+fi
 
 if [[ -f "${ENV_FILE}" ]]; then
   # shellcheck disable=SC1090
@@ -218,6 +226,7 @@ try:
         'plan',
         'review',
         'narration',
+        'training',
         'build_scenes',
         'scene_qc',
         'precache_voiceovers',
@@ -264,7 +273,7 @@ apply_state_phase() {
 is_retryable_phase() {
   local phase="$1"
   case "$phase" in
-    init|plan|narration|build_scenes|scene_qc|final_render|assemble)
+    init|plan|narration|training|build_scenes|scene_qc|final_render|assemble)
       return 0
       ;;
     *)
@@ -1363,6 +1372,23 @@ PY
   apply_state_phase "narration" || true
 }
 
+handle_training() {
+  # Check if training phase should be skipped
+  if [[ "${SKIP_TRAINING_PHASE:-0}" == "1" ]]; then
+    echo "⏭️  Skipping training phase (SKIP_TRAINING_PHASE=1)" | tee -a "$LOG_FILE"
+    apply_state_phase "training" || true
+    return 0
+  fi
+
+  echo "📚 Running Manim training phase..." | tee -a "$LOG_FILE"
+  invoke_agent "training" "$(get_run_count)"
+
+  normalize_state_json || true
+
+  # Training phase always succeeds - just advance state
+  apply_state_phase "training" || true
+}
+
 handle_precache_voiceovers() {
   echo "🎙️  Precaching voiceovers (backend: ${FLAMING_HORSE_TTS_BACKEND:-qwen})..." | tee -a "$LOG_FILE"
   cd "$PROJECT_DIR"
@@ -2271,6 +2297,7 @@ run_phase_once() {
     plan) handle_plan ;;
     review) handle_review ;;
     narration) handle_narration ;;
+    training) handle_training ;;
     build_scenes) handle_build_scenes ;;
     scene_qc) handle_scene_qc ;;
     precache_voiceovers) handle_precache_voiceovers ;;

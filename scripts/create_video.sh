@@ -43,6 +43,15 @@ if [[ -f "${ENV_FILE}" ]]; then
   source "${ENV_FILE}"
 fi
 
+# Enforce Python 3.13 requirement
+PYTHON_BIN="${PYTHON:-python3.13}"
+PYTHON_VERSION=$("$PYTHON_BIN" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null || echo "none")
+if [[ "$PYTHON_VERSION" != "3.13" ]]; then
+  echo "❌ Python 3.13 is required. Found: $PYTHON_VERSION" >&2
+  echo "   Use: PYTHON=/usr/local/bin/python3.13 ./scripts/create_video.sh ..." >&2
+  exit 1
+fi
+
 PROJECT_NAME="${1:-}"
 if [[ -z "${PROJECT_NAME}" ]]; then
   usage >&2
@@ -135,6 +144,11 @@ if [[ $RESUME_MODE -eq 1 ]]; then
 else
   "${SCRIPT_DIR}/new_project.sh" "${PROJECT_NAME}" --topic "${TOPIC}" --projects-dir "${PROJECTS_DIR}"
 fi
+
+echo ""
+echo "═══════════════════════════════════════════"
+echo "Python version: $("${PYTHON:-python3.13}" -c 'import sys; print(sys.version)')"
+echo "═══════════════════════════════════════════"
 
 echo ""
 echo "═══════════════════════════════════════════"

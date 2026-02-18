@@ -64,7 +64,7 @@ For a 30-second scene at 160 words/minute:
 ## Think Step-by-Step
 
 1. Review the plan to understand the full narrative arc
-2. For each scene, identify the key points from narrative_beats
+2. For each scene, identify the key points to convey
 3. Write narration that covers those points naturally
 4. Check word count against target duration
 5. Ensure smooth transitions between scenes

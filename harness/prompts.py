@@ -170,7 +170,7 @@ Please write the complete narration script following the Python format specified
 
 Create engaging, conversational narration for each scene that:
 1. Matches the planned duration
-2. Covers the narrative beats
+2. Covers the key points
 3. Flows naturally from scene to scene
 4. Maintains audience engagement
 
@@ -329,11 +329,10 @@ Hard requirements:
 4. Keep semantics strictly scene-specific: use only this scene's plan details + narration text.
 5. Do not introduce unrelated branding/topics/project names unless they appear in this scene's provided inputs.
 6. Use class name `{scene_class_name}` and output code for file `{scene_file_name}` only.
-7. Implement visuals tied to this scene's `narrative_beats` and `visual_ideas`.
-8. Follow positioning rules (title at `UP * 3.8`, `safe_position` after `.next_to`, etc.).
-9. Keep timing budget ≤ 1.0 and keep text animations ≤ 1.5s.
-10. Forbidden placeholder strings/tokens: `{{{{TITLE}}}}`, `{{{{SUBTITLE}}}}`, `{{{{KEY_POINT_1}}}}`, `{{{{KEY_POINT_2}}}}`, `{{{{KEY_POINT_3}}}}` (and any `{{{{...}}}}` left in scaffold strings).
-11. Do not reuse scaffold demo animations (default box/shape demo) unless explicitly required by this scene's plan.
+7. Follow positioning rules (title at `UP * 3.8`, `safe_position` after `.next_to`, etc.).
+8. Use standard `self.play()` for animations.
+9. Forbidden placeholder strings/tokens: `{{{{TITLE}}}}`, `{{{{SUBTITLE}}}}`, `{{{{KEY_POINT_1}}}}`, `{{{{KEY_POINT_2}}}}`, `{{{{KEY_POINT_3}}}}` (and any `{{{{...}}}}` left in scaffold strings).
+10. Do not reuse scaffold demo animations (default box/shape demo) unless explicitly required by this scene's plan.
 
 Output ONLY the scene body code wrapped in <scene_body> XML tags as shown in your system instructions. Do NOT include imports, config, class definition, or helper functions - those are already in the scaffold.
 """
@@ -514,6 +513,45 @@ Output ONLY the corrected Python code. No explanations.
     return system_prompt, user_prompt
 
 
+def compose_training_prompt(
+    state: Dict[str, Any],
+    project_dir: Path,
+) -> Tuple[str, str]:
+    """
+    Compose prompts for the training phase.
+
+    This phase primes the LLM with Manim documentation before scene generation.
+    The response is not used - we just want the model to "read" the docs.
+
+    Returns:
+        (system_prompt, user_prompt)
+    """
+    # Load the Manim training documentation
+    manim_training = read_file(PROMPT_TEMPLATES_DIR / "manim_training.md")
+
+    system_prompt = f"""# Flaming Horse Video Production Agent - Training Phase
+
+You are about to generate Manim animations. Before you begin, study the official 
+Manim Community Edition documentation below to ensure you use the correct APIs.
+
+{manim_training}
+
+---
+
+## YOUR RESPONSE
+
+Your response to this prompt is not important. You may simply reply with "Ready" 
+when you have finished studying the documentation.
+
+The actual scene generation will follow in the next phase.
+"""
+
+    user_prompt = """Please review the Manim documentation provided above. 
+When you are ready to proceed with scene generation, reply with "Ready"."""
+
+    return system_prompt, user_prompt
+
+
 def compose_prompt(
     phase: str,
     state: Dict[str, Any],
@@ -526,7 +564,7 @@ def compose_prompt(
     Compose phase-specific prompts.
 
     Args:
-        phase: Phase name (plan, narration, build_scenes, scene_qc, scene_repair)
+        phase: Phase name (plan, narration, training, build_scenes, scene_qc, scene_repair)
         state: Project state dict
         topic: Topic for plan phase
         retry_context: Error context for retry attempts
@@ -543,6 +581,8 @@ def compose_prompt(
         return compose_plan_prompt(state, topic)
     elif phase == "narration":
         return compose_narration_prompt(state, project_dir)
+    elif phase == "training":
+        return compose_training_prompt(state, project_dir)
     elif phase == "build_scenes":
         return compose_build_scenes_prompt(state, project_dir, retry_context)
     elif phase == "scene_qc":
