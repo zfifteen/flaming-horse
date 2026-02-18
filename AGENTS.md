@@ -117,7 +117,7 @@ Consult these files for technical details:
 - **docs/reference_docs/manim_config_guide.md** - Positioning rules, safe zones, sizing guidelines
 - **docs/reference_docs/manim_voiceover.md** - VoiceoverScene patterns for local cached Qwen integration
 - **docs/reference_docs/manim_content_pipeline.md** - Overall workflow concepts
-- **docs/DEVELOPMENT_GUIDELINES.md** - Separation of concerns (agent creativity vs deterministic scripts), one-change-per-PR policy
+- **docs/policies/DEVELOPMENT_GUIDELINES.md** - Separation of concerns (agent creativity vs deterministic scripts), one-change-per-PR policy
 - **docs/agent_improvements.md** - Plan for v2.2 updates
 - Modular phase docs in docs/reference_docs/ (e.g., phase_plan.md)
 

@@ -37,7 +37,7 @@ Advanced/manual flow (optional):
 
 ## First-Run Checklist
 
-1. Install dependencies (system + Python): `docs/INSTALLATION.md`
+1. Install dependencies (system + Python): `docs/guides/INSTALLATION.md`
 2. Verify environment: `./scripts/check_dependencies.sh`
 3. Confirm `.env` contains required API settings for harness execution
 4. Run `./scripts/create_video.sh <project_name> --topic "..."`
@@ -61,7 +61,7 @@ Flaming Horse uses cached local Qwen voice clone audio only.
 - Required reference assets: `assets/voice_ref/ref.wav` and `assets/voice_ref/ref.txt`
 - No fallback TTS services
 
-See `docs/VOICE_POLICY.md` for full policy.
+See `docs/policies/VOICE_POLICY.md` for full policy.
 
 ## Installation and Environment
 
@@ -73,7 +73,7 @@ See `docs/VOICE_POLICY.md` for full policy.
 ./scripts/check_dependencies.sh
 ```
 
-Detailed setup: `docs/INSTALLATION.md`
+Detailed setup: `docs/guides/INSTALLATION.md`
 
 ## Configuration
 
