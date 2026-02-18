@@ -148,9 +148,6 @@ def compose_narration_prompt(
         "system.md",
         {
             "core_rules": read_file(PROMPTS_DIR / "_shared" / "core_rules.md"),
-            "narration_system": read_file(
-                PROMPTS_DIR / "02_narration" / "narration_system.md"
-            ),
             "pipeline_doc": read_file(TEMPLATES_DIR / "manim_content_pipeline.md"),
         },
     )
