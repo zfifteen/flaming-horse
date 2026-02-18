@@ -1,13 +1,32 @@
-You are creating a video plan for the following topic:
+Create a video plan for this topic:
+{{topic}}
 
-**Topic**: {{topic}}
+Return one JSON object with:
+- title (string)
+- description (string)
+- target_duration_seconds (integer)
+- scenes (array)
 
-Please create a detailed video plan following the JSON format specified in your instructions.
+Each scene must include:
+- id (string, pattern: scene_XX_slug)
+- title (string)
+- narration_key (string; usually same as id)
+- description (string)
+- estimated_duration_seconds (integer)
+- visual_ideas (array of strings)
 
-Think about:
-1. What are the key concepts that need to be explained?
-2. What is the logical sequence for explaining them?
-3. What visual elements will make each concept clear?
-4. How can we build understanding progressively?
+Planning constraints:
+- 8-12 scenes
+- 20-45 seconds per scene
+- total target duration 240-480 seconds
+- no empty fields
+- visual ideas must be concrete and topic-specific
 
-Output ONLY the JSON plan. Begin your response with the opening brace.
+For non-mathematical topics, default to explainer-slide planning:
+- progressive bullet reveals
+- evolving right-side visual sequence
+- no generic geometric filler unless directly relevant
+- visible progression every ~1.5-3 seconds
+
+Use the exact key name narration_key (not narrative_key).
+Output only the JSON object. No markdown, no code fences, no commentary.
