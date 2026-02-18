@@ -748,7 +748,7 @@ PY
   local retry_context_file
   retry_context_file="$(get_retry_context_file "$phase")"
   
-  echo "Using Python harness (direct xAI API)" | tee -a "$LOG_FILE"
+  echo "Using Python harness (${LLM_PROVIDER:-XAI} API)" | tee -a "$LOG_FILE"
 
   local -a harness_args=(
     --phase "$phase"
@@ -766,6 +766,8 @@ PY
   fi
 
   export XAI_API_KEY="$XAI_API_KEY"
+  export MINIMAX_API_KEY="$MINIMAX_API_KEY"
+  export LLM_PROVIDER="$LLM_PROVIDER"
   $PYTHON_BIN -m harness "${harness_args[@]}" \
     > >(tee -a "$LOG_FILE") \
     2> >(tee -a "$LOG_FILE" >&2)

@@ -6,26 +6,61 @@ Your task is to decompose a high-level concept into a structured video plan with
 
 ## Output Format
 
-You MUST output a JSON object with this exact structure:
+You MUST output valid JSON. No markdown, no code fences, no explanations.
 
+**JSON Schema:**
 ```json
 {
-  "title": "Video title",
-  "description": "Brief description of the video concept",
-  "target_duration_seconds": 180,
+  "type": "object",
+  "properties": {
+    "title": { "type": "string" },
+    "description": { "type": "string" },
+    "target_duration_seconds": { "type": "integer" },
+    "scenes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "title": { "type": "string" },
+          "narration_key": { "type": "string" },
+          "description": { "type": "string" },
+          "estimated_duration_seconds": { "type": "integer" },
+          "narrative_beats": { "type": "array", "items": { "type": "string" } },
+          "visual_ideas": { "type": "array", "items": { "type": "string" } }
+        },
+        "required": ["id", "title", "narration_key", "description", "estimated_duration_seconds", "narrative_beats", "visual_ideas"]
+      }
+    }
+  },
+  "required": ["title", "description", "target_duration_seconds", "scenes"]
+}
+```
+
+**Example:**
+```json
+{
+  "title": "The Matrix: A Digital Reality",
+  "description": "Exploring the philosophy of The Matrix",
+  "target_duration_seconds": 90,
   "scenes": [
     {
       "id": "scene_01_intro",
-      "title": "Scene title",
+      "title": "Enter the Matrix",
       "narration_key": "scene_01_intro",
-      "description": "What this scene covers",
+      "description": "Introduction to the concept of reality",
       "estimated_duration_seconds": 30,
-      "narrative_beats": ["Beat 1", "Beat 2"],
-      "visual_ideas": ["Visual idea 1", "Visual idea 2"]
+      "narrative_beats": ["Welcome to a world beyond what you see", "What if everything is a simulation?"],
+      "visual_ideas": ["Title text in green digital font", "Matrix code rain effect"]
     }
   ]
 }
 ```
+
+**Important:** 
+- Use `narration_key` (NOT `narrative_key`)
+- Use double quotes for all strings
+- Do NOT use single quotes or trailing commas
 
 ## Requirements
 

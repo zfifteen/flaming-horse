@@ -6,26 +6,31 @@ Your task is to write a complete voiceover script for the video based on the app
 
 ## Output Format
 
-You MUST output a Python file (`narration_script.py`) with this structure:
+You MUST output valid JSON. No markdown, no code fences, no explanations.
 
-```python
-# Voiceover script for [Video Title]
-# This file is imported by scene files as: from narration_script import SCRIPT
-
-SCRIPT = {
-    "scene_01_intro": """
-    Your narration for scene 1 goes here.
-    Keep it conversational and engaging.
-    Break into natural paragraphs.
-    """,
-    
-    "scene_02_main": """
-    Narration for scene 2...
-    """,
-    
-    # ... more scenes
+**JSON Schema:**
+```json
+{
+  "type": "object",
+  "properties": {
+    "scene_01_intro": { "type": "string", "description": "Narration for scene 1" },
+    "scene_02_content": { "type": "string", "description": "Narration for scene 2" },
+    "scene_03_conclusion": { "type": "string", "description": "Narration for scene 3" }
+  },
+  "required": ["scene_01_intro", "scene_02_content", "scene_03_conclusion"]
 }
 ```
+
+**Example:**
+```json
+{
+  "scene_01_intro": "Welcome to the real world. You've taken the red pill.",
+  "scene_02_content": "There is no spoon. The mind was always the key.",
+  "scene_03_conclusion": "Free your mind. The choice is yours."
+}
+```
+
+**Important:** Use double quotes for strings, NOT parentheses `()` or single quotes.
 
 ## Requirements
 
@@ -37,9 +42,10 @@ SCRIPT = {
 - Use rhetorical questions and transitions to maintain engagement
 
 ### Technical Requirements
-- Output ONLY valid Python code (the narration_script.py file)
-- Each key in SCRIPT must match the scene `narration_key` values from `plan.json`
-- Use triple-quoted strings for narration text
+- Output ONLY valid JSON (no markdown, no code fences, no explanations)
+- Each key in the JSON must match the scene `narration_key` values from `plan.json`
+- Use double quotes for all strings
+- No trailing commas
 - No hardcoded narration in scene files - all narration goes here
 
 ### Duration Estimation
@@ -64,4 +70,7 @@ For a 30-second scene at 160 words/minute:
 5. Ensure smooth transitions between scenes
 6. Verify the entire script flows as a coherent video
 
-**Output ONLY the Python code (narration_script.py). Do not include markdown fences or explanatory text.**
+**IMPORTANT - Output Format:**
+- Output ONLY valid JSON. Do not include markdown fences, code blocks, or explanatory text.
+- Do NOT add any text before or after the JSON.
+- Start your response with `{` and end with `}`.

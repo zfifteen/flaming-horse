@@ -533,6 +533,33 @@ Always include these functions in scene files for polished aesthetics (see docs/
 - 3D Guidelines: Prefer for spatial topics; limit to 1-2 moving objects. Use `self.set_camera_orientation(phi=75 * DEGREES, theta=-45 * DEGREES)` in a `ThreeDScene`.
 - Text Rules: Cap `Write()` at 1.5s; for staggered reveals use `LaggedStart(*[FadeIn(b) for b in bullets], lag_ratio=0.15)`.
 
+### EXTERNAL ASSETS - FORBIDDEN (CRITICAL)
+You MUST use ONLY programmatic Manim shapes. NEVER reference external files:
+- ❌ `SVGMobject("filename.svg")` - FORBIDDEN
+- ❌ `ImageMobject("filename.png")` - FORBIDDEN  
+- ❌ `import_image("filename.jpg")` - FORBIDDEN
+
+**SAFE ALTERNATIVES** - Use these Manim primitives instead:
+- Circle, Rectangle, RoundedRectangle, Square, Polygon
+- Line, Arrow, DashedLine
+- Dot, VGroup
+- Text, MathTex, Tex
+- Transform, FadeIn, FadeOut, Create
+
+For any visual element, create it with Manim primitives. Do not reference .svg, .png, .jpg files.
+
+### LaTeX and Code Text (IMPORTANT)
+For code-like or typewriter text:
+- ✅ Use `Text("your code here", font="Courier New")` - RECOMMENDED
+- ❌ Do NOT use `Tex(r"\texttt{...}")` - requires textcomp package not in default Manim template
+- ❌ Do NOT use `Tex(r"\begin{verbatim}...")` - verbatim environment not supported
+
+For mathematical expressions:
+- ✅ Use `MathTex(r"\\frac{a}{b}")` - for equations
+- ✅ Use `Tex(r"\alpha + \beta")` - for simple LaTeX (Greek letters, etc.)
+
+Do NOT use `\texttt`, `\verb`, or `\begin{verbatim}` in Tex() - use Text() with font="Courier New" instead.
+
 ---
 
 ## Pre-Render Validation Checklist
@@ -553,6 +580,8 @@ Before rendering any scene, programmatically verify:
 - [ ] Charts/graphs have labels and legends
 - [ ] Mathematical content uses `MathTex`, not `Tex`
 - [ ] Position arrays are 3D: `np.array([x, y, 0])`
+- [ ] NO external assets: Scene file does NOT contain SVGMobject, ImageMobject, or references to .svg/.png/.jpg files
+- [ ] Code text uses Text(font="Courier New"), NOT Tex(r"\texttt{...}")
 
 ### Aesthetics Validation (New)
 - [ ] Colors use harmonious palette (no more than 4 variants per scene)

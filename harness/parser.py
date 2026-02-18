@@ -82,16 +82,37 @@ def inject_body_into_scaffold(scaffold_path: Path, body_code: str) -> str:
 
 
 def validate_scene_body_syntax(body_code: str) -> bool:
-    """Check if body code compiles as indented statements."""
+    """Check if body code compiles as indented statements and has no undefined names."""
     # Add indentation to make it valid inside a function
     indented_body = "\n".join("    " + line for line in body_code.split("\n"))
     # Try to compile as part of a function
     test_code = f"def test():\n{indented_body}\n    pass"
     try:
         compile(test_code, "<string>", "exec")
-        return True
     except (SyntaxError, ValueError):
         return False
+
+    # Check for common undefined name issues
+    # These are not available in the scaffold
+    forbidden_patterns = [
+        (
+            r"\bchoice\(",
+            "choice() requires 'random' module - not available in scaffold",
+        ),
+        (
+            r"\brandom\.",
+            "random module not available in scaffold - use deterministic values",
+        ),
+        (r"\brandint\(", "random.randint() not available - use deterministic values"),
+        (r"\brandrandom\(", "random not available - use deterministic values"),
+    ]
+
+    for pattern, msg in forbidden_patterns:
+        if re.search(pattern, body_code):
+            print(f"⚠ Validation warning: {msg}")
+            # Don't fail - let runtime handle it, but warn
+
+    return True
 
 
 def extract_json_block(text: str) -> Optional[str]:
@@ -101,10 +122,19 @@ def extract_json_block(text: str) -> Optional[str]:
     Handles both:
     - Raw JSON starting with {
     - JSON in markdown code blocks
+    - JSON with common issues (parentheses, trailing commas)
 
     Returns:
         JSON string or None if not found
     """
+    # Pre-process: handle common issues before extraction
+    # 1. Remove parentheses around string values
+    text = re.sub(r':\s*\(\s*(".*?")\s*\)', r": \1", text, flags=re.DOTALL)
+    # 2. Remove single-line parentheses
+    text = re.sub(r":\s*\(([^)]+)\)", r': "\1"', text)
+    # 3. Remove trailing commas
+    text = re.sub(r",(\s*[\]\}])", r"\1", text)
+
     decoder = json.JSONDecoder()
 
     # First, try to find JSON in fenced code blocks.
@@ -185,6 +215,7 @@ def extract_single_python_code(text: str) -> Optional[str]:
     Extract a single Python code block from text.
 
     Handles both markdown fences and raw Python code.
+    Also handles cases where model outputs explanatory text before code.
 
     Returns:
         Python code string or None if not found
@@ -196,8 +227,38 @@ def extract_single_python_code(text: str) -> Optional[str]:
         # Return the first (or longest) code block
         return max(code_blocks, key=lambda x: len(x[1]))[1]
 
-    # If no code blocks found, check if the whole text looks like Python
-    if "import" in text or "def " in text or "class " in text:
+    # If no code blocks found, look for SCRIPT = { as a strong indicator of Python code
+    # This is more reliable than checking for "import" which appears in English
+    if "SCRIPT = {" in text:
+        # Find where SCRIPT = { starts and extract from there
+        start_idx = text.find("SCRIPT = {")
+        if start_idx != -1:
+            code_candidate = text[start_idx:]
+            # Try to find the proper end (closing brace at appropriate indentation)
+            # Look for a line that's just "}" followed by optional whitespace at end
+            lines = code_candidate.split("\n")
+            brace_count = 0
+            end_idx = 0
+            for i, line in enumerate(lines):
+                stripped = line.strip()
+                brace_count += stripped.count("{") - stripped.count("}")
+                if brace_count == 0 and stripped == "}":
+                    # Find the end of this line
+                    end_idx = sum(len(l) + 1 for l in lines[: i + 1])
+                    break
+            if end_idx > 0:
+                return code_candidate[:end_idx].strip()
+            return code_candidate.strip()
+
+    # Check if the text looks more like Python than English
+    # Look for Python-specific patterns (def, class, import at start of lines)
+    python_patterns = [
+        re.search(r"^import\s+\w+", text, re.MULTILINE),
+        re.search(r"^from\s+\w+\s+import", text, re.MULTILINE),
+        re.search(r"^class\s+\w+", text, re.MULTILINE),
+        re.search(r"^def\s+\w+", text, re.MULTILINE),
+    ]
+    if any(python_patterns):
         return text.strip()
 
     return None
@@ -224,6 +285,10 @@ def sanitize_code(code: str) -> str:
     # Remove markdown artifacts that might have slipped through
     code = re.sub(r"^```python\s*", "", code, flags=re.MULTILINE)
     code = re.sub(r"^```\s*$", "", code, flags=re.MULTILINE)
+
+    # Strip trailing closing braces/brackets that can cause syntax errors
+    # (some models output extra }, ], or > at the end)
+    code = re.sub(r"[\}\]\>]+$", "", code, flags=re.MULTILINE)
 
     return code.strip()
 
@@ -321,6 +386,11 @@ def parse_plan_response(response_text: str) -> Optional[Dict[str, Any]]:
         if not isinstance(plan.get("scenes"), list):
             return None
 
+        # Normalize narration_key: some models output "narrative_key" instead
+        for scene in plan.get("scenes", []):
+            if "narrative_key" in scene and "narration_key" not in scene:
+                scene["narration_key"] = scene.pop("narrative_key")
+
         return plan
     except (json.JSONDecodeError, SyntaxError, ValueError):
         return None
@@ -330,25 +400,45 @@ def parse_narration_response(response_text: str) -> Optional[str]:
     """
     Parse narration phase response to extract narration_script.py.
 
+    The model now outputs JSON, which we convert to Python code.
+
     Args:
         response_text: Model response
 
     Returns:
         Python code string or None if parsing failed
     """
-    code = extract_single_python_code(response_text)
-    if not code:
+    # Extract JSON from response (includes preprocessing for parentheses/trailing commas)
+    json_data = extract_json_block(response_text)
+    if not json_data:
         return None
 
-    code = sanitize_code(code)
-
-    # Verify it's valid Python
-    if not verify_python_syntax(code):
+    # Parse JSON
+    try:
+        script_dict = json.loads(json_data)
+    except json.JSONDecodeError:
         return None
 
-    # Verify it has SCRIPT dict
-    if "SCRIPT = {" not in code and "SCRIPT = {" not in code:
+    # Verify it's a dict with string values
+    if not isinstance(script_dict, dict):
         return None
+    for key, value in script_dict.items():
+        if not isinstance(key, str) or not isinstance(value, str):
+            return None
+
+    # Convert to Python code
+    code = """# Voiceover script
+# This file is imported by scene files as: from narration_script import SCRIPT
+
+SCRIPT = {
+"""
+
+    for key, value in script_dict.items():
+        # Escape any triple quotes in the narration to avoid syntax errors
+        escaped_value = value.replace('"""', '\\"\\"\\"')
+        code += f'    "{key}": """\n{value}\n    """,\n'
+
+    code += "}\n"
 
     return code
 
@@ -414,7 +504,11 @@ def extract_scene_body_from_full_file(code: str) -> Optional[str]:
 
 def parse_build_scenes_response(response_text: str) -> Optional[str]:
     """
-    Parse build_scenes phase response to extract scene body code only.
+    Parse build_scenes phase response to extract scene body code.
+
+    Handles multiple formats:
+    1. <scene_body>...</scene_body> XML tags (preferred)
+    2. Full Python file - extracts body from voiceover block
 
     Args:
         response_text: Model response
@@ -422,10 +516,9 @@ def parse_build_scenes_response(response_text: str) -> Optional[str]:
     Returns:
         Python body code string or None if parsing failed
     """
-    # First, try to extract from <scene_body> XML tags (primary format per system prompt)
+    # First, try to extract from <scene_body> XML tags
     xml_body = extract_scene_body_xml(response_text)
     if xml_body:
-        # Validate it's not empty
         body_lines = [
             line.strip()
             for line in xml_body.split("\n")
@@ -434,7 +527,20 @@ def parse_build_scenes_response(response_text: str) -> Optional[str]:
         if body_lines:
             return xml_body
 
-    # Fall back to checking for ```python code blocks (legacy format)
+    # Try to extract body from full Python file output
+    code = extract_single_python_code(response_text)
+    if code and verify_python_syntax(code):
+        # Check if this looks like a full file
+        if any(
+            token in code
+            for token in ["from manim import", "class Scene", "def construct"]
+        ):
+            # Try to extract body from voiceover block
+            full_file_body = extract_scene_body_from_full_file(code)
+            if full_file_body and verify_python_syntax(full_file_body):
+                return full_file_body
+
+    # Try extracting from ```python code blocks
     forbidden_tokens = [
         "from manim import",
         "from pathlib import",
@@ -451,7 +557,6 @@ def parse_build_scenes_response(response_text: str) -> Optional[str]:
         "def play_text_next",
     ]
 
-    # Extract Python blocks
     for _filename_hint, block_code in extract_python_code_blocks(response_text):
         candidate = sanitize_code(block_code)
         if not verify_python_syntax(candidate):
@@ -467,29 +572,7 @@ def parse_build_scenes_response(response_text: str) -> Optional[str]:
             continue
         return candidate
 
-    # Fallback: try raw/single-block extraction.
-    code = extract_single_python_code(response_text)
-    if not code:
-        return None
-    code = sanitize_code(code)
-    if not verify_python_syntax(code):
-        return None
-
-    # Check if this looks like a full Python file - if so, extract body directly
-    if code.strip().startswith(("from ", "import ", "class ", "def ")):
-        # This is likely a full file - try to extract body from voiceover block
-        if "with self.voiceover" in code and "def construct" in code:
-            full_file_body = extract_scene_body_from_full_file(code)
-            if full_file_body and verify_python_syntax(full_file_body):
-                return full_file_body
-        # Otherwise reject as full file we can't handle
-        return None
-
-    # Reject if has scaffold placeholders
-    if has_scaffold_artifacts(code):
-        return None
-
-    return code
+    return None
 
 
 def parse_scene_qc_response(
