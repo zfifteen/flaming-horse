@@ -33,5 +33,5 @@ Phase values:
 
 More details:
   README.md
-  docs/INSTALLATION.md
+  docs/guides/INSTALLATION.md
 EOF
