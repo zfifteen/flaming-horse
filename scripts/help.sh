@@ -9,11 +9,14 @@ Flaming Horse CLI Help
 ======================
 
 Canonical user entrypoint:
-  ./scripts/create_video.sh <project_name> --topic "<video topic>"
+  ./scripts/create_video.sh <project_name> --topic "<video topic>" [--phase <target_phase>]
 
 Common commands:
   ./scripts/create_video.sh <project_name> --topic "<video topic>"
     Create or resume a project, prepare voice service, and run the full pipeline.
+
+  ./scripts/create_video.sh <project_name> --topic "<video topic>" --phase training
+    Create/resume and stop after the requested phase is completed.
 
   ./scripts/check_dependencies.sh
     Validate environment prerequisites before running builds.
@@ -24,6 +27,9 @@ Advanced/manual commands:
 
   ./scripts/build_video.sh projects/<project_name>
     Run/resume phase orchestration on an existing project.
+
+  ./scripts/build_video.sh projects/<project_name> --phase training
+    Run/resume and stop after the requested phase is completed.
 
   ./scripts/reset_phase.sh projects/<project_name> <phase>
     Manually reset project phase.

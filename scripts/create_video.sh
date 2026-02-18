@@ -9,11 +9,11 @@ export TOKENIZERS_PARALLELISM=false
 usage() {
   cat <<'EOF'
 Usage:
-  ./scripts/create_video.sh <project_name> [--topic "..."] [--projects-dir <dir>] [--build-args "..."]
+  ./scripts/create_video.sh <project_name> [--topic "..."] [--phase <target_phase>] [--projects-dir <dir>] [--build-args "..."]
 
 Examples:
   ./scripts/create_video.sh semi_prime_factorization --topic "Create a video about factoring semi primes"
-  ./scripts/create_video.sh my-video --topic "Explain hash functions" --build-args "--topic 'ignored'"
+  ./scripts/create_video.sh my-video --topic "Explain hash functions" --phase training
 
 Notes:
   - Canonical entrypoint for users: this script.
@@ -21,12 +21,8 @@ Notes:
       1) scripts/new_project.sh
       2) scripts/build_video.sh
   - For reliability, it also warms up the voice service once before building.
+  - --phase runs/resumes the pipeline and stops after that phase is completed.
   - --build-args is parsed like a shell command line (quotes supported).
-  - IMPORTANT: --build-args "--max-runs N" limits build loop iterations (phases),
-    not "full video runs". For a brand-new project:
-      --max-runs 1 usually executes only the plan phase.
-      --max-runs 2 usually executes plan + review.
-      Higher values are needed for narration/render/assemble.
   - You can also provide the topic via VIDEO_TOPIC.
   - PROJECTS_BASE_DIR sets the default for --projects-dir when omitted.
   - If the project already exists (has project_state.json), this script resumes it and does NOT reinitialize state.
@@ -64,6 +60,7 @@ fi
 shift
 
 TOPIC=""
+TARGET_PHASE=""
 PROJECTS_DIR="${PROJECTS_BASE_DIR:-./projects}"
 BUILD_ARGS_STR=""
 INITIAL_PWD="$(pwd)"
@@ -74,6 +71,15 @@ while [[ ${#} -gt 0 ]]; do
       TOPIC="${2:-}"
       if [[ -z "${TOPIC}" ]]; then
         echo "❌ Missing value for --topic" >&2
+        usage >&2
+        exit 1
+      fi
+      shift 2
+      ;;
+    --phase)
+      TARGET_PHASE="${2:-}"
+      if [[ -z "${TARGET_PHASE}" ]]; then
+        echo "❌ Missing value for --phase" >&2
         usage >&2
         exit 1
       fi
@@ -173,6 +179,10 @@ if args:
     sys.stdout.write("\0".join(args) + "\0")
 PY
 )
+fi
+
+if [[ -n "${TARGET_PHASE}" ]]; then
+  BUILD_ARGS=(--phase "${TARGET_PHASE}" "${BUILD_ARGS[@]}")
 fi
 
 exec "${SCRIPT_DIR}/build_video.sh" "${PROJECT_DIR}" "${BUILD_ARGS[@]}"
