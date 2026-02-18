@@ -86,5 +86,5 @@ harness/
 ## Documentation
 
 - Technical: `harness/README.md`
-- Migration: `docs/HARNESS_MIGRATION_GUIDE.md`
-- Summary: `docs/HARNESS_IMPLEMENTATION_SUMMARY.md`
+- Migration: `docs/harness/HARNESS_MIGRATION_GUIDE.md`
+- Summary: `docs/harness/HARNESS_IMPLEMENTATION_SUMMARY.md`

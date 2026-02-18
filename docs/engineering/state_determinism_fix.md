@@ -164,4 +164,4 @@ Run a short topic that generates 2-3 scenes and completes.
 - Added: `scripts/update_project_state.py`
 - Added: `scripts/state_schema.json`
 - Updated: `scripts/build_video.sh`
-- Added: `docs/state_determinism_fix.md`
+- Added: `docs/engineering/state_determinism_fix.md`

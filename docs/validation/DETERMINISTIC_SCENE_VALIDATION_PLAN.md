@@ -149,4 +149,4 @@ Autofix must:
 - [ ] Integrate into `build_scenes`
 - [ ] Integrate into `final_render` preflight
 - [ ] Add optional `--autofix-deterministic` pathway
-- [ ] Document usage in `README.md` and `docs/scaffold_instructions.md`
+- [ ] Document usage in `README.md` and `docs/engineering/scaffold_instructions.md`
