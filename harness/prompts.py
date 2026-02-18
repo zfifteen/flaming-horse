@@ -380,7 +380,7 @@ def compose_training_prompt(
     system_prompt = load_prompt_template(
         "training",
         "system.md",
-        {"manim_training": read_file(PROMPTS_DIR / "03_training" / "manim_training.md")},
+        {},
     )
     user_prompt = load_prompt_template("training", "user.md", {})
     return system_prompt, user_prompt

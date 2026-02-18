@@ -5,5 +5,5 @@ tasks:
     system: system.md
     user: user.md
 required_placeholders:
-  system: [manim_training]
+  system: []
   user: []
