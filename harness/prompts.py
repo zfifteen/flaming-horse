@@ -271,6 +271,18 @@ def compose_build_scenes_prompt(
             f"Could not extract SCRIPT[{narration_key!r}] from {narration_file.name}"
         )
 
+    # Include reference docs only for the first scene
+    reference_section = ""
+    if current_index == 0:
+        reference_section = """
+## Manim CE Reference Documentation
+
+Use ONLY syntax documented in the official Manim CE reference:
+https://docs.manim.community/en/stable/reference.html
+
+This is your authoritative source for valid Manim classes, methods, and parameters.
+"""
+
     retry_section = ""
     if retry_context:
         retry_section = f"""
@@ -304,9 +316,11 @@ Please fix the issue and generate a corrected version.
 {scene_narration}
 ```
 
+{reference_section}
+
 {retry_section}
 
-Generate the complete Python scene file for `{scene_id}`.
+Generate ONLY the scene body code for `{scene_id}`.
 
 Hard requirements:
 1. Use the exact SCRIPT key: `SCRIPT["{narration_key}"]`.
@@ -321,7 +335,7 @@ Hard requirements:
 10. Forbidden placeholder strings/tokens: `{{{{TITLE}}}}`, `{{{{SUBTITLE}}}}`, `{{{{KEY_POINT_1}}}}`, `{{{{KEY_POINT_2}}}}`, `{{{{KEY_POINT_3}}}}` (and any `{{{{...}}}}` left in scaffold strings).
 11. Do not reuse scaffold demo animations (default box/shape demo) unless explicitly required by this scene's plan.
 
-Output ONLY the Python code. Start with the imports.
+Output ONLY the scene body code wrapped in <scene_body> XML tags as shown in your system instructions. Do NOT include imports, config, class definition, or helper functions - those are already in the scaffold.
 """
 
     return system_prompt, user_prompt
