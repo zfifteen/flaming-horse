@@ -1,9 +1,17 @@
 phase: review
-status: stub
-tasks:
-  - name: default
-    system: system.md
-    user: user.md
-required_placeholders:
-  system: []
-  user: []
+
+inputs:
+  - plan_json: project_dir/plan.json
+  - constraints: scene_id(scene_XX_slug), required_fields_present
+
+output:
+  format: markdown_or_text
+  file: review_notes.md
+  required_fields:
+    - plan_valid
+    - issues[]
+    - recommendations[]
+
+validation:
+  requires_plan_json: true
+  fails_if_missing_required_scene_fields: true

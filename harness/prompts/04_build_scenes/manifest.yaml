@@ -1,9 +1,27 @@
 phase: build_scenes
-status: active
-tasks:
-  - name: default
-    system: system.md
-    user: user.md
-required_placeholders:
-  system: [core_rules, template_doc, config_guide, visual_helpers]
-  user: [scene_id, scene_file_name, scene_class_name, narration_key, scene_title, scene_details, scene_narration, reference_section, retry_section]
+
+inputs:
+  - plan_json: project_dir/plan.json
+  - narration_script: project_dir/narration_script.py
+  - scene_metadata: state.scenes[state.current_scene_index]
+  - scene_narration: SCRIPT[narration_key]
+  - retry_context: optional
+  - references: manim_template, manim_config_guide, visual_helpers
+  - exclude: full_pipeline_doc, unrelated_scene_code
+
+output:
+  format: python_only
+  file: "<scene_id>.py"
+  required_fields:
+    - VoiceoverScene subclass
+    - import_narration_script
+    - SCRIPT[narration_key] usage
+    - locked_config_block
+    - cached_qwen_voice_service
+
+validation:
+  python_syntax_valid: true
+  required_imports_present: true
+  no_external_tts: true
+  no_external_assets: true
+  scene_id_matches_state: true

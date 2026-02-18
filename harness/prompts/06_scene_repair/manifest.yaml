@@ -1,9 +1,24 @@
 phase: scene_repair
-status: active
-tasks:
-  - name: default
-    system: system.md
-    user: user.md
-required_placeholders:
-  system: [core_rules]
-  user: [scene_id, scene_file_name, scene_class_name, narration_key, scene_title, scene_details, scene_narration, broken_file_name, broken_file_content, retry_context]
+
+inputs:
+  - broken_scene_file: --scene-file
+  - broken_scene_content: file_contents
+  - scene_metadata: state.current_scene
+  - scene_narration: SCRIPT[narration_key]
+  - retry_context: required
+  - references: core_rules
+  - exclude: unrelated_scenes, full_pipeline_doc
+
+output:
+  format: python_only
+  file: "<broken_scene_file>"
+  required_fields:
+    - preserves_template_contract
+    - fixes_reported_error
+    - VoiceoverScene subclass
+    - SCRIPT[narration_key] usage
+
+validation:
+  python_syntax_valid: true
+  original_failure_addressed: true
+  no_new_policy_violations: true

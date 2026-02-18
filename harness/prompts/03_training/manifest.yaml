@@ -1,9 +1,13 @@
 phase: training
-status: active
-tasks:
-  - name: default
-    system: system.md
-    user: user.md
-required_placeholders:
-  system: []
-  user: []
+
+inputs:
+  - context: training_phase_guidance
+
+output:
+  format: text
+  file: none
+  required_fields:
+    - phase_ack
+
+validation:
+  always_pass: true
