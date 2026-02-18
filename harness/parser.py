@@ -157,6 +157,15 @@ def extract_json_block(text: str) -> Optional[str]:
                 except json.JSONDecodeError:
                     continue
 
+    # Try to decode from the very beginning first (outermost object).
+    # This ensures we get the full container object rather than nested fragments.
+    try:
+        obj, _ = decoder.raw_decode(text.strip())
+        if isinstance(obj, (dict, list)):
+            return json.dumps(obj)
+    except json.JSONDecodeError:
+        pass
+
     # If no code block, try regex-based raw JSON slices.
     json_pattern = r"\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}"
     matches = re.findall(json_pattern, text, re.DOTALL)
