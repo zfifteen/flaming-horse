@@ -1,0 +1,134 @@
+{
+  "title": "The Deadly Trap: Microclots in Long COVID",
+  "description": "Exploring the self-reinforcing mechanism of microclots in long COVID, where fibrin and NETs create a bidirectional trap, and why sequential NET-degrading therapy is crucial before fibrinolysis.",
+  "target_duration_seconds": 180,
+  "scenes": [
+    {
+      "id": "scene_01_intro",
+      "title": "Introduction to Long COVID Microclots",
+      "narration_key": "scene_01_intro",
+      "description": "Set the stage by explaining what microclots are in the context of long COVID and their pathological role.",
+      "estimated_duration_seconds": 25,
+      "narrative_beats": [
+        "Long COVID patients suffer from persistent symptoms partly due to abnormal blood clots called microclots.",
+        "These tiny clots block capillaries and contribute to fatigue, brain fog, and other issues.",
+        "Unlike normal clots, these are self-reinforcing traps that resist treatment."
+      ],
+      "visual_ideas": [
+        "Title text 'The Deadly Trap: Microclots in Long COVID' at UP * 3.8",
+        "Subtitle 'Understanding the Self-Reinforcing Mechanism'",
+        "Progressive bullet points on left: 'Abnormal blood clots', 'Block capillaries', 'Resist treatment'",
+        "Right-side evolving diagram: Start with a simple blood vessel icon, then add red clot particles blocking flow"
+      ]
+    },
+    {
+      "id": "scene_02_components",
+      "title": "Key Components: Fibrin and NETs",
+      "narration_key": "scene_02_components",
+      "description": "Introduce the two main components of the microclot trap: fibrin matrix and neutrophil extracellular traps (NETs).",
+      "estimated_duration_seconds": 30,
+      "narrative_beats": [
+        "Microclots are composed of a fibrin matrix, a protein network that forms the clot's structure.",
+        "Embedded within are NETs, DNA-based traps released by immune cells called neutrophils.",
+        "These components are interwoven, creating a stable but pathological structure."
+      ],
+      "visual_ideas": [
+        "Title 'Key Components: Fibrin and NETs'",
+        "Bullet points: 'Fibrin matrix: Protein network', 'NETs: DNA traps from neutrophils', 'Interwoven structure'",
+        "Right-side visual: Animated buildup from fibrin strands (lines) to adding NET DNA (spiraling blue strands), forming a composite clot"
+      ]
+    },
+    {
+      "id": "scene_03_trap_mechanism",
+      "title": "The Bidirectional Trap",
+      "narration_key": "scene_03_trap_mechanism",
+      "description": "Explain how fibrin and NETs protect each other, forming a self-reinforcing loop.",
+      "estimated_duration_seconds": 35,
+      "narrative_beats": [
+        "The fibrin matrix suppresses neutrophils from releasing more NETs, acting as a brake.",
+        "Meanwhile, NETs prevent the body from dissolving the fibrin, armoring the clot.",
+        "This creates a bidirectional trap where each component protects the other from destruction.",
+        "Removing one triggers amplification of the other, worsening the situation."
+      ],
+      "visual_ideas": [
+        "Title 'The Bidirectional Trap'",
+        "Progressive bullets: 'Fibrin suppresses NET release', 'NETs block fibrin dissolution', 'Self-reinforcing loop'",
+        "Right-side diagram: Circular arrows showing fibrin suppressing NETosis, NETs reinforcing fibrin, with a 'trap' icon in center",
+        "Evolve to show attempted dissolution causing rebound: Arrow from 'Dissolve fibrin' to increased NET production"
+      ]
+    },
+    {
+      "id": "scene_04_why_worse",
+      "title": "Why Dissolving Fibrin Makes It Worse",
+      "narration_key": "scene_04_why_worse",
+      "description": "Dive into why the intuitive therapy of dissolving fibrin first backfires, based on experimental data.",
+      "estimated_duration_seconds": 30,
+      "narrative_beats": [
+        "The natural approach is to dissolve the fibrin matrix first.",
+        "However, this releases the brake on NET production, triggering more NETosis.",
+        "Studies show tPA, a fibrinolytic drug, causes a threefold increase in NET production.",
+        "The remaining NETs then make the clot 2.5 times harder to break."
+      ],
+      "visual_ideas": [
+        "Title 'Why Dissolving Fibrin Makes It Worse'",
+        "Bullets: 'Intuitive: Dissolve fibrin first', 'Releases NET brake \u2192 more NETosis', 'tPA triples NET production', 'NETs harden remaining clot'",
+        "Right-side visual: Bar graph showing NET production before/after tPA (3x increase), then clot resistance graph (150 Pa to 376 Pa)",
+        "Animated sequence: Clot before dissolution, after (more NETs, thicker fibrin)"
+      ]
+    },
+    {
+      "id": "scene_05_threshold_nonresponders",
+      "title": "The Critical Threshold and Non-Responders",
+      "narration_key": "scene_05_threshold_nonresponders",
+      "description": "Explain the threshold where NET density makes fibrinolysis self-defeating and links to treatment non-responders.",
+      "estimated_duration_seconds": 30,
+      "narrative_beats": [
+        "There's a critical threshold: when NETs exceed 40% of the clot's structure.",
+        "Above this, fibrinolytic activity becomes self-defeating, even the body's own mechanisms.",
+        "This explains why 20% of patients don't respond to triple anticoagulation therapy.",
+        "These non-responders have high baseline NET markers like MPO."
+      ],
+      "visual_ideas": [
+        "Title 'The Critical Threshold and Non-Responders'",
+        "Bullets: 'NET >40% threshold', 'Fibrinolysis self-defeating', '20% non-responders', 'High MPO markers'",
+        "Right-side: Threshold graph (sigmoid curve with inflection at 40%), bar chart of responders/non-responders by MPO levels"
+      ]
+    },
+    {
+      "id": "scene_06_actionable_therapy",
+      "title": "Actionable Therapy: Sequential Protocol",
+      "narration_key": "scene_06_actionable_therapy",
+      "description": "Present the key insight: degrade NETs with DNase first before fibrinolytics.",
+      "estimated_duration_seconds": 25,
+      "narrative_beats": [
+        "The solution is a sequential protocol: degrade NETs first using DNase.",
+        "Reduce NET markers below a checkpoint before starting fibrinolytic therapy.",
+        "This prevents the rebound NETosis and allows effective clot clearing.",
+        "Falsifiable predictions include better outcomes with DNase pre-treatment."
+      ],
+      "visual_ideas": [
+        "Title 'Actionable Therapy: Sequential Protocol'",
+        "Bullets: 'DNase first to degrade NETs', 'Monitor markers below threshold', 'Prevents rebound', 'Falsifiable: Better with DNase pre-treatment'",
+        "Right-side: Flowchart: Step 1 DNase \u2192 Check markers \u2192 Step 2 Fibrinolytics, with icons for DNase syringe and tPA"
+      ]
+    },
+    {
+      "id": "scene_07_conclusion",
+      "title": "Conclusion and Scope",
+      "narration_key": "scene_07_conclusion",
+      "description": "Wrap up with the broader implications and limitations of this model.",
+      "estimated_duration_seconds": 25,
+      "narrative_beats": [
+        "This model reveals long COVID microclots as a dynamical trap, not just stubborn clots.",
+        "Sequential NET-degrading therapy offers a targeted approach.",
+        "Limitations: Based on in vitro simulations, requires clinical validation.",
+        "Key takeaway: Timing matters in breaking the trap."
+      ],
+      "visual_ideas": [
+        "Title 'Conclusion and Scope'",
+        "Bullets: 'Dynamical trap insight', 'Sequential therapy key', 'Limitations: In vitro model', 'Timing is critical'",
+        "Right-side: Recap diagram of the trap cycle, with a 'Break the Trap' callout and future research icon"
+      ]
+    }
+  ]
+}
