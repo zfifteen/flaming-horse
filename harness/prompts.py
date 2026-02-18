@@ -228,23 +228,11 @@ def compose_build_scenes_prompt(
             "Please fix the issue and generate a corrected version."
         )
 
-    rendered_build_scenes_system = render_template(
-        read_file(PROMPTS_DIR / "04_build_scenes" / "build_scenes_system.md"),
-        {
-            "TITLE": "{{TITLE}}",
-            "SUBTITLE": "{{SUBTITLE}}",
-            "KEY_POINT_1": "{{KEY_POINT_1}}",
-            "KEY_POINT_2": "{{KEY_POINT_2}}",
-            "KEY_POINT_3": "{{KEY_POINT_3}}",
-        },
-    )
-
     system_prompt = load_prompt_template(
         "build_scenes",
         "system.md",
         {
             "core_rules": read_file(PROMPTS_DIR / "_shared" / "core_rules.md"),
-            "build_scenes_system": rendered_build_scenes_system,
             "template_doc": read_file(TEMPLATES_DIR / "manim_template.py.txt"),
             "config_guide": read_file(TEMPLATES_DIR / "manim_config_guide.md"),
             "visual_helpers": read_file(TEMPLATES_DIR / "visual_helpers.md"),
