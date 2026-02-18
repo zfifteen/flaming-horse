@@ -82,9 +82,13 @@ Detailed setup: `docs/INSTALLATION.md`
 The orchestrator calls the Python harness (`python3 -m harness`) for agent phases.
 Configure behavior via environment variables (typically in `.env`):
 
-- `XAI_API_KEY` (required by harness)
-- `AGENT_MODEL` (default in orchestrator is `xai/grok-4-1-fast`)
-- `AGENT_TEMPERATURE` (optional)
+**LLM Provider Configuration:**
+- `LLM_PROVIDER` - Provider name (XAI or MINIMAX)
+- `{PROVIDER}_API_KEY` - Provider-specific API key
+- `{PROVIDER}_BASE_URL` - Provider-specific endpoint (optional)
+- `{PROVIDER}_MODEL` - Provider-specific model (optional)
+
+See `.env.example` for full configuration.
 
 Harness details: `harness/README.md`
 

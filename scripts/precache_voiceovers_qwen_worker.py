@@ -27,7 +27,6 @@ def build_cache_entry(
         "audio_file": audio_file,
         "model_id": model_id,
         "ref_audio": ref_audio,
-        "ref_text": ref_text,
         "duration_seconds": duration,
         "created_at": created_at,
     }

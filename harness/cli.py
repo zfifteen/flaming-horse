@@ -27,7 +27,7 @@ def load_project_state(project_dir: Path) -> dict:
 def main() -> int:
     """Main entry point for the harness CLI."""
     parser = argparse.ArgumentParser(
-        description="Flaming Horse Agent Harness - Direct xAI API integration"
+        description="Flaming Horse Agent Harness - Provider-agnostic LLM API integration"
     )
     parser.add_argument(
         "--phase",
@@ -102,8 +102,8 @@ def main() -> int:
             temperature = 0.7
         temperature = max(0.0, min(2.0, temperature))
 
-        # Call xAI API
-        print(f"🤖 Calling xAI API for phase: {args.phase}")
+        # Call LLM API
+        print(f"🤖 Calling LLM API for phase: {args.phase}")
         response_text = call_xai_api(
             system_prompt=system_prompt,
             user_prompt=user_prompt,

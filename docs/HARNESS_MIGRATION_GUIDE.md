@@ -26,14 +26,32 @@ python3 -m harness --phase scene_repair --project-dir ./projects/my_video --scen
 
 ## Environment
 
-- Required: `XAI_API_KEY`
-- Optional: `AGENT_MODEL`
+The harness is provider-agnostic. Configure via environment variables:
+
+### Required
+- `LLM_PROVIDER` - Provider name (XAI or MINIMAX)
+- `{PROVIDER}_API_KEY` - Provider-specific API key
+
+### Optional
+- `{PROVIDER}_BASE_URL` - Provider endpoint (defaults provided)
+- `{PROVIDER}_MODEL` - Provider model (defaults provided)
+- `AGENT_MODEL` - Global fallback model
 
 Example `.env` values:
 
 ```dotenv
-XAI_API_KEY=your_key_here
-AGENT_MODEL=xai/grok-4-1-fast
+# LLM Provider Configuration
+LLM_PROVIDER=XAI
+
+# Provider-Specific Keys
+XAI_API_KEY=your_xai_key_here
+MINIMAX_API_KEY=your_minimax_key_here
+
+# Provider-Specific (optional)
+XAI_BASE_URL=https://api.x.ai/v1
+MINIMAX_BASE_URL=https://api.minimax.io/v1
+XAI_MODEL=grok-code-fast-1
+MINIMAX_MODEL=MiniMax-M2.5
 ```
 
 ## Validation and Recovery
@@ -45,5 +63,6 @@ AGENT_MODEL=xai/grok-4-1-fast
 ## Troubleshooting
 
 - If harness fails to parse model output, inspect `build.log` and retry context files.
-- If API calls fail, verify `XAI_API_KEY`, model name, and network access.
+- If API calls fail, verify `{PROVIDER}_API_KEY`, model name, and network access.
+- To switch providers, change `LLM_PROVIDER` in `.env` (XAI or MINIMAX).
 - If scene runtime validation fails, use scaffold reset + scene repair loop output for root-cause fixes.

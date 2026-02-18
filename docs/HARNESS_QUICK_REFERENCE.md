@@ -19,11 +19,22 @@ python3 -m harness --phase plan --project-dir ./projects/test --topic "Test"
 ## Environment Variables
 
 ```bash
-# Required for harness
-XAI_API_KEY=your_xai_api_key_here
+# LLM Provider Configuration (provider-agnostic)
+# Uncomment ONE provider:
+LLM_PROVIDER=XAI
+# LLM_PROVIDER=MINIMAX
 
-# Optional
-AGENT_MODEL=xai/grok-4-1-fast  # Model selection
+# Provider-Specific Keys (all defined, one used based on LLM_PROVIDER)
+XAI_API_KEY=your_xai_key_here
+MINIMAX_API_KEY=your_minimax_key_here
+
+# Provider-Specific Base URLs (defaults provided if omitted)
+XAI_BASE_URL=https://api.x.ai/v1
+MINIMAX_BASE_URL=https://api.minimax.io/v1
+
+# Provider-Specific Models (optional)
+XAI_MODEL=grok-code-fast-1
+MINIMAX_MODEL=MiniMax-M2.5
 ```
 
 ## CLI Arguments
@@ -48,7 +59,7 @@ AGENT_MODEL=xai/grok-4-1-fast  # Model selection
 ```
 harness/
 ├── cli.py              # Main entry point
-├── client.py           # xAI API client
+├── client.py           # Provider-agnostic LLM client
 ├── prompts.py          # Prompt composer
 ├── parser.py           # Output parser
 └── prompt_templates/   # Phase-specific templates
@@ -67,7 +78,8 @@ harness/
 | Issue | Solution |
 |---|---|
 | `No module named harness` | Check PYTHONPATH includes repo root |
-| `XAI_API_KEY not set` | Add to .env file |
+| `XAI_API_KEY or MINIMAX_API_KEY not set` | Add to .env file |
+| `Unsupported provider` | Set LLM_PROVIDER to XAI or MINIMAX |
 | `Parsing failed` | Check logs and retry with corrected context |
 | Any other issue | Inspect `build.log` and phase retry context |
 
