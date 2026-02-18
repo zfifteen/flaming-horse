@@ -122,7 +122,6 @@ def compose_plan_prompt(state: Dict[str, Any], topic: Optional[str]) -> Tuple[st
         "system.md",
         {
             "core_rules": read_file(PROMPTS_DIR / "_shared" / "core_rules.md"),
-            "plan_system": read_file(PROMPTS_DIR / "00_plan" / "plan_system.md"),
             "pipeline_doc": read_file(TEMPLATES_DIR / "manim_content_pipeline.md"),
         },
     )
