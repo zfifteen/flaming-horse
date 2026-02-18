@@ -5,5 +5,5 @@ tasks:
     system: system.md
     user: user.md
 required_placeholders:
-  system: [core_rules, qc_system, scenes_doc]
+  system: [core_rules, scenes_doc]
   user: [all_scenes]

@@ -277,7 +277,6 @@ def compose_scene_qc_prompt(
         "system.md",
         {
             "core_rules": read_file(PROMPTS_DIR / "_shared" / "core_rules.md"),
-            "qc_system": read_file(PROMPTS_DIR / "05_scene_qc" / "scene_qc_system.md"),
             "scenes_doc": read_file(TEMPLATES_DIR / "phase_scenes.md"),
         },
     )
