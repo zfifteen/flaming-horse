@@ -1,6 +1,8 @@
 .idea/
 .wiggum/
 generated/
+.DS_Store
+**/.DS_Store
 
 *backup*
 

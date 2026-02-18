@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Prompt Compliance Checker
-# Validates that all LLM prompts are in harness/prompt_templates/
+# Validates that all LLM prompts are in harness/prompts/
 # Exit code 0 = compliant, 1 = infractions found
 
 set -euo pipefail
@@ -26,7 +26,7 @@ PYTHON_PROMPTS=$(grep -r "user_prompt.*=.*f\"\"\"" \
     --include="*.py" \
     --exclude-dir=".git" \
     --exclude-dir="__pycache__" \
-    --exclude-dir="harness/prompt_templates" \
+    --exclude-dir="harness/prompts" \
     harness/ scripts/ 2>/dev/null || true)
 
 if [[ -n "$PYTHON_PROMPTS" ]]; then
@@ -44,7 +44,7 @@ YOU_ARE_PROMPTS=$(grep -rn "You are.*\(creating\|writing\|generating\|repair\)" 
     --include="*.py" \
     --exclude-dir=".git" \
     --exclude-dir="__pycache__" \
-    --exclude-dir="harness/prompt_templates" \
+    --exclude-dir="harness/prompts" \
     harness/ scripts/ 2>/dev/null || true)
 
 if [[ -n "$YOU_ARE_PROMPTS" ]]; then
@@ -62,7 +62,7 @@ PLEASE_PROMPTS=$(grep -rn "\"\"\"Please.*\(create\|write\|generate\|review\|repa
     --include="*.py" \
     --exclude-dir=".git" \
     --exclude-dir="__pycache__" \
-    --exclude-dir="harness/prompt_templates" \
+    --exclude-dir="harness/prompts" \
     harness/ scripts/ 2>/dev/null || true)
 
 if [[ -n "$PLEASE_PROMPTS" ]]; then
@@ -81,7 +81,7 @@ DOC_PROMPTS=$(find docs/ -name "*.md" -exec grep -l "You are.*agent\|Your job is
 if [[ -n "$DOC_PROMPTS" ]]; then
     echo -e "${YELLOW}⚠ WARNING: Found potential prompt content in documentation:${NC}"
     echo "$DOC_PROMPTS"
-    echo "  Review these files to ensure they don't duplicate prompt_templates/"
+    echo "  Review these files to ensure they don't duplicate prompts/"
     ((INFRACTIONS++))
 else
     echo -e "${GREEN}✓ PASS: No obvious prompt duplication in docs${NC}"

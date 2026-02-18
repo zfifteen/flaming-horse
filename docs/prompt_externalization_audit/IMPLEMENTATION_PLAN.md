@@ -3,7 +3,7 @@
 ## Objective
 Move all LLM-facing prompt and instruction text out of Python code and into template files under:
 
-`/Users/velocityworks/IdeaProjects/flaming-horse/harness/prompt_templates`
+`/Users/velocityworks/IdeaProjects/flaming-horse/harness/prompts`
 
 This enables fast prompt iteration without code edits and enforces a single source of truth.
 
@@ -25,10 +25,10 @@ This enables fast prompt iteration without code edits and enforces a single sour
 
 2. System wrappers/headers are embedded in `harness/prompts.py` for all phases.
 
-3. `docs/issues/SCENE_QC_AGENT_PROMPT.md` duplicates prompt content outside `harness/prompt_templates`.
+3. `docs/issues/SCENE_QC_AGENT_PROMPT.md` duplicates prompt content outside `harness/prompts`.
 
 ## Target End State
-1. Every LLM prompt string sent through `harness/cli.py -> harness/prompts.py` is sourced from files in `harness/prompt_templates`.
+1. Every LLM prompt string sent through `harness/cli.py -> harness/prompts.py` is sourced from files in `harness/prompts`.
 2. `harness/prompts.py` only performs:
 - template loading
 - variable interpolation
@@ -41,12 +41,12 @@ This enables fast prompt iteration without code edits and enforces a single sour
 
 ### Phase 1: Add missing user templates
 Create:
-- `harness/prompt_templates/plan_user.md`
-- `harness/prompt_templates/narration_user.md`
-- `harness/prompt_templates/build_scenes_user.md`
-- `harness/prompt_templates/scene_qc_user.md`
-- `harness/prompt_templates/scene_repair_user.md`
-- `harness/prompt_templates/training_user.md`
+- `harness/prompts/plan_user.md`
+- `harness/prompts/narration_user.md`
+- `harness/prompts/build_scenes_user.md`
+- `harness/prompts/scene_qc_user.md`
+- `harness/prompts/scene_repair_user.md`
+- `harness/prompts/training_user.md`
 
 Use explicit placeholders (double-curly style), for example:
 - `{{topic}}`
@@ -104,7 +104,7 @@ bash tests/test_harness_integration.sh
 
 ## Acceptance Criteria
 1. Zero LLM-instruction strings remain embedded in `harness/prompts.py`.
-2. All prompt content used by harness is located in `harness/prompt_templates`.
+2. All prompt content used by harness is located in `harness/prompts`.
 3. Compliance checker passes.
 4. Dry-run prompt generation passes for all phases.
 5. Documentation points to canonical template paths.

@@ -112,7 +112,7 @@ TEMPLATES=(
 
 ALL_FOUND=true
 for template in "${TEMPLATES[@]}"; do
-  if [ -f "${REPO_ROOT}/harness/prompt_templates/${template}" ]; then
+  if [ -f "${REPO_ROOT}/harness/prompts/${template}" ]; then
     echo "  ✅ ${template}"
   else
     echo "  ❌ Missing: ${template}"
