@@ -30,6 +30,14 @@ config.pixel_height = 1440
 config.pixel_width = 2560
 
 
+def clamp_text_width(text_obj, max_width=6.0):
+    \"\"\"Clamp text width deterministically for scene readability.\"\"\"
+    text_obj.set_max_width(max_width)
+    if text_obj.width > max_width:
+        text_obj.scale_to_fit_width(max_width)
+    return text_obj
+
+
 class {class_name}(VoiceoverScene):
     def construct(self):
         ref_path = Path("assets/voice_ref/ref.wav")
@@ -41,7 +49,7 @@ class {class_name}(VoiceoverScene):
         with self.voiceover(text=SCRIPT["{narration_key}"]) as tracker:
             # SLOT_START:scene_body
             pass  # TEMP scaffold stub: Agent replaces entire block from here to SLOT_END
-            # PROMPT: Output ONLY the indented Python code (12 spaces) to replace from SLOT_START to SLOT_END. NO ```python fences, NO full class/imports/config.
+            # PROMPT: Output ONLY <scene_body>...</scene_body> body code. NO full class/imports/config wrappers.
             # PROMPT: Use structurally different patterns (e.g., progressive bullets + evolving diagram or timeline/staged reveal).
             # PROMPT: Position bullets at LEFT * 3.5 with set_max_width(6.0); derive content from narration_script.py, not plan.json.
             # PROMPT: Ensure layout contracts: title at UP * 3.8, subtitle next_to(title, DOWN, buff=0.4), visuals below subtitle.

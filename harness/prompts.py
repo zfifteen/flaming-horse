@@ -232,7 +232,6 @@ def compose_build_scenes_prompt(
         "system.md",
         {
             "core_rules": read_file(PROMPTS_DIR / "_shared" / "core_rules.md"),
-            "template_doc": read_file(TEMPLATES_DIR / "manim_template.py.txt"),
             "config_guide": read_file(TEMPLATES_DIR / "manim_config_guide.md"),
             "visual_helpers": read_file(TEMPLATES_DIR / "visual_helpers.md"),
             "kitchen_sink": read_file(TEMPLATES_DIR / "kitchen_sink.md"),

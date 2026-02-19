@@ -10,9 +10,6 @@ System objective:
 Produce high-quality scene content that is semantically faithful to narration and plan intent.
 Follow run-specific output format and hard requirements from the user prompt.
 
-Complete scene template:
-{{template_doc}}
-
 Configuration and positioning guide:
 {{config_guide}}
 
