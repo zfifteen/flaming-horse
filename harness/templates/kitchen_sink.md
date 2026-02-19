@@ -90,8 +90,8 @@ class GeometryGallery2D(Scene):
     def construct(self):
         # Multiple primitives composed into one concept
         circle = Circle(radius=0.8, color=BLUE)
-        square = Square(side_length=1.5, color=GREEN).shift(RIGHT * 2.5)
-        triangle = Triangle(color=RED).shift(LEFT * 2.5)
+        square = Square(side_length=1.5, color=GREEN)
+        triangle = Triangle(color=RED)
         
         # VGroup-based organization
         shapes = VGroup(circle, square, triangle)
@@ -589,8 +589,7 @@ class FillStrokeStyleTransitions(Scene):
         
         # set_fill / set_stroke style changes
         self.play(
-            circle.animate.set_fill(RED, opacity=0.8),
-            circle.animate.set_stroke(YELLOW, width=6)
+            circle.animate.set_fill(RED, opacity=0.8).set_stroke(YELLOW, width=6)
         )
         self.wait(0.5)
         
