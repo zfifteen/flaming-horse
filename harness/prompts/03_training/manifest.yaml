@@ -1,13 +1,13 @@
 phase: training
 
 inputs:
-  - context: training_phase_guidance
+  - context: lightweight_readiness_handshake
 
 output:
   format: text
   file: none
   required_fields:
-    - phase_ack
+    - readiness_ack
 
 validation:
-  always_pass: true
+  parser_accepts_any_response: true
