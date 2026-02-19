@@ -235,6 +235,7 @@ def compose_build_scenes_prompt(
             "template_doc": read_file(TEMPLATES_DIR / "manim_template.py.txt"),
             "config_guide": read_file(TEMPLATES_DIR / "manim_config_guide.md"),
             "visual_helpers": read_file(TEMPLATES_DIR / "visual_helpers.md"),
+            "kitchen_sink": read_file(TEMPLATES_DIR / "kitchen_sink.md"),
         },
     )
     user_prompt = load_prompt_template(
