@@ -29,6 +29,7 @@ PHASE_SEQUENCE = (
     "plan",
     "review",
     "narration",
+    "training",
     "build_scenes",
     "scene_qc",
     "precache_voiceovers",
@@ -111,10 +112,7 @@ def write_json(path: Path, obj: dict) -> None:
 
 def sync_schema_phase_enum(schema_path: Path, check_only: bool) -> int:
     schema = json.loads(schema_path.read_text(encoding="utf-8"))
-    phase_obj = (
-        schema.get("properties", {})
-        .get("phase", {})
-    )
+    phase_obj = schema.get("properties", {}).get("phase", {})
     enum = phase_obj.get("enum")
     desired = list(PHASE_SEQUENCE)
     if not isinstance(enum, list):
@@ -364,14 +362,27 @@ def apply_phase(project_dir: Path, state: dict, phase: str) -> dict:
             state["flags"]["needs_human_review"] = True
             return state
         state["narration_file"] = "narration_script.py"
-        state["phase"] = "build_scenes"
+        state["phase"] = "training"
         state["flags"]["needs_human_review"] = False
         _clear_errors_matching(state, lambda e: e.startswith("narration failed:"))
         state.setdefault("history", []).append(
             {
                 "timestamp": utc_now(),
                 "phase": "narration",
-                "action": "Detected narration_script.py; advanced to build_scenes (deterministic)",
+                "action": "Detected narration_script.py; advanced to training (deterministic)",
+            }
+        )
+        return state
+
+    if phase == "training":
+        # Training phase always advances to build_scenes (fire and forget)
+        state["phase"] = "build_scenes"
+        state["flags"]["needs_human_review"] = False
+        state.setdefault("history", []).append(
+            {
+                "timestamp": utc_now(),
+                "phase": "training",
+                "action": "Training completed; advanced to build_scenes (deterministic)",
             }
         )
         return state

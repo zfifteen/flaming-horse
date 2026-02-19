@@ -4,21 +4,22 @@ A domain-specific agent execution environment that gives the model the ability t
 
 ## Overview
 
-The harness provides direct xAI API integration for the Flaming Horse video production pipeline with phase-scoped prompts and deterministic orchestration.
+The harness provides provider-agnostic LLM API integration for the Flaming Horse video production pipeline. Supports XAI and MiniMax via simple configuration.
 
 ### Key Benefits
 
-1. **Reduced Context Window Waste**: Removes large generic wrapper overhead per invocation
-2. **Phase-Specific Prompts**: Only includes documentation relevant to the current phase
-3. **Deterministic Control**: Orchestrator remains in bash, harness is just a tool
-4. **Direct API Access**: No intermediate layers between our prompts and the model
+1. **Provider Switching**: Switch between XAI and MiniMax by changing one environment variable
+2. **Reduced Context Window Waste**: Removes large generic wrapper overhead per invocation
+3. **Phase-Specific Prompts**: Only includes documentation relevant to the current phase
+4. **Deterministic Control**: Orchestrator remains in bash, harness is just a tool
+5. **Direct API Access**: No intermediate layers between our prompts and the model
 
 ## Architecture
 
 The harness consists of four core components:
 
-### 1. xAI Client (`client.py`)
-- Direct HTTP integration with xAI chat completions API
+### 1. LLM Client (`client.py`)
+- Provider-agnostic HTTP integration (XAI, MiniMax)
 - Retry logic with exponential backoff
 - Token counting utilities
 - No framework dependencies
@@ -104,11 +105,34 @@ python3 -m harness \
 
 ## Environment Variables
 
-### Required
-- `XAI_API_KEY`: xAI API key for authentication
+### Provider Configuration
 
-### Optional
-- `AGENT_MODEL`: Model to use (default: `grok-code-fast-1`)
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `LLM_PROVIDER` | Provider name (XAI or MINIMAX) | XAI |
+| `{PROVIDER}_API_KEY` | Provider-specific API key | Required |
+| `{PROVIDER}_BASE_URL` | Provider-specific API endpoint | Provider default |
+| `{PROVIDER}_MODEL` | Provider-specific model | Provider default |
+| `AGENT_MODEL` | Global fallback model | - |
+
+### Provider Switching
+
+To switch providers, set `LLM_PROVIDER` in your `.env`:
+
+```bash
+# Use XAI (default)
+LLM_PROVIDER=XAI
+XAI_API_KEY=your_xai_key
+
+# Use MiniMax
+LLM_PROVIDER=MINIMAX
+MINIMAX_API_KEY=your_minimax_key
+```
+
+### Legacy Support
+
+For backward compatibility, XAI users can also use:
+- `XAI_API_KEY` as fallback if `{PROVIDER}_API_KEY` not set
 
 ## Exit Codes
 
@@ -118,6 +142,22 @@ python3 -m harness \
 
 ## File Structure
 
+```
+harness/
+├── __init__.py           # Package initialization
+├── __main__.py           # CLI entry point
+├── cli.py                # Argument parsing and main()
+├── client.py             # Provider-agnostic LLM API client
+├── prompts.py            # Phase-specific prompt composer
+├── parser.py             # Output extraction and validation
+├── README.md             # This file
+└── prompt_templates/     # Modular prompt templates
+    ├── core_rules.md           # Rules for all phases
+    ├── plan_system.md          # Plan phase instructions
+    ├── narration_system.md     # Narration phase instructions
+    ├── build_scenes_system.md  # Build scenes instructions
+    ├── scene_qc_system.md      # QC phase instructions
+    └── repair_system.md        # Repair phase instructions
 ```
 harness/
 ├── __init__.py           # Package initialization
@@ -148,7 +188,7 @@ The harness is a **tool being orchestrated**, not the orchestrator itself. The b
 The harness only:
 1. Receives phase + context from orchestrator
 2. Composes optimized prompt
-3. Calls xAI API
+3. Calls LLM API
 4. Parses response
 5. Writes artifacts to disk
 6. Exits with status code
@@ -200,9 +240,15 @@ python3 -m harness --phase build_scenes --project-dir projects/matrix-multiplica
 
 ### API Key Not Found
 ```
-ValueError: XAI_API_KEY environment variable not set
+ValueError: XAI_API_KEY or MINIMAX_API_KEY environment variable must be set
 ```
-**Solution**: Set `XAI_API_KEY` in `.env` file
+**Solution**: Set the appropriate `{PROVIDER}_API_KEY` in `.env` file
+
+### Unsupported Provider
+```
+ValueError: Unsupported provider: XYZ. Supported: XAI, MINIMAX
+```
+**Solution**: Set `LLM_PROVIDER` to XAI or MINIMAX
 
 ### Parsing Failed
 ```
@@ -218,7 +264,7 @@ requests.exceptions.Timeout
 
 ## Future Enhancements
 
-- [ ] Support for multiple providers (Anthropic, OpenAI, etc.)
+- [ ] Support for additional providers (OpenAI, Anthropic)
 - [ ] Streaming output for real-time progress
 - [ ] Better error recovery with partial results
 - [ ] Prompt caching for faster retries

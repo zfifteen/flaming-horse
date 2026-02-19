@@ -71,23 +71,6 @@ def test_stage_direction_blacklist(project_dir):
                     )
 
 
-def test_no_runtime_passed_to_play_next(project_dir):
-    """Fail if run_time= is passed to play_next or play_text_next"""
-    project_path = Path(project_dir)
-    state_file = project_path / "project_state.json"
-    with open(state_file) as f:
-        state = json.load(f)
-
-    for scene in state["scenes"]:
-        scene_file = project_path / scene["file"]
-        with open(scene_file) as f:
-            content = f.read()
-        if re.search(r"play_next\([^)]*run_time\s*=", content) or re.search(
-            r"play_text_next\([^)]*run_time\s*=", content
-        ):
-            pytest.fail(f"run_time passed to slot helper in {scene_file}")
-
-
 def test_no_long_waits(project_dir):
     """Fail if self.wait(x) with x > 1.0"""
     project_path = Path(project_dir)

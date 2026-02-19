@@ -117,7 +117,7 @@ Consult these files for technical details:
 - **docs/reference_docs/manim_config_guide.md** - Positioning rules, safe zones, sizing guidelines
 - **docs/reference_docs/manim_voiceover.md** - VoiceoverScene patterns for local cached Qwen integration
 - **docs/reference_docs/manim_content_pipeline.md** - Overall workflow concepts
-- **docs/DEVELOPMENT_GUIDELINES.md** - Separation of concerns (agent creativity vs deterministic scripts), one-change-per-PR policy
+- **docs/policies/DEVELOPMENT_GUIDELINES.md** - Separation of concerns (agent creativity vs deterministic scripts), one-change-per-PR policy
 - **docs/agent_improvements.md** - Plan for v2.2 updates
 - Modular phase docs in docs/reference_docs/ (e.g., phase_plan.md)
 
@@ -129,7 +129,7 @@ Consult these files for technical details:
 {
   "project_name": "string",
   "topic": "string|null",
-  "phase": "plan|review|narration|build_scenes|final_render|assemble|complete",
+  "phase": "plan|review|narration|training|build_scenes|final_render|assemble|complete",
   "created_at": "ISO8601",
   "updated_at": "ISO8601",
   "run_count": 0,
@@ -221,19 +221,16 @@ class Scene01Intro(VoiceoverScene):
         self.set_speech_service(get_speech_service(Path(__file__).resolve().parent))
         
         with self.voiceover(text=SCRIPT["intro"]) as tracker:
-            num_beats = max(12, min(30, int(np.ceil(tracker.duration / 1.8))))
-            beats = BeatPlan(tracker.duration, [1] * num_beats)
-
             # Title
             title = Text("{{TITLE}}", font_size=48, weight=BOLD, color=blues[0])
             title = adaptive_title_position(title, None)
-            play_text_next(self, beats, Write(title), max_text_seconds=999)
+            self.play(Write(title))
             
             # Subtitle
             subtitle = Text("{{SUBTITLE}}", font_size=32, color=blues[1])
             subtitle.next_to(title, DOWN, buff=0.4)
             safe_position(subtitle)
-            play_text_next(self, beats, polished_fade_in(subtitle, lag_ratio=0.1), max_text_seconds=999)
+            self.play(polished_fade_in(subtitle, lag_ratio=0.1))
             
             # Bullets at LEFT * 3.5 with width constraint
             bullet_1 = Text("{{KEY_POINT_1}}", font_size=28).move_to(LEFT * 3.5 + UP * 1.6).set_max_width(6.0)
@@ -248,15 +245,13 @@ class Scene01Intro(VoiceoverScene):
             panel_label = Text("{{VISUAL_ANCHOR}}", font_size=24, color=blues[1]).next_to(diagram, UP, buff=0.2).set_max_width(6.0)
             safe_position(panel_label)
 
-            play_text_next(self, beats, FadeIn(bullet_1), max_text_seconds=999)
-            play_text_next(self, beats, FadeIn(bullet_2), max_text_seconds=999)
-            play_text_next(self, beats, FadeIn(bullet_3), max_text_seconds=999)
-            play_next(self, beats, FadeOut(subtitle), FadeOut(bullet_1), FadeOut(bullet_2), FadeOut(bullet_3))
-            play_next(self, beats, Create(diagram, rate_func=smooth))
-            play_text_next(self, beats, FadeIn(panel_label), max_text_seconds=999)
-            play_next(self, beats, FadeIn(callout), max_run_time=0.8)
-            play_next(self, beats, FadeOut(callout), max_run_time=0.8)
-            play_next(self, beats, FadeOut(panel_label))
+            self.play(FadeIn(bullet_1), FadeIn(bullet_2), FadeIn(bullet_3))
+            self.play(FadeOut(subtitle), FadeOut(bullet_1), FadeOut(bullet_2), FadeOut(bullet_3))
+            self.play(Create(diagram, rate_func=smooth))
+            self.play(FadeIn(panel_label))
+            self.play(FadeIn(callout), run_time=0.8)
+            self.play(FadeOut(callout), run_time=0.8)
+            self.play(FadeOut(panel_label))
 ```
 
 ### Example 2: Timeline/Staged Reveal (for History/Sequence Topics)
@@ -301,19 +296,16 @@ class Scene02Timeline(VoiceoverScene):
         self.set_speech_service(get_speech_service(Path(__file__).resolve().parent))
         
         with self.voiceover(text=SCRIPT["timeline"]) as tracker:
-            num_beats = max(12, min(30, int(np.ceil(tracker.duration / 1.8))))
-            beats = BeatPlan(tracker.duration, [1] * num_beats)
-
             # Title
             title = Text("{{TITLE}}", font_size=48, weight=BOLD, color=greens[0])
             title = adaptive_title_position(title, None)
-            play_text_next(self, beats, Write(title), max_text_seconds=999)
+            self.play(Write(title))
             
             # Subtitle
             subtitle = Text("{{SUBTITLE}}", font_size=32, color=greens[1])
             subtitle.next_to(title, DOWN, buff=0.4)
             safe_position(subtitle)
-            play_text_next(self, beats, polished_fade_in(subtitle, lag_ratio=0.1), max_text_seconds=999)
+            self.play(polished_fade_in(subtitle, lag_ratio=0.1))
             
             # Unique visual: Horizontal timeline (from topic_visual_patterns.md)
             timeline = Line(LEFT * 6, RIGHT * 6, color=greens[2]).move_to(DOWN * 0.6)
@@ -324,12 +316,12 @@ class Scene02Timeline(VoiceoverScene):
             label2 = Text("{{EVENT_2}}", font_size=24).next_to(event2, UP, buff=0.2).set_max_width(6.0)
             safe_position(label2)
 
-            play_next(self, beats, Create(timeline, rate_func=smooth))
-            play_text_next(self, beats, FadeIn(label1), max_text_seconds=999)
-            play_next(self, beats, FadeIn(event1))
-            play_text_next(self, beats, FadeIn(label2), max_text_seconds=999)
-            play_next(self, beats, FadeIn(event2))
-            play_next(self, beats, FadeOut(subtitle), FadeOut(timeline), FadeOut(event1), FadeOut(event2), FadeOut(label1), FadeOut(label2))
+            self.play(Create(timeline, rate_func=smooth))
+            self.play(FadeIn(label1))
+            self.play(FadeIn(event1))
+            self.play(FadeIn(label2))
+            self.play(FadeIn(event2))
+            self.play(FadeOut(subtitle), FadeOut(timeline), FadeOut(event1), FadeOut(event2), FadeIn(label1), FadeOut(label2))
 ```
 
 See flaming_horse/scene_helpers.py for centralized helpers and aesthetics.
@@ -394,45 +386,7 @@ See flaming_horse/scene_helpers.py for centralized helpers and aesthetics.
   ```
 - For transitions: Mandate 0.5-1s crossfades between elements using `FadeTransform` or `polished_fade_in()` (see new helpers below).
 
-### 5. Timing Budget (CRITICAL FOR SYNC)
-- ❌ **NEVER** let timing fractions exceed 1.0
-- ✅ **ALWAYS** calculate timing budget before writing animations
-- ✅ Example: `0.4 + 0.3 + 0.3 = 1.0` ✓ Perfect sync
-- ✅ **ALWAYS** use `num_beats = max(12, min(30, int(np.ceil(tracker.duration / 1.8))))`
-- ✅ **ALWAYS** use scaffold timing helpers (`BeatPlan`, `play_next`, `play_text_next`) instead of raw `self.wait(...)`/`run_time` math
-- ❌ **NEVER** write expressions that can evaluate to zero/negative waits (e.g. `a - a`)
-- ❌ **NEVER** double-consume timing slots
-- ❌ **NEVER** pass `run_time=` to `play_next(...)`/`play_text_next(...)`; slot helpers are the single timing source
-- ✅ **ALWAYS** set `max_text_seconds=999` in `play_text_next` to eliminate `self.wait()` micro-pauses
-### Sync Enhancements (New)
-- For Qwen caching: In scaffold, add precache check:
-  ```python
-  ref_path = Path("assets/voice_ref/ref.wav")
-  if not ref_path.exists():
-      raise FileNotFoundError("Run precache_voice.sh before building.")
-  ```
-- If beat slots are exhausted or become too long (>~3s), increase beat count or split into multiple voiceover blocks.
-
-**Timing Budget Validation:**
-```python
-# WRONG - Causes dead air:
-with self.voiceover(text=SCRIPT["demo"]) as tracker:  # 10 seconds
-    self.play(Write(title), run_time=tracker.duration * 0.6)   # 6s (60%)
-    self.play(FadeIn(obj), run_time=tracker.duration * 0.5)     # 5s (50%)
-    # Total = 1.1 = 110% → 1 second of SILENT VIDEO ❌
-
-# CORRECT:
-with self.voiceover(text=SCRIPT["demo"]) as tracker:  # 10 seconds
-    beats = BeatPlan(tracker.duration, [0.2, 0.25, 0.2, 0.15, 0.2])
-    play_text_next(self, beats, Write(title))
-    play_next(self, beats, FadeIn(obj))
-    play_next(self, beats, obj.animate.shift(RIGHT * 0.8))
-    play_next(self, beats, Indicate(obj))
-    play_next(self, beats, FadeIn(callout))
-    # Total fractions = 1.0 = 100% ✓ Perfect sync
-```
-
-### 6. Configuration Lock
+### 5. Configuration Lock
 - ✅ **ALWAYS** use locked config block (frame size, resolution)
 - ✅ **ALWAYS** include Python 3.13 compatibility patch
 - ✅ **ALWAYS** include `safe_position()` helper
@@ -477,19 +431,7 @@ safe_layout(label1, label2, label3)  # MANDATORY for siblings
 
 ### Text Animation Speed
 - ✅ Text must appear quickly and consistently
-- ❌ NEVER let any text animation take longer than 1.5 seconds (Stricter)
-- ✅ Use timing *slots* tied to the voiceover, and fill the remaining time with waits
-
-Recommended pattern:
-
-```python
-# Duration-scaled micro-beats (no coarse 3-slot timing)
-num_beats = max(10, min(22, int(np.ceil(tracker.duration / 3.0))))
-beats = BeatPlan(tracker.duration, [1] * num_beats)
-play_text_next(self, beats, Write(title))
-play_next(self, beats, Create(diagram))
-play_text_next(self, beats, FadeIn(key_point))
-```
+- ❌ NEVER let any text animation take longer than 1.5 seconds
 
 - ✅ For staggered reveals, use `LaggedStart(FadeIn(a), FadeIn(b), ..., lag_ratio=0.15)`
 
@@ -533,6 +475,33 @@ Always include these functions in scene files for polished aesthetics (see docs/
 - 3D Guidelines: Prefer for spatial topics; limit to 1-2 moving objects. Use `self.set_camera_orientation(phi=75 * DEGREES, theta=-45 * DEGREES)` in a `ThreeDScene`.
 - Text Rules: Cap `Write()` at 1.5s; for staggered reveals use `LaggedStart(*[FadeIn(b) for b in bullets], lag_ratio=0.15)`.
 
+### EXTERNAL ASSETS - FORBIDDEN (CRITICAL)
+You MUST use ONLY programmatic Manim shapes. NEVER reference external files:
+- ❌ `SVGMobject("filename.svg")` - FORBIDDEN
+- ❌ `ImageMobject("filename.png")` - FORBIDDEN  
+- ❌ `import_image("filename.jpg")` - FORBIDDEN
+
+**SAFE ALTERNATIVES** - Use these Manim primitives instead:
+- Circle, Rectangle, RoundedRectangle, Square, Polygon
+- Line, Arrow, DashedLine
+- Dot, VGroup
+- Text, MathTex, Tex
+- Transform, FadeIn, FadeOut, Create
+
+For any visual element, create it with Manim primitives. Do not reference .svg, .png, .jpg files.
+
+### LaTeX and Code Text (IMPORTANT)
+For code-like or typewriter text:
+- ✅ Use `Text("your code here", font="Courier New")` - RECOMMENDED
+- ❌ Do NOT use `Tex(r"\texttt{...}")` - requires textcomp package not in default Manim template
+- ❌ Do NOT use `Tex(r"\begin{verbatim}...")` - verbatim environment not supported
+
+For mathematical expressions:
+- ✅ Use `MathTex(r"\\frac{a}{b}")` - for equations
+- ✅ Use `Tex(r"\alpha + \beta")` - for simple LaTeX (Greek letters, etc.)
+
+Do NOT use `\texttt`, `\verb`, or `\begin{verbatim}` in Tex() - use Text() with font="Courier New" instead.
+
 ---
 
 ## Pre-Render Validation Checklist
@@ -545,14 +514,12 @@ Before rendering any scene, programmatically verify:
 - [ ] Free-positioned sibling clusters (rows/columns or mixed placements) call `safe_layout()`; strict `.next_to(...)` chains call `safe_position(...)` per element
 - [ ] All title elements use `.move_to(UP * 3.8)`, NOT `.to_edge(UP)`
 
-### Timing Validation
-- [ ] Timing budget fractions sum to ≤ 1.0 for each voiceover block
-- [ ] No animation has `run_time < 0.3` seconds
-
 ### Content Validation
 - [ ] Charts/graphs have labels and legends
 - [ ] Mathematical content uses `MathTex`, not `Tex`
 - [ ] Position arrays are 3D: `np.array([x, y, 0])`
+- [ ] NO external assets: Scene file does NOT contain SVGMobject, ImageMobject, or references to .svg/.png/.jpg files
+- [ ] Code text uses Text(font="Courier New"), NOT Tex(r"\texttt{...}")
 
 ### Aesthetics Validation (New)
 - [ ] Colors use harmonious palette (no more than 4 variants per scene)
@@ -621,11 +588,11 @@ If validation detects overlaps/desyncs:
 ## Workflow Summary
 
 ```
-plan → review → narration → build_scenes → final_render → assemble → complete
-  ↓       ↓          ↓            ↓              ↓             ↓          ↓
-plan.   validate   scripts      code          render        concat    done
-json    feasib.    + voice      files         videos        final
-                   config                                    .mp4
+plan → review → narration → training → build_scenes → final_render → assemble → complete
+  ↓       ↓          ↓           ↓            ↓              ↓             ↓          ↓
+plan.   validate   scripts    Manim         code          render        concat    done
+json    feasib.    + voice    docs          files         videos        final
+                    config                                  .mp4
 ```
 
 ### Pipeline Enhancements (New)

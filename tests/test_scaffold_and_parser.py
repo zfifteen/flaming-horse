@@ -44,26 +44,14 @@ class TestScaffoldGeneration:
     def test_scaffold_imports_helpers_correctly(self):
         """Scaffold must import helpers from flaming_horse.scene_helpers."""
         assert "from flaming_horse.scene_helpers import" in TEMPLATE
-        assert "BeatPlan" in TEMPLATE
-        assert "play_next" in TEMPLATE
-        assert "play_text_next" in TEMPLATE
         assert "safe_position" in TEMPLATE
         assert "harmonious_color" in TEMPLATE
 
-    def test_scaffold_no_duplicate_functions(self):
-        """Scaffold must not redefine helpers that are imported."""
-        # Count occurrences of function definitions
-        play_next_defs = TEMPLATE.count("def play_next(")
-        play_text_next_defs = TEMPLATE.count("def play_text_next(")
-        
-        # Should be 0 since they're imported, not defined
-        assert play_next_defs == 0, "play_next should not be redefined in scaffold"
-        assert play_text_next_defs == 0, "play_text_next should not be redefined in scaffold"
-
-    def test_scaffold_no_play_in_slot_reference(self):
-        """Scaffold must not reference play_in_slot (internal helper)."""
-        # play_in_slot is internal to scene_helpers, not for scene code
-        assert "play_in_slot" not in TEMPLATE
+    def test_scaffold_no_beat_imports(self):
+        """Scaffold must not import beat-related helpers."""
+        assert "BeatPlan" not in TEMPLATE
+        assert "play_next" not in TEMPLATE
+        assert "play_text_next" not in TEMPLATE
 
 
 class TestParserBodyExtraction:
@@ -71,22 +59,18 @@ class TestParserBodyExtraction:
 
     def test_parse_valid_body_code(self):
         """Parser should extract valid body code."""
-        response = '''
+        response = """
 Here's the scene body:
 
 ```python
-num_beats = max(12, min(30, int(np.ceil(tracker.duration / 1.8))))
-beats = BeatPlan(tracker.duration, [1] * num_beats)
-
 title = Text("Welcome", font_size=48)
 title.move_to(UP * 3.8)
-play_text_next(self, beats, Write(title), max_text_seconds=999)
+self.play(Write(title))
 ```
-'''
+"""
         body = parse_build_scenes_response(response)
         assert body is not None
-        assert "BeatPlan" in body
-        assert "play_text_next" in body
+        assert "Write(title)" in body
 
     def test_reject_scaffold_placeholders(self):
         """Parser should reject code with scaffold placeholders."""
@@ -101,7 +85,7 @@ play_text_next(self, beats, Write(title), max_text_seconds=999)
 
     def test_reject_header_tokens(self):
         """Parser should reject code with header/scaffold structure."""
-        response = '''
+        response = """
 ```python
 from manim import *
 config.frame_width = 10 * 16 / 9
@@ -110,19 +94,19 @@ class MyScene(VoiceoverScene):
     def construct(self):
         pass
 ```
-'''
+"""
         body = parse_build_scenes_response(response)
         assert body is None
 
     def test_reject_slot_markers(self):
         """Parser should reject code containing SLOT markers."""
-        response = '''
+        response = """
 ```python
 # SLOT_START:scene_body
 title = Text("Hello")
 # SLOT_END:scene_body
 ```
-'''
+"""
         body = parse_build_scenes_response(response)
         assert body is None
 
@@ -134,37 +118,33 @@ class TestBodyInjection:
         """Should successfully inject valid body code."""
         with tempfile.TemporaryDirectory() as tmpdir:
             scaffold_path = Path(tmpdir) / "test_scene.py"
-            scaffold_path.write_text(TEMPLATE.format(
-                class_name="TestScene",
-                narration_key="test"
-            ))
+            scaffold_path.write_text(
+                TEMPLATE.format(class_name="TestScene", narration_key="test")
+            )
 
-            body_code = '''            num_beats = max(12, min(30, int(np.ceil(tracker.duration / 1.8))))
-            beats = BeatPlan(tracker.duration, [1] * num_beats)
-            title = Text("Test", font_size=48)
-            play_text_next(self, beats, Write(title), max_text_seconds=999)'''
+            body_code = """            title = Text("Test", font_size=48)
+            title.move_to(UP * 3.8)
+            self.play(Write(title))"""
 
             full_code = inject_body_into_scaffold(scaffold_path, body_code)
-            
+
             # Verify markers are preserved
             assert "# SLOT_START:scene_body" in full_code
             assert "# SLOT_END:scene_body" in full_code
-            
+
             # Verify locked config is preserved
             assert "config.frame_width = 10 * 16 / 9" in full_code
-            
+
             # Verify body is present
-            assert "BeatPlan" in full_code
-            assert "play_text_next" in full_code
+            assert "Write(title)" in full_code
 
     def test_reject_empty_body(self):
         """Should reject body with only comments/whitespace."""
         with tempfile.TemporaryDirectory() as tmpdir:
             scaffold_path = Path(tmpdir) / "test_scene.py"
-            scaffold_path.write_text(TEMPLATE.format(
-                class_name="TestScene",
-                narration_key="test"
-            ))
+            scaffold_path.write_text(
+                TEMPLATE.format(class_name="TestScene", narration_key="test")
+            )
 
             empty_bodies = [
                 "    # Just a comment",
@@ -175,7 +155,9 @@ class TestBodyInjection:
             for empty_body in empty_bodies:
                 try:
                     inject_body_into_scaffold(scaffold_path, empty_body)
-                    raise AssertionError(f"Should have raised ValueError for: {empty_body}")
+                    raise AssertionError(
+                        f"Should have raised ValueError for: {empty_body}"
+                    )
                 except ValueError as e:
                     assert "at least one non-comment statement" in str(e)
 
@@ -183,19 +165,16 @@ class TestBodyInjection:
         """Injected code should be syntactically valid Python."""
         with tempfile.TemporaryDirectory() as tmpdir:
             scaffold_path = Path(tmpdir) / "test_scene.py"
-            scaffold_path.write_text(TEMPLATE.format(
-                class_name="TestScene",
-                narration_key="test"
-            ))
+            scaffold_path.write_text(
+                TEMPLATE.format(class_name="TestScene", narration_key="test")
+            )
 
             # Body code should be unindented (parser provides it this way)
-            body_code = '''num_beats = 12
-beats = BeatPlan(tracker.duration, [1] * num_beats)
-title = Text("Test")
-play_next(self, beats, FadeIn(title))'''
+            body_code = """title = Text("Test")
+self.play(FadeIn(title))"""
 
             full_code = inject_body_into_scaffold(scaffold_path, body_code)
-            
+
             # Should compile without syntax errors
             compile(full_code, "<string>", "exec")
 
@@ -224,7 +203,6 @@ class TestScaffoldArtifactsDetection:
             'title = Text("Real Title", font_size=48)',
             "subtitle = Text('Actual Subtitle')",
             "box = Rectangle(width=3.0, height=2.0)",
-            "num_beats = 12\nbeats = BeatPlan(10.0, [1]*num_beats)",
         ]
         for code in clean_codes:
             assert not has_scaffold_artifacts(code), f"Should pass: {code}"
@@ -239,6 +217,7 @@ class TestHarmoniousColorContract:
         # We can't import manim here, so we test the logic
         try:
             from flaming_horse.scene_helpers import harmonious_color
+
             # These should not raise (testing contract, not functionality)
             harmonious_color("primary")
             harmonious_color("secondary")
@@ -257,26 +236,24 @@ class TestSceneRepairParser:
 
     def test_repair_parser_checks_artifacts(self):
         """Repair parser should reject code with scaffold artifacts."""
-        response = '''
+        response = """
 Fixed code:
 ```python
 title = Text("{{TITLE}}", font_size=48)
 ```
-'''
+"""
         body = parse_scene_repair_response(response)
         assert body is None, "Should reject repair code with placeholders"
 
     def test_repair_parser_accepts_clean_code(self):
         """Repair parser should accept clean repaired code."""
-        response = '''
+        response = """
 Fixed:
 ```python
-num_beats = 12
-beats = BeatPlan(tracker.duration, [1] * num_beats)
 title = Text("Fixed Title", font_size=48)
-play_text_next(self, beats, Write(title), max_text_seconds=999)
+self.play(Write(title))
 ```
-'''
+"""
         body = parse_scene_repair_response(response)
         assert body is not None
         assert "Fixed Title" in body
@@ -292,16 +269,16 @@ def run_tests():
         TestHarmoniousColorContract,
         TestSceneRepairParser,
     ]
-    
+
     total = 0
     passed = 0
     failed = 0
-    
+
     for test_class in test_classes:
         print(f"\n{test_class.__name__}:")
         instance = test_class()
         methods = [m for m in dir(instance) if m.startswith("test_")]
-        
+
         for method_name in methods:
             total += 1
             try:
@@ -312,11 +289,11 @@ def run_tests():
             except Exception as e:
                 print(f"  ✗ {method_name}: {e}")
                 failed += 1
-    
-    print(f"\n{'='*60}")
+
+    print(f"\n{'=' * 60}")
     print(f"Total: {total} | Passed: {passed} | Failed: {failed}")
-    print(f"{'='*60}")
-    
+    print(f"{'=' * 60}")
+
     return failed == 0
 
 

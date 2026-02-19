@@ -1,0 +1,18 @@
+phase: scene_qc
+
+inputs:
+  - all_scene_files: state.scenes[].file
+  - scene_source_code: each_scene_file_contents
+  - constraints: manim_contracts_and_policy_checks
+
+output:
+  format: markdown_only
+  file: scene_qc_report.md
+  required_fields:
+    - summary
+    - findings[]
+    - pass_fail_by_scene
+
+validation:
+  report_not_empty: true
+  includes_each_scene: true

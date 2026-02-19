@@ -24,6 +24,7 @@
         "plan",
         "review",
         "narration",
+        "training",
         "build_scenes",
         "scene_qc",
         "precache_voiceovers",

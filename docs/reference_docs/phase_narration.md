@@ -15,10 +15,9 @@ Duration: ~[X] seconds
 
 SCRIPT = {
     "intro": """Your intro narration here. Write naturally, as if speaking.
-    Keep it conversational and engaging. Include clear transitions that map to visual beats such as title, bullet reveals, diagram shifts, and recap callouts.""",
+    Keep it conversational and engaging.""",
     
-    "demo": """Second segment narration. Break into logical beats that
-    match visual moments.""",
+    "demo": """Second segment narration.""",
     
     "conclusion": """Closing remarks that tie everything together."""
 }

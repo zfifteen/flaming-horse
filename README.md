@@ -37,7 +37,7 @@ Advanced/manual flow (optional):
 
 ## First-Run Checklist
 
-1. Install dependencies (system + Python): `docs/INSTALLATION.md`
+1. Install dependencies (system + Python): `docs/guides/INSTALLATION.md`
 2. Verify environment: `./scripts/check_dependencies.sh`
 3. Confirm `.env` contains required API settings for harness execution
 4. Run `./scripts/create_video.sh <project_name> --topic "..."`
@@ -46,7 +46,7 @@ Advanced/manual flow (optional):
 
 The orchestrator (`scripts/build_video.sh`) runs one phase at a time and advances deterministically:
 
-`plan -> review -> narration -> build_scenes -> scene_qc -> precache_voiceovers -> final_render -> assemble -> complete`
+`plan -> review -> narration -> training -> build_scenes -> scene_qc -> precache_voiceovers -> final_render -> assemble -> complete`
 
 Notes:
 - Projects created by `new_project.sh` start at `plan`.
@@ -61,7 +61,7 @@ Flaming Horse uses cached local Qwen voice clone audio only.
 - Required reference assets: `assets/voice_ref/ref.wav` and `assets/voice_ref/ref.txt`
 - No fallback TTS services
 
-See `docs/VOICE_POLICY.md` for full policy.
+See `docs/policies/VOICE_POLICY.md` for full policy.
 
 ## Installation and Environment
 
@@ -73,7 +73,7 @@ See `docs/VOICE_POLICY.md` for full policy.
 ./scripts/check_dependencies.sh
 ```
 
-Detailed setup: `docs/INSTALLATION.md`
+Detailed setup: `docs/guides/INSTALLATION.md`
 
 ## Configuration
 
@@ -82,9 +82,13 @@ Detailed setup: `docs/INSTALLATION.md`
 The orchestrator calls the Python harness (`python3 -m harness`) for agent phases.
 Configure behavior via environment variables (typically in `.env`):
 
-- `XAI_API_KEY` (required by harness)
-- `AGENT_MODEL` (default in orchestrator is `xai/grok-4-1-fast`)
-- `AGENT_TEMPERATURE` (optional)
+**LLM Provider Configuration:**
+- `LLM_PROVIDER` - Provider name (XAI or MINIMAX)
+- `{PROVIDER}_API_KEY` - Provider-specific API key
+- `{PROVIDER}_BASE_URL` - Provider-specific endpoint (optional)
+- `{PROVIDER}_MODEL` - Provider-specific model (optional)
+
+See `.env.example` for full configuration.
 
 Harness details: `harness/README.md`
 

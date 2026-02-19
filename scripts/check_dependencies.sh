@@ -230,9 +230,9 @@ if [[ $errors -eq 0 ]]; then
   exit 0
 else
   if [[ $warnings -gt 0 ]]; then
-    echo "❌ $errors missing dependencies ($warnings warning(s)) - see docs/INSTALLATION.md"
+    echo "❌ $errors missing dependencies ($warnings warning(s)) - see docs/guides/INSTALLATION.md"
   else
-    echo "❌ $errors missing dependencies - see docs/INSTALLATION.md"
+    echo "❌ $errors missing dependencies - see docs/guides/INSTALLATION.md"
   fi
   exit 1
 fi

@@ -1,7 +1,8 @@
 """
-xAI API client for the Flaming Horse agent harness.
+Provider-agnostic LLM API client for the Flaming Horse agent harness.
 
-Provides direct integration with xAI's chat completions API.
+Supports XAI and MiniMax via LLM_PROVIDER environment variable.
+Switch providers by setting LLM_PROVIDER=XAI or LLM_PROVIDER=MINIMAX.
 """
 
 import os
@@ -11,25 +12,95 @@ from typing import Optional, Dict, Any
 import requests
 
 
-class XAIClient:
-    """Client for xAI API communication."""
+# Provider configuration defaults
+PROVIDER_DEFAULTS = {
+    "XAI": {
+        "base_url": "https://api.x.ai/v1",
+        "model": "grok-code-fast-1",
+    },
+    "MINIMAX": {
+        "base_url": "https://api.minimax.io/v1",
+        "model": "MiniMax-M2.5",
+    },
+}
 
-    def __init__(self, api_key: Optional[str] = None, model: Optional[str] = None):
+
+class LLMClient:
+    """Provider-agnostic LLM API client."""
+
+    def __init__(
+        self,
+        api_key: Optional[str] = None,
+        model: Optional[str] = None,
+        base_url: Optional[str] = None,
+        provider: Optional[str] = None,
+    ):
         """
-        Initialize xAI client.
+        Initialize LLM client.
 
         Args:
-            api_key: xAI API key (defaults to XAI_API_KEY env var)
-            model: Model to use (defaults to AGENT_MODEL env var or grok-code-fast-1)
+            api_key: API key (auto-detected from provider if not set)
+            model: Model to use (auto-detected from provider if not set)
+            base_url: Base URL (auto-detected from provider if not set)
+            provider: Provider name (XAI or MINIMAX, defaults to LLM_PROVIDER env var)
         """
-        self.api_key = api_key or os.getenv("XAI_API_KEY")
-        if not self.api_key:
-            raise ValueError("XAI_API_KEY environment variable not set")
+        # Determine provider
+        self.provider = (provider or os.getenv("LLM_PROVIDER", "XAI")).upper()
+        if self.provider not in PROVIDER_DEFAULTS:
+            raise ValueError(
+                f"Unsupported provider: {self.provider}. "
+                f"Supported: {', '.join(PROVIDER_DEFAULTS.keys())}"
+            )
 
-        self.model = model or os.getenv("AGENT_MODEL", "grok-code-fast-1")
-        self.model = self.model.removeprefix("xai/")
-        print(f"🤖 Harness using model: {self.model}")
-        self.base_url = "https://api.x.ai/v1"
+        # Get provider-specific env var prefix
+        prefix = self.provider
+
+        # API key: provider-specific key, with fallback to legacy XAI_API_KEY for XAI
+        if api_key:
+            self.api_key = api_key
+        else:
+            # Try provider-specific key first
+            provider_key = os.getenv(f"{prefix}_API_KEY")
+            if provider_key:
+                self.api_key = provider_key
+            elif self.provider == "XAI":
+                # Fallback to legacy XAI_API_KEY for backward compatibility
+                self.api_key = os.getenv("XAI_API_KEY")
+                if not self.api_key:
+                    raise ValueError(
+                        f"{prefix}_API_KEY or XAI_API_KEY environment variable must be set"
+                    )
+            else:
+                raise ValueError(f"{prefix}_API_KEY environment variable must be set")
+
+        # Base URL: provider-specific URL, fallback to default
+        if base_url:
+            self.base_url = base_url
+        else:
+            self.base_url = (
+                os.getenv(f"{prefix}_BASE_URL")
+                or PROVIDER_DEFAULTS[self.provider]["base_url"]
+            )
+
+        # Model: provider-specific model, fallback to provider default, then global AGENT_MODEL
+        if model:
+            self.model = model
+        else:
+            self.model = (
+                os.getenv(f"{prefix}_MODEL")
+                or PROVIDER_DEFAULTS[self.provider]["model"]
+                or os.getenv("AGENT_MODEL")
+            )
+
+        # Strip provider prefix from model name if present (e.g., "xai/grok-..." → "grok-...")
+        if self.model:
+            self.model = self.model.removeprefix("xai/").removeprefix("minimax/")
+
+        print(f"🤖 Harness using:")
+        print(f"   Provider: {self.provider}")
+        print(f"   Base URL: {self.base_url}")
+        print(f"   Model: {self.model}")
+
         self.max_retries = 3
         self.retry_delay = 2.0
 
@@ -41,7 +112,7 @@ class XAIClient:
         stream: bool = False,
     ) -> Dict[str, Any]:
         """
-        Make a request to the xAI API.
+        Make a request to the LLM API.
 
         Args:
             messages: List of message dicts with 'role' and 'content'
@@ -135,7 +206,7 @@ class XAIClient:
         max_tokens: int = 16000,
     ) -> str:
         """
-        Get a chat completion from xAI.
+        Get a chat completion from the LLM.
 
         Args:
             system_prompt: System prompt (instructions)
@@ -167,14 +238,14 @@ class XAIClient:
         raise ValueError(f"Unexpected API response format: {response}")
 
 
-def call_xai_api(
+def call_llm_api(
     system_prompt: str,
     user_prompt: str,
     temperature: float = 0.7,
     max_tokens: int = 16000,
 ) -> str:
     """
-    Convenience function to call xAI API.
+    Convenience function to call LLM API.
 
     Args:
         system_prompt: System prompt
@@ -185,13 +256,18 @@ def call_xai_api(
     Returns:
         Response text from the model
     """
-    client = XAIClient()
+    client = LLMClient()
     return client.chat_completion(
         system_prompt=system_prompt,
         user_prompt=user_prompt,
         temperature=temperature,
         max_tokens=max_tokens,
     )
+
+
+# Backward compatibility aliases
+XAIClient = LLMClient
+call_xai_api = call_llm_api
 
 
 def estimate_tokens(text: str) -> int:

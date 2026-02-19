@@ -9,8 +9,16 @@ ENV_FILE="${REPO_ROOT}/.env"
 # phase when rendering from project directories.
 export PYTHONPATH="${REPO_ROOT}:${SCRIPT_DIR}:${PYTHONPATH:-}"
 
-# Python interpreter - use environment variable or default to $PYTHON_BIN
-PYTHON_BIN="${PYTHON:-${PYTHON3:-$PYTHON_BIN}}"
+# Python interpreter - use environment variable or default to python3.13
+PYTHON_BIN="${PYTHON:-${PYTHON3:-python3.13}}"
+
+# Enforce Python 3.13 requirement
+PYTHON_VERSION=$("$PYTHON_BIN" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null || echo "none")
+if [[ "$PYTHON_VERSION" != "3.13" ]]; then
+  echo "❌ Python 3.13 is required. Found: $PYTHON_VERSION" >&2
+  echo "   Use: PYTHON=/usr/local/bin/python3.13 ./scripts/build_video.sh ..." >&2
+  exit 1
+fi
 
 if [[ -f "${ENV_FILE}" ]]; then
   # shellcheck disable=SC1090
@@ -22,9 +30,23 @@ fi
 AGENT_MODEL="${AGENT_MODEL:-xai/grok-4-1-fast}"
 PROJECTS_BASE_DIR="${PROJECTS_BASE_DIR:-projects}"
 PROJECT_DEFAULT_NAME="${PROJECT_DEFAULT_NAME:-default_video}"
-MAX_RUNS="${MAX_RUNS:-50}"
 PHASE_RETRY_LIMIT="${PHASE_RETRY_LIMIT:-3}"
 PHASE_RETRY_BACKOFF_SECONDS="${PHASE_RETRY_BACKOFF_SECONDS:-2}"
+TARGET_PHASE=""
+
+PHASE_SEQUENCE=(
+  "init"
+  "plan"
+  "review"
+  "narration"
+  "training"
+  "build_scenes"
+  "scene_qc"
+  "precache_voiceovers"
+  "final_render"
+  "assemble"
+  "complete"
+)
 
 # Force offline mode for all HuggingFace/Transformers usage in this pipeline.
 HF_HUB_OFFLINE="${HF_HUB_OFFLINE:-1}"
@@ -36,11 +58,14 @@ export TOKENIZERS_PARALLELISM
 
 usage() {
   cat <<EOF
-Usage: $0 [project_dir] [--topic "<video topic>"] [--max-runs N]
-  --max-runs N limits loop iterations (phase transitions), not full project completion.
+Usage: $0 [project_dir] [--topic "<video topic>"] [--phase <target_phase>]
+  --phase stops after the specified phase has completed.
 
 Recommended user entrypoint:
-  ./scripts/create_video.sh <project_name> --topic "<video topic>"
+  ./scripts/create_video.sh <project_name> --topic "<video topic>" [--phase <target_phase>]
+
+Valid target phases:
+  ${PHASE_SEQUENCE[*]}
 
 For command overview:
   ./scripts/help.sh
@@ -58,7 +83,6 @@ shift || true
 
 # Optional topic injection (primarily for plan phase)
 TOPIC_OVERRIDE=""
-MAX_RUNS_EXPLICIT=0
 while [[ ${#} -gt 0 ]]; do
   case "${1}" in
     --topic)
@@ -69,17 +93,12 @@ while [[ ${#} -gt 0 ]]; do
       fi
       shift 2
       ;;
-    --max-runs)
-      MAX_RUNS="${2:-}"
-      if [[ -z "${MAX_RUNS}" ]]; then
-        echo "❌ Missing value for --max-runs" >&2
+    --phase)
+      TARGET_PHASE="${2:-}"
+      if [[ -z "${TARGET_PHASE}" ]]; then
+        echo "❌ Missing value for --phase" >&2
         exit 1
       fi
-      if ! [[ "${MAX_RUNS}" =~ ^[0-9]+$ ]]; then
-        echo "❌ --max-runs must be an integer" >&2
-        exit 1
-      fi
-      MAX_RUNS_EXPLICIT=1
       shift 2
       ;;
     -h|--help)
@@ -93,6 +112,26 @@ while [[ ${#} -gt 0 ]]; do
       ;;
   esac
 done
+
+phase_index() {
+  local phase="$1"
+  local i
+  for i in "${!PHASE_SEQUENCE[@]}"; do
+    if [[ "${PHASE_SEQUENCE[$i]}" == "$phase" ]]; then
+      echo "$i"
+      return 0
+    fi
+  done
+  echo "-1"
+}
+
+if [[ -n "${TARGET_PHASE}" ]]; then
+  if [[ "$(phase_index "${TARGET_PHASE}")" -lt 0 ]]; then
+    echo "❌ Invalid --phase value: ${TARGET_PHASE}" >&2
+    echo "   Valid phases: ${PHASE_SEQUENCE[*]}" >&2
+    exit 1
+  fi
+fi
 
 INITIAL_PWD="$(pwd)"
 if [[ "${PROJECT_DIR_INPUT}" = /* ]]; then
@@ -218,6 +257,7 @@ try:
         'plan',
         'review',
         'narration',
+        'training',
         'build_scenes',
         'scene_qc',
         'precache_voiceovers',
@@ -264,7 +304,7 @@ apply_state_phase() {
 is_retryable_phase() {
   local phase="$1"
   case "$phase" in
-    init|plan|narration|build_scenes|scene_qc|final_render|assemble)
+    init|plan|narration|training|build_scenes|scene_qc|final_render|assemble)
       return 0
       ;;
     *)
@@ -748,7 +788,7 @@ PY
   local retry_context_file
   retry_context_file="$(get_retry_context_file "$phase")"
   
-  echo "Using Python harness (direct xAI API)" | tee -a "$LOG_FILE"
+  echo "Using Python harness (${LLM_PROVIDER:-XAI} API)" | tee -a "$LOG_FILE"
 
   local -a harness_args=(
     --phase "$phase"
@@ -766,6 +806,8 @@ PY
   fi
 
   export XAI_API_KEY="$XAI_API_KEY"
+  export MINIMAX_API_KEY="$MINIMAX_API_KEY"
+  export LLM_PROVIDER="$LLM_PROVIDER"
   $PYTHON_BIN -m harness "${harness_args[@]}" \
     > >(tee -a "$LOG_FILE") \
     2> >(tee -a "$LOG_FILE" >&2)
@@ -1359,6 +1401,23 @@ PY
 
   # Deterministically advance state once narration_script.py exists.
   apply_state_phase "narration" || true
+}
+
+handle_training() {
+  # Check if training phase should be skipped
+  if [[ "${SKIP_TRAINING_PHASE:-0}" == "1" ]]; then
+    echo "⏭️  Skipping training phase (SKIP_TRAINING_PHASE=1)" | tee -a "$LOG_FILE"
+    apply_state_phase "training" || true
+    return 0
+  fi
+
+  echo "📚 Running Manim training phase..." | tee -a "$LOG_FILE"
+  invoke_agent "training" "$(get_run_count)"
+
+  normalize_state_json || true
+
+  # Training phase always succeeds - just advance state
+  apply_state_phase "training" || true
 }
 
 handle_precache_voiceovers() {
@@ -2269,6 +2328,7 @@ run_phase_once() {
     plan) handle_plan ;;
     review) handle_review ;;
     narration) handle_narration ;;
+    training) handle_training ;;
     build_scenes) handle_build_scenes ;;
     scene_qc) handle_scene_qc ;;
     precache_voiceovers) handle_precache_voiceovers ;;
@@ -2309,6 +2369,15 @@ state.setdefault("history", []).append(
 with open("${STATE_FILE}", "w") as f:
     json.dump(state, f, indent=2)
 PY
+}
+
+is_phase_past_target() {
+  local phase="$1"
+  local target="$2"
+  local phase_idx target_idx
+  phase_idx="$(phase_index "$phase")"
+  target_idx="$(phase_index "$target")"
+  [[ "$phase_idx" -gt "$target_idx" ]]
 }
 
 play_completion_sound() {
@@ -2391,8 +2460,17 @@ main() {
   echo "⏰ Started: $(date)" | tee -a "$LOG_FILE"
   echo "════════════════════════════════════════════════════════════════" | tee -a "$LOG_FILE"
   
+  if [[ -n "${TARGET_PHASE}" ]]; then
+    local start_phase
+    start_phase="$(get_phase)"
+    if is_phase_past_target "$start_phase" "$TARGET_PHASE"; then
+      echo "✅ Target phase already passed: ${start_phase} (target: ${TARGET_PHASE})" | tee -a "$LOG_FILE"
+      exit 0
+    fi
+  fi
+
   local iteration=0
-while [[ $iteration -lt $MAX_RUNS ]]; do
+while true; do
     iteration=$((iteration + 1))
 
     # Repair + normalize state (never trust agent edits).
@@ -2416,7 +2494,7 @@ while [[ $iteration -lt $MAX_RUNS ]]; do
     
     echo "" | tee -a "$LOG_FILE"
     echo "────────────────────────────────────────────────────────────────" | tee -a "$LOG_FILE"
-    echo "Iteration: $iteration/$MAX_RUNS" | tee -a "$LOG_FILE"
+    echo "Iteration: $iteration" | tee -a "$LOG_FILE"
     echo "Current phase: $current_phase" | tee -a "$LOG_FILE"
     echo "────────────────────────────────────────────────────────────────" | tee -a "$LOG_FILE"
     
@@ -2492,6 +2570,15 @@ while [[ $iteration -lt $MAX_RUNS ]]; do
     normalize_state_json || true
     
     increment_run_count
+
+    if [[ -n "${TARGET_PHASE}" ]]; then
+      local phase_after
+      phase_after="$(get_phase)"
+      if is_phase_past_target "$phase_after" "$TARGET_PHASE"; then
+        echo "✅ Target phase completed: ${TARGET_PHASE} (current: ${phase_after})" | tee -a "$LOG_FILE"
+        exit 0
+      fi
+    fi
     
     local needs_review
     needs_review=$($PYTHON_BIN -c "import json; print(json.load(open('${STATE_FILE}'))['flags'].get('needs_human_review', False))")
@@ -2502,12 +2589,6 @@ while [[ $iteration -lt $MAX_RUNS ]]; do
       exit 0
     fi
   done
-  
-  local stopped_phase
-  stopped_phase="$(get_phase)"
-  echo "⚠️  Maximum iterations ($MAX_RUNS) reached. Stopping at phase: ${stopped_phase}." | tee -a "$LOG_FILE"
-  echo "   Note: --max-runs counts phase-loop iterations, not full end-to-end completion." | tee -a "$LOG_FILE"
-  exit 1
 }
 
 main "$@"

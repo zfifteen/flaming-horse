@@ -1,6 +1,8 @@
 .idea/
 .wiggum/
 generated/
+.DS_Store
+**/.DS_Store
 
 *backup*
 
@@ -23,6 +25,8 @@ __pycache__/
 !examples/defective_output/smoke-test/.state_backup.json
 !examples/defective_output/smoke-test/build.log
 !examples/defective_output/smoke-test/errors.log
+!examples/defective_output/microclots/.state_backup.json
+!examples/defective_output/microclots/build.log
 
 # Generated harness E2E artifacts
 projects/e2e_test_harness_*/

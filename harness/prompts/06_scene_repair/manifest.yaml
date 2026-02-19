@@ -1,0 +1,24 @@
+phase: scene_repair
+
+inputs:
+  - broken_scene_file: --scene-file
+  - broken_scene_content: file_contents
+  - scene_metadata: state.current_scene
+  - scene_narration: SCRIPT[narration_key]
+  - retry_context: required
+  - references: core_rules
+  - exclude: unrelated_scenes, full_pipeline_doc
+
+output:
+  format: python_only
+  file: "<broken_scene_file>"
+  required_fields:
+    - preserves_template_contract
+    - fixes_reported_error
+    - VoiceoverScene subclass
+    - SCRIPT[narration_key] usage
+
+validation:
+  python_syntax_valid: true
+  original_failure_addressed: true
+  no_new_policy_violations: true
