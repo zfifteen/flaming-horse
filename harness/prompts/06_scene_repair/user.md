@@ -36,4 +36,5 @@ Repair intent is strict:
 5. Do not inject unrelated branding/topics/project names.
 6. Do NOT include `with self.voiceover(...)` in repaired body output. The scaffold already owns that wrapper.
 
-Output ONLY the corrected Python code. No explanations.
+Output exactly one JSON object with required field `scene_body`.
+No explanations, no markdown/code fences, no XML.

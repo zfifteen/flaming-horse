@@ -858,7 +858,26 @@ PY
 
   if [[ $exit_code -ne 0 ]]; then
     echo "❌ Harness invocation failed with exit code: $exit_code" | tee -a "$LOG_FILE"
-    return 1
+    if [[ $exit_code -eq 3 ]]; then
+      echo "❌ Schema validation failure detected; stopping phase without retries." | tee -a "$LOG_FILE"
+      $PYTHON_BIN - <<PY
+import json
+from datetime import datetime, UTC
+
+with open("${STATE_FILE}", "r") as f:
+    state = json.load(f)
+
+state.setdefault("errors", []).append(
+    "Schema validation failed in phase ${phase}. See log/debug_response_${phase}.txt for raw model output."
+)
+state.setdefault("flags", {})["needs_human_review"] = True
+state["updated_at"] = datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')
+
+with open("${STATE_FILE}", "w") as f:
+    json.dump(state, f, indent=2)
+PY
+    fi
+    return $exit_code
   fi
 
   echo "[Run $run_num] Harness completed phase: $phase" | tee -a "$LOG_FILE"
@@ -1214,11 +1233,19 @@ repair_scene_until_valid() {
 handle_init() {
   echo "🎬 Initializing project..." | tee -a "$LOG_FILE"
   invoke_agent "init" "$(get_run_count)"
+  local rc=$?
+  if [[ $rc -ne 0 ]]; then
+    return $rc
+  fi
 }
 
 handle_plan() {
   echo "📝 Planning video..." | tee -a "$LOG_FILE"
   invoke_agent "plan" "$(get_run_count)"
+  local rc=$?
+  if [[ $rc -ne 0 ]]; then
+    return $rc
+  fi
 
   # Agent may have corrupted state JSON; normalize before applying plan.
   normalize_state_json || true
@@ -1355,6 +1382,10 @@ PY
 handle_narration() {
   echo "🎙️  Generating narration scripts..." | tee -a "$LOG_FILE"
   invoke_agent "narration" "$(get_run_count)"
+  local rc=$?
+  if [[ $rc -ne 0 ]]; then
+    return $rc
+  fi
 
   normalize_state_json || true
 
@@ -1568,6 +1599,10 @@ PY
   fi
 
   invoke_agent "build_scenes" "$(get_run_count)"
+  local rc=$?
+  if [[ $rc -ne 0 ]]; then
+    return $rc
+  fi
 
   # Agent may have produced malformed JSON edits; normalize before reading/writing state.
   normalize_state_json || true

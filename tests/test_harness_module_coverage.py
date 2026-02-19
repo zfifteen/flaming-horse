@@ -110,7 +110,14 @@ def test_cli_happy_path_and_fail_paths(monkeypatch, tmp_path):
 
     monkeypatch.setattr(cli, "parse_and_write_artifacts", lambda **_: False)
     assert cli.main() == 2
-    assert (project / "debug_response_plan.txt").exists()
+    assert (project / "log" / "debug_response_plan.txt").exists()
+
+    monkeypatch.setattr(
+        cli,
+        "parse_and_write_artifacts",
+        lambda **_: (_ for _ in ()).throw(parser.SchemaValidationError("bad schema")),
+    )
+    assert cli.main() == 3
 
     monkeypatch.setattr(cli, "load_project_state", lambda _: (_ for _ in ()).throw(FileNotFoundError("x")))
     assert cli.main() == 1
@@ -277,7 +284,7 @@ def test_parser_helpers_and_phase_parsers(tmp_path):
     assert parser.strip_harness_preamble("🤖 Harness using:\nProvider: X\nBase URL: b\nModel: m\n```python\nx=1\n```").startswith("```python")
     assert parser.strip_harness_preamble("plain") == "plain"
 
-    assert parser.extract_json_block('```json\n{"a":1}\n```') is not None
+    assert parser.extract_json_block('wrapper {"a":1}') is not None
     assert parser.extract_json_block('{"a":1}') is not None
     assert parser.extract_json_block("bad") is None
 
@@ -292,34 +299,41 @@ def test_parser_helpers_and_phase_parsers(tmp_path):
     assert not parser.validate_scene_body_syntax("x=")
     assert parser.validate_scene_body_syntax("x=1")
 
-    assert parser.parse_plan_response('{"title":"t","scenes":[]}')["title"] == "t"
-    assert parser.parse_plan_response('{"plan":{"title":"t","scenes":[]}}')["title"] == "t"
-    assert parser.parse_plan_response("bad") is None
+    assert parser.parse_plan_response('{"title":"t","scenes":[{"id":"scene_01_intro","title":"Intro","narration_key":"scene_01_intro"}]}')["title"] == "t"
+    with pytest.raises(parser.SchemaValidationError):
+        parser.parse_plan_response('{"plan":{"title":"t","scenes":[]}}')
+    with pytest.raises(parser.SchemaValidationError):
+        parser.parse_plan_response("bad")
 
-    narr = parser.parse_narration_response('{"k":"v"}')
+    narr = parser.parse_narration_response('{"script":{"k":"v"}}')
     assert narr is not None and "SCRIPT = {" in narr
-    assert parser.parse_narration_response('["x"]') is None
-    assert parser.parse_narration_response('{"k":1}') is None
+    with pytest.raises(parser.SchemaValidationError):
+        parser.parse_narration_response('["x"]')
+    with pytest.raises(parser.SchemaValidationError):
+        parser.parse_narration_response('{"k":1}')
 
     assert parser.extract_scene_body_xml("<scene_body>x=1</scene_body>") == "x=1"
     assert parser.extract_scene_body_xml("x=1") is None
     full = "with self.voiceover(text=SCRIPT['k']) as tracker:\n            x=1\n            y=2\n"
     assert parser.extract_scene_body_from_full_file(full).startswith("x=1")
 
-    assert parser.parse_build_scenes_response("```python\nx=1\n```") == "x=1"
-    assert parser.parse_build_scenes_response("```python\n<scene_body>\nx=1\n</scene_body>\n```") is None
-    assert parser.parse_build_scenes_response("x=1") is None
-    assert parser.parse_build_scenes_response("```python\nfrom manim import *\n```") is None
+    assert parser.parse_build_scenes_response('{"scene_body":"self.play(Write(x))"}') == "self.play(Write(x))"
+    with pytest.raises(parser.SchemaValidationError):
+        parser.parse_build_scenes_response('{"scene_body":"x=1"}')
+    with pytest.raises(parser.SchemaValidationError):
+        parser.parse_build_scenes_response("x=1")
+    with pytest.raises(parser.SchemaValidationError):
+        parser.parse_build_scenes_response('{"scene_body":"from manim import *\\nself.play(Write(x))"}')
 
-    scene_files, report = parser.parse_scene_qc_response(
-        "```python\n# a.py\nx=1\n```\n# Scene QC Report\nok"
-    )
-    assert len(scene_files) == 1
+    scene_files, report = parser.parse_scene_qc_response('{"report_markdown":"# Scene QC Report\\nok"}')
+    assert len(scene_files) == 0
     assert report is not None
 
-    assert parser.parse_scene_repair_response("<scene_body>x=1</scene_body>") == "x=1"
-    assert parser.parse_scene_repair_response("```python\nx=1\n```") == "x=1"
-    assert parser.parse_scene_repair_response("```python\nfrom manim import *\n```") is None
+    assert parser.parse_scene_repair_response('{"scene_body":"self.play(Write(x))"}') == "self.play(Write(x))"
+    with pytest.raises(parser.SchemaValidationError):
+        parser.parse_scene_repair_response('{"scene_body":"x=1"}')
+    with pytest.raises(parser.SchemaValidationError):
+        parser.parse_scene_repair_response("```python\nx=1\n```")
     assert parser.class_name_to_scene_filename("Scene01Intro") == "scene_01_intro.py"
     assert parser.class_name_to_scene_filename("Scene10FarewellIllusion") == "scene_10_farewell_illusion.py"
 
@@ -346,26 +360,35 @@ def test_parse_and_write_artifacts_branches(tmp_path, monkeypatch):
         "current_scene_index": 0,
     }
 
-    assert parser.parse_and_write_artifacts("plan", '{"title":"t","scenes":[]}', project, state)
-    assert parser.parse_and_write_artifacts("narration", '{"k":"v"}', project, state)
-    assert not parser.parse_and_write_artifacts("narration", "bad", project, state)
-    assert parser.parse_and_write_artifacts("build_scenes", "```python\nx=1\n```", project, state)
-    assert parser.parse_and_write_artifacts("scene_repair", "```python\nx=1\n```", project, {**state, "scene_file": str(scene)})
+    assert parser.parse_and_write_artifacts(
+        "plan",
+        '{"title":"t","scenes":[{"id":"scene_01_intro","title":"Intro","narration_key":"scene_01_intro"}]}',
+        project,
+        state,
+    )
+    assert parser.parse_and_write_artifacts("narration", '{"script":{"k":"v"}}', project, state)
+    with pytest.raises(parser.SchemaValidationError):
+        parser.parse_and_write_artifacts("narration", "bad", project, state)
+    assert parser.parse_and_write_artifacts("build_scenes", '{"scene_body":"self.play(Write(x))"}', project, state)
+    assert parser.parse_and_write_artifacts("scene_repair", '{"scene_body":"self.play(Write(x))"}', project, {**state, "scene_file": str(scene)})
 
-    qc = "```python\n# scene_01.py\nx=1\n```\n# Scene QC Report\nok"
+    qc = '{"report_markdown":"# Scene QC Report\\nok"}'
     assert parser.parse_and_write_artifacts("scene_qc", qc, project, state)
-    assert not parser.parse_and_write_artifacts("scene_qc", "no artifacts", project, state)
+    with pytest.raises(parser.SchemaValidationError):
+        parser.parse_and_write_artifacts("scene_qc", "no artifacts", project, state)
 
-    assert not parser.parse_and_write_artifacts("build_scenes", "bad", project, state)
-    assert not parser.parse_and_write_artifacts("scene_repair", "bad", project, state)
+    with pytest.raises(parser.SchemaValidationError):
+        parser.parse_and_write_artifacts("build_scenes", "bad", project, state)
+    with pytest.raises(parser.SchemaValidationError):
+        parser.parse_and_write_artifacts("scene_repair", "bad", project, state)
     assert not parser.parse_and_write_artifacts("unknown", "x", project, state)
 
     bad_state = {"scenes": [], "current_scene_index": 1}
-    assert not parser.parse_and_write_artifacts("build_scenes", "```python\nx=1\n```", project, bad_state)
+    assert not parser.parse_and_write_artifacts("build_scenes", '{"scene_body":"self.play(Write(x))"}', project, bad_state)
 
     # force injection failure
     monkeypatch.setattr(parser, "inject_body_into_scaffold", lambda *a, **k: (_ for _ in ()).throw(ValueError("boom")))
-    assert not parser.parse_and_write_artifacts("scene_repair", "```python\nx=1\n```", project, {**state, "scene_file": str(scene)})
+    assert not parser.parse_and_write_artifacts("scene_repair", '{"scene_body":"self.play(Write(x))"}', project, {**state, "scene_file": str(scene)})
 
 
 def test_cli_additional_branches(monkeypatch, tmp_path):
@@ -478,12 +501,12 @@ def test_parser_additional_helpers_and_parsers(tmp_path, monkeypatch):
     assert stripped.startswith("```python")
 
     assert parser.extract_json_block('```json\n{"a": 1} trailing\n```') == '{"a": 1}'
-    assert parser.extract_json_block("noise {\"a\":1} tail") == '{"a":1}'
+    assert parser.extract_json_block("noise {\"a\":1} tail") == '{"a": 1}'
     assert parser.extract_json_block("```json\nnot-json\n```") is None
     assert parser.extract_json_block("bad {a:1}") is None
     assert parser.extract_json_block("{{") is None
     assert parser.extract_json_block('x {{"a":1}}') == '{"a": 1}'
-    assert parser.extract_json_block('  "json-string"  ') == '"json-string"'
+    assert parser.extract_json_block('  "json-string"  ') is None
 
     assert parser.extract_scene_body_from_full_file("no voiceover here") is None
     full = "with self.voiceover(text=SCRIPT['k']) as tracker:\n        x=1\n  y=2\n"
@@ -491,29 +514,42 @@ def test_parser_additional_helpers_and_parsers(tmp_path, monkeypatch):
     assert body is not None and "x=1" in body and "y=2" in body
     assert parser.extract_single_python_code("SCRIPT = {\n  'a': 'b'\n") == "SCRIPT = {\n  'a': 'b'"
 
-    assert parser.parse_plan_response('{"title":"t","scenes":{"bad":1}}') is None
-    assert parser.parse_plan_response('{"x": 1}') is None
-    wrapped = parser.parse_plan_response('{"result":{"title":"t","scenes":[{"narrative_key":"k"}]}}')
-    assert wrapped is not None and wrapped["scenes"][0]["narration_key"] == "k"
+    with pytest.raises(parser.SchemaValidationError):
+        parser.parse_plan_response('{"title":"t","scenes":{"bad":1}}')
+    with pytest.raises(parser.SchemaValidationError):
+        parser.parse_plan_response('{"x": 1}')
+    valid = parser.parse_plan_response('{"title":"t","scenes":[{"id":"scene_01_intro","title":"Intro","narration_key":"scene_01_intro"}]}')
+    assert valid is not None and valid["scenes"][0]["narration_key"] == "scene_01_intro"
     monkeypatch.setattr(parser, "extract_json_block", lambda _: "{'title': 't', 'scenes': []}")
-    assert parser.parse_plan_response("ignored")["title"] == "t"
+    with pytest.raises(parser.SchemaValidationError):
+        parser.parse_plan_response("ignored")
     monkeypatch.setattr(parser, "extract_json_block", lambda _: "{")
-    assert parser.parse_plan_response("ignored") is None
+    with pytest.raises(parser.SchemaValidationError):
+        parser.parse_plan_response("ignored")
     monkeypatch.setattr(parser, "extract_json_block", lambda _: None)
 
     monkeypatch.setattr(parser, "extract_json_block", lambda _: "{")
-    assert parser.parse_narration_response("x") is None
+    with pytest.raises(parser.SchemaValidationError):
+        parser.parse_narration_response("x")
     monkeypatch.setattr(parser, "extract_json_block", lambda _: None)
 
-    assert parser.parse_build_scenes_response("```python\n<scene_body>\n</scene_body>\n```") is None
-    assert parser.parse_build_scenes_response("```python\n<abc></abc>\n```") is None
-    assert parser.parse_build_scenes_response("```python\nx=\n```") is None
-    assert parser.parse_build_scenes_response("```python\ndef f():\n    pass\n```") is None
+    with pytest.raises(parser.SchemaValidationError):
+        parser.parse_build_scenes_response("```python\n<scene_body>\n</scene_body>\n```")
+    with pytest.raises(parser.SchemaValidationError):
+        parser.parse_build_scenes_response("```python\n<abc></abc>\n```")
+    with pytest.raises(parser.SchemaValidationError):
+        parser.parse_build_scenes_response('{"scene_body":"x="}')
+    with pytest.raises(parser.SchemaValidationError):
+        parser.parse_build_scenes_response('{"scene_body":"def f():\\n    pass"}')
 
-    assert parser.parse_scene_repair_response("```python\nx=\n```") is None
-    assert parser.parse_scene_repair_response("import os\nx=") is None
-    assert parser.parse_scene_repair_response("import os\nx=1") is None
-    assert parser.parse_scene_repair_response("# c\nimport os\nx=1") == "# c\nimport os\nx=1"
+    with pytest.raises(parser.SchemaValidationError):
+        parser.parse_scene_repair_response('{"scene_body":"x="}')
+    with pytest.raises(parser.SchemaValidationError):
+        parser.parse_scene_repair_response("import os\nx=")
+    with pytest.raises(parser.SchemaValidationError):
+        parser.parse_scene_repair_response("import os\nx=1")
+    with pytest.raises(parser.SchemaValidationError):
+        parser.parse_scene_repair_response('{"scene_body":"# c\\nimport os\\nself.play(Write(x))"}')
 
     marker_missing_end = tmp_path / "missing_end.py"
     marker_missing_end.write_text("# SLOT_START:scene_body\n", encoding="utf-8")
@@ -534,7 +570,8 @@ def test_parse_and_write_artifacts_additional_branches(tmp_path, monkeypatch):
     scene_file.write_text(TEMPLATE.format(class_name="Scene01", narration_key="scene_01"), encoding="utf-8")
     state = {"scenes": [{"id": "scene_01", "file": "scene_01.py"}], "current_scene_index": 0}
 
-    assert not parser.parse_and_write_artifacts("plan", "bad", project, state)
+    with pytest.raises(parser.SchemaValidationError):
+        parser.parse_and_write_artifacts("plan", "bad", project, state)
 
     monkeypatch.setattr(parser, "parse_build_scenes_response", lambda *_: "x=1")
     monkeypatch.setattr(parser, "validate_scene_body_syntax", lambda *_: False)
@@ -547,9 +584,8 @@ def test_parse_and_write_artifacts_additional_branches(tmp_path, monkeypatch):
     monkeypatch.setattr(parser, "inject_body_into_scaffold", lambda *a, **k: (_ for _ in ()).throw(ValueError("bad inject")))
     assert not parser.parse_and_write_artifacts("build_scenes", "ignored", project, state)
 
-    qc_with_class = "```python\nclass SceneOne(VoiceoverScene):\n    pass\n```\n# Scene QC Report\nok"
+    qc_with_class = '{"report_markdown":"# Scene QC Report\\nok"}'
     assert parser.parse_and_write_artifacts("scene_qc", qc_with_class, project, state)
-    assert (project / "scene_one.py").exists()
 
     canonical_state = {
         "scenes": [
@@ -561,15 +597,10 @@ def test_parse_and_write_artifacts_additional_branches(tmp_path, monkeypatch):
         ],
         "current_scene_index": 0,
     }
-    qc_canonical = (
-        "```python\nclass Scene01WelcomeToReality(VoiceoverScene):\n    pass\n```\n"
-        "# Scene QC Report\nok"
-    )
+    qc_canonical = '{"report_markdown":"# Scene QC Report\\nok"}'
     assert parser.parse_and_write_artifacts("scene_qc", qc_canonical, project, canonical_state)
-    assert (project / "scene_01_welcome_to_reality.py").exists()
-    assert not (project / "scene01_welcome_to_reality.py").exists()
 
-    qc_without_class = "```python\nx=1\n```\n# Scene QC Report\nok"
+    qc_without_class = '{"report_markdown":"# Scene QC Report\\nok"}'
     assert parser.parse_and_write_artifacts("scene_qc", qc_without_class, project, state)
 
     monkeypatch.setattr(parser, "parse_scene_repair_response", lambda *_: "x=1")

@@ -49,7 +49,7 @@ class {class_name}(VoiceoverScene):
         with self.voiceover(text=SCRIPT["{narration_key}"]) as tracker:
             # SLOT_START:scene_body
             pass  # TEMP scaffold stub: Agent replaces entire block from here to SLOT_END
-            # PROMPT: Output ONLY <scene_body>...</scene_body> body code. NO full class/imports/config wrappers.
+            # PROMPT: Output JSON only with required field "scene_body" (string body code). NO full class/imports/config wrappers.
             # PROMPT: Use structurally different patterns (e.g., progressive bullets + evolving diagram or timeline/staged reveal).
             # PROMPT: Position bullets at LEFT * 3.5 with set_max_width(6.0); derive content from narration_script.py, not plan.json.
             # PROMPT: Ensure layout contracts: title at UP * 3.8, subtitle next_to(title, DOWN, buff=0.4), visuals below subtitle.

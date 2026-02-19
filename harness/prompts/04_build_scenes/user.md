@@ -39,9 +39,9 @@ SCRIPT["{{narration_key}}"] = {{scene_narration}}
 {{retry_section}}
 
 Output format (mandatory):
-```python
-# python scene body only
-```
+- Output exactly one JSON object.
+- Required field: `scene_body` (non-empty string containing valid Python scene-body code).
+- No markdown, no code fences, no XML wrappers.
 
 Hard requirements:
 1. Output must be valid Python and compile as a scene-body block.
@@ -52,7 +52,9 @@ Hard requirements:
 6. Keep content specific to this scene only.
 7. Return only statements intended to run inside the existing voiceover block.
 8. Do not use tabs; use spaces only.
-9. Return exactly one fenced Python code block (start with ```python and end with ```).
+9. Return JSON only, not fenced Python code blocks.
+10. This code runs inside `def construct(self):` - only statements valid inside a method (assignments, self.play(), etc.)
+11. Do NOT use the `random` module - use deterministic values (e.g., fixed indices or predefined sequences)
 
 Required structural pattern (must compile exactly as Python block structure):
 ```python
@@ -73,7 +75,9 @@ Allowed API subset:
 Forbidden:
 - `play_next(...)`, `play_text_next(...)`
 - `self.add(...)` for first-time visible content
-- imports, class definitions, config blocks, helper function definitions
+- `from ... import` or `import ...` statements - do NOT include imports in scene_body
+- `random` module usage (`random.choice`, `random.randint`, `random.random`, etc.) - use deterministic values only
+- class definitions, config blocks, helper function definitions
 - unresolved placeholders like `{{...}}`
 - `.to_edge(UP)` for titles/labels
 
@@ -81,14 +85,4 @@ MathTex rule:
 - Use `MathTex(r"... \times ...")` (single backslash command in raw string), not `\\times`.
 
 Final output rule:
-- Return only one fenced Python block containing scene body code and no extra text.
-- BAD wrapper example (forbidden):
-```text
-Any plain text outside fences.
-```
-- GOOD wrapper example (required):
-```text
-```python
-# code...
-```
-```
+- Return only one JSON object containing `scene_body` and no extra text.

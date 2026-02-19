@@ -15,8 +15,9 @@ Your task is to review all scene files for render-blocking runtime failures only
 
 ## Output Format
 
-1. **scene_qc_report.md** only.
-2. No modified scene files.
+1. Output exactly one JSON object.
+2. Required field: `report_markdown` (non-empty markdown string for scene_qc_report.md content).
+3. No modified scene files.
 
 ## Review Checklist
 
@@ -33,9 +34,8 @@ For each scene file, check:
 3. LaTeX/math text issues that fail Manim render pipeline.
 4. Any deterministic runtime exception that prevents scene video generation.
 
-## Report Format
+## Report Content Example
 
-```markdown
 # Scene QC Report
 
 ## Summary
@@ -57,9 +57,11 @@ For each scene file, check:
 
 ## Recommendations
 - Keep scene as-is unless render-blocking error exists.
-```
+
+Return the report above as the value of `report_markdown` in JSON.
+
 **Critical policy:** Do not rewrite scenes for quality/style reasons.
-**Output only** `scene_qc_report.md`.
+**Output only** one JSON object with `report_markdown`.
 
 
 ---

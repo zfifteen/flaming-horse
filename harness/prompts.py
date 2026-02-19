@@ -358,7 +358,9 @@ def compose_scene_repair_prompt(
     system_prompt = load_prompt_template(
         "scene_repair",
         "system.md",
-        {},
+        {
+            "kitchen_sink": read_file(TEMPLATES_DIR / "kitchen_sink.md"),
+        },
     )
     user_prompt = load_prompt_template(
         "scene_repair",

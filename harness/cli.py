@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 
 from harness.prompts import compose_prompt
 from harness.client import call_xai_api
-from harness.parser import parse_and_write_artifacts
+from harness.parser import SchemaValidationError, parse_and_write_artifacts
 
 
 def load_project_state(project_dir: Path) -> dict:
@@ -27,6 +27,45 @@ def load_project_state(project_dir: Path) -> dict:
 
 def utc_timestamp() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def record_schema_failure(project_dir: Path, phase: str, error_text: str) -> None:
+    """Record schema failure details in project_state.json for orchestrator logs."""
+    state_file = project_dir / "project_state.json"
+    if not state_file.exists():
+        return
+    try:
+        with open(state_file, "r", encoding="utf-8") as f:
+            state = json.load(f)
+    except Exception:
+        return
+
+    errors = state.setdefault("errors", [])
+    if not isinstance(errors, list):
+        errors = []
+        state["errors"] = errors
+    errors.append(f"Schema validation failed ({phase}): {error_text}")
+
+    flags = state.setdefault("flags", {})
+    if not isinstance(flags, dict):
+        flags = {}
+        state["flags"] = flags
+    flags["needs_human_review"] = True
+
+    history = state.setdefault("history", [])
+    if isinstance(history, list):
+        history.append(
+            {
+                "phase": phase,
+                "action": "schema_validation_failed",
+                "error": error_text,
+                "timestamp": utc_timestamp(),
+            }
+        )
+
+    state["updated_at"] = utc_timestamp()
+    with open(state_file, "w", encoding="utf-8") as f:
+        json.dump(state, f, indent=2)
 
 
 def append_conversation_log(
@@ -181,12 +220,23 @@ def main() -> int:
 
         # Parse response and write artifacts
         print(f"📝 Parsing response and writing artifacts...")
-        success = parse_and_write_artifacts(
-            phase=args.phase,
-            response_text=response_text,
-            project_dir=args.project_dir,
-            state=state,
-        )
+        try:
+            success = parse_and_write_artifacts(
+                phase=args.phase,
+                response_text=response_text,
+                project_dir=args.project_dir,
+                state=state,
+            )
+        except SchemaValidationError as e:
+            debug_file = log_dir / f"debug_response_{args.phase}.txt"
+            try:
+                debug_file.write_text(response_text)
+                print(f"🧾 Wrote debug response: {debug_file}")
+            except Exception:
+                pass
+            record_schema_failure(args.project_dir, args.phase, str(e))
+            print(f"❌ Schema validation failed: {e}", file=sys.stderr)
+            return 3
 
         if success:
             print(f"✅ Phase {args.phase} completed successfully")
