@@ -1,7 +1,7 @@
 # Manim CE Kitchen Sink (Static Agent Reference)
 
 Use this document as direct implementation guidance when generating Manim scene code.
-This file is designed for system-prompt injection and contains placeholder blocks where canonical examples will be inserted.
+This file is designed for system-prompt injection and contains concrete examples from official Manim CE documentation.
 
 ---
 
@@ -44,16 +44,29 @@ Doc-backed assertions:
   Source: [Building Blocks Tutorial](https://docs.manim.community/en/stable/tutorials/building_blocks.html)
 
 ```python
-# PLACEHOLDER: A1 Scene Lifecycle Baseline
-# Future source: docs/reference_docs/kitchen_sink/kitchen_sink_2d.py
-# Future class: SceneLifecycleBaseline
-#
-# Insert canonical example demonstrating:
-# - clean construct() flow
-# - object setup
-# - one reveal sequence
-# - one transform sequence
-# - cleanup before scene end
+from manim import *
+
+class SceneLifecycleBaseline(Scene):
+    """
+    Demonstrates the standard scene lifecycle pattern with progressive sequencing.
+    Source: https://docs.manim.community/en/stable/tutorials/building_blocks.html
+    """
+    def construct(self):
+        # Object setup
+        circle = Circle(radius=1.5, color=BLUE)
+        square = Square(side_length=2, color=GREEN)
+        
+        # Reveal sequence
+        self.play(Create(circle))
+        self.wait(0.5)
+        
+        # Transform sequence
+        self.play(Transform(circle, square))
+        self.wait(0.5)
+        
+        # Cleanup before scene end
+        self.play(FadeOut(circle))
+        self.wait(0.3)
 ```
 
 ---
@@ -67,25 +80,61 @@ Doc-backed assertions:
   Source: [Mobjects Index](https://docs.manim.community/en/stable/reference_index/mobjects.html)
 
 ```python
-# PLACEHOLDER: B1 2D Primitive Gallery
-# Future source: docs/reference_docs/kitchen_sink/kitchen_sink_2d.py
-# Future class: GeometryGallery2D
-#
-# Insert canonical example demonstrating:
-# - multiple primitives composed into one concept
-# - VGroup-based organization
-# - staged animation sequence with clear visual intent
+from manim import *
+
+class GeometryGallery2D(Scene):
+    """
+    Demonstrates 2D primitives composed into a coherent concept using VGroup.
+    Source: https://docs.manim.community/en/stable/reference_index/mobjects.html
+    """
+    def construct(self):
+        # Multiple primitives composed into one concept
+        circle = Circle(radius=0.8, color=BLUE)
+        square = Square(side_length=1.5, color=GREEN)
+        triangle = Triangle(color=RED)
+        
+        # VGroup-based organization
+        shapes = VGroup(circle, square, triangle)
+        shapes.arrange(RIGHT, buff=1.0)
+        
+        # Staged animation sequence with clear visual intent
+        self.play(Create(circle))
+        self.wait(0.3)
+        self.play(Create(square))
+        self.wait(0.3)
+        self.play(Create(triangle))
+        self.wait(0.5)
+        
+        # Group transformation
+        self.play(shapes.animate.scale(0.7))
+        self.wait(0.5)
 ```
 
 ```python
-# PLACEHOLDER: B2 Layout and Label Anchoring
-# Future source: docs/reference_docs/kitchen_sink/kitchen_sink_2d.py
-# Future class: LayoutAndLabelAnchoring2D
-#
-# Insert canonical example demonstrating:
-# - explicit placement + relative placement
-# - label anchoring to nearby objects
-# - spacing strategy that preserves readability
+from manim import *
+
+class LayoutAndLabelAnchoring2D(Scene):
+    """
+    Demonstrates explicit and relative placement with label anchoring.
+    Source: https://docs.manim.community/en/stable/reference/manim.mobject.mobject.Mobject.html
+    """
+    def construct(self):
+        # Explicit placement
+        circle = Circle(radius=1.0, color=BLUE).move_to(LEFT * 3)
+        
+        # Relative placement with spacing
+        square = Square(side_length=1.5, color=GREEN)
+        square.next_to(circle, RIGHT, buff=1.5)
+        
+        # Label anchoring to nearby objects
+        circle_label = Text("Circle", font_size=28).next_to(circle, DOWN, buff=0.3)
+        square_label = Text("Square", font_size=28).next_to(square, DOWN, buff=0.3)
+        
+        # Staged reveal preserving readability
+        self.play(Create(circle), Write(circle_label))
+        self.wait(0.5)
+        self.play(Create(square), Write(square_label))
+        self.wait(0.5)
 ```
 
 ---
@@ -99,25 +148,71 @@ Doc-backed assertions:
   Source: [Using Text and LaTeX](https://docs.manim.community/en/stable/guides/using_text.html)
 
 ```python
-# PLACEHOLDER: C1 Text Hierarchy and Annotations
-# Future source: docs/reference_docs/kitchen_sink/kitchen_sink_text_math.py
-# Future class: TextHierarchyAndCallouts
-#
-# Insert canonical example demonstrating:
-# - title/subtitle structure
-# - annotation labels
-# - staged text reveal timing
+from manim import *
+
+class TextHierarchyAndCallouts(Scene):
+    """
+    Demonstrates title/subtitle structure with annotation labels and staged reveals.
+    Source: https://docs.manim.community/en/stable/guides/using_text.html
+    """
+    def construct(self):
+        # Title/subtitle structure
+        title = Text("Main Concept", font_size=48, weight=BOLD)
+        title.to_edge(UP, buff=0.5)
+        
+        subtitle = Text("Supporting Details", font_size=32, color=GRAY)
+        subtitle.next_to(title, DOWN, buff=0.3)
+        
+        # Annotation labels
+        point_1 = Text("• Key Point 1", font_size=28).shift(UP * 0.5)
+        point_2 = Text("• Key Point 2", font_size=28).next_to(point_1, DOWN, buff=0.3, aligned_edge=LEFT)
+        point_3 = Text("• Key Point 3", font_size=28).next_to(point_2, DOWN, buff=0.3, aligned_edge=LEFT)
+        
+        # Staged text reveal timing
+        self.play(Write(title))
+        self.wait(0.3)
+        self.play(FadeIn(subtitle))
+        self.wait(0.5)
+        self.play(FadeIn(point_1))
+        self.wait(0.3)
+        self.play(FadeIn(point_2))
+        self.wait(0.3)
+        self.play(FadeIn(point_3))
+        self.wait(0.5)
 ```
 
 ```python
-# PLACEHOLDER: C2 Math Transformation Pattern
-# Future source: docs/reference_docs/kitchen_sink/kitchen_sink_text_math.py
-# Future class: MathTexDerivationPattern
-#
-# Insert canonical example demonstrating:
-# - equation introduction with MathTex
-# - transformation between equation states
-# - emphasis on key terms/parts
+from manim import *
+
+class MathTexDerivationPattern(Scene):
+    """
+    Demonstrates equation introduction, transformation, and emphasis patterns.
+    Source: https://docs.manim.community/en/stable/guides/using_text.html
+    """
+    def construct(self):
+        # Equation introduction with MathTex
+        eq1 = MathTex(r"a^2 + b^2 = c^2")
+        eq1.scale(1.5)
+        
+        self.play(Write(eq1))
+        self.wait(0.5)
+        
+        # Transformation between equation states
+        eq2 = MathTex(r"c = \sqrt{a^2 + b^2}")
+        eq2.scale(1.5)
+        
+        self.play(TransformMatchingTex(eq1, eq2))
+        self.wait(0.5)
+        
+        # Emphasis on key terms/parts
+        # Highlight specific parts by color
+        eq3 = MathTex(r"c = \sqrt{", r"a^2", r" + ", r"b^2", r"}")
+        eq3.scale(1.5)
+        eq3[1].set_color(YELLOW)  # Highlight a^2
+        eq3[3].set_color(BLUE)     # Highlight b^2
+        
+        self.play(TransformMatchingTex(eq2, eq3))
+        self.wait(0.5)
 ```
 
 ---
@@ -131,25 +226,77 @@ Doc-backed assertions:
   Source: [Animations Index](https://docs.manim.community/en/stable/reference_index/animations.html)
 
 ```python
-# PLACEHOLDER: D1 Core Transition Patterns
-# Future source: docs/reference_docs/kitchen_sink/kitchen_sink_transitions.py
-# Future class: TransitionPatternsCore
-#
-# Insert canonical example demonstrating:
-# - Transform vs ReplacementTransform vs FadeTransform usage
-# - comments on when each transition type is semantically correct
+from manim import *
+
+class TransitionPatternsCore(Scene):
+    """
+    Demonstrates Transform, ReplacementTransform, and FadeTransform usage.
+    Source: https://docs.manim.community/en/stable/reference_index/animations.html
+    """
+    def construct(self):
+        # Transform: morphs the original object visually
+        # Use when you want to keep the original object reference
+        circle = Circle(color=BLUE).shift(LEFT * 3)
+        square = Square(color=GREEN).shift(LEFT * 3)
+        
+        self.play(Create(circle))
+        self.wait(0.3)
+        self.play(Transform(circle, square))  # circle now looks like square
+        self.wait(0.5)
+        self.play(FadeOut(circle))  # removes the transformed object
+        
+        # ReplacementTransform: replaces one object with another
+        # Use when you want to replace the object in the scene
+        triangle = Triangle(color=RED).shift(RIGHT * 0)
+        pentagon = RegularPolygon(5, color=ORANGE).shift(RIGHT * 0)
+        
+        self.play(Create(triangle))
+        self.wait(0.3)
+        self.play(ReplacementTransform(triangle, pentagon))  # pentagon replaces triangle
+        self.wait(0.5)
+        
+        # FadeTransform: smooth transition with fade effect
+        # Use when emphasizing a semantic change between objects
+        hex1 = RegularPolygon(6, color=PURPLE).shift(RIGHT * 3)
+        hex2 = RegularPolygon(6, color=YELLOW).shift(RIGHT * 3).scale(1.5)
+        
+        self.play(Create(hex1))
+        self.wait(0.3)
+        self.play(FadeTransform(hex1, hex2))  # smooth fade transition
+        self.wait(0.5)
 ```
 
 ```python
-# PLACEHOLDER: D2 Group Timing Patterns
-# Future source: docs/reference_docs/kitchen_sink/kitchen_sink_transitions.py
-# Future class: GroupedTimingPatterns
-#
-# Insert canonical example demonstrating:
-# - AnimationGroup
-# - LaggedStart
-# - Succession
-# - practical pacing for readability
+from manim import *
+
+class GroupedTimingPatterns(Scene):
+    """
+    Demonstrates AnimationGroup, LaggedStart, and Succession for timing control.
+    Source: https://docs.manim.community/en/stable/reference_index/animations.html
+    """
+    def construct(self):
+        # AnimationGroup: play multiple animations simultaneously
+        circles = VGroup(*[Circle(radius=0.5, color=BLUE).shift(LEFT * 4 + UP * i) for i in range(-1, 2)])
+        
+        self.play(AnimationGroup(*[Create(c) for c in circles]))
+        self.wait(0.5)
+        
+        # LaggedStart: stagger animations with a time lag
+        squares = VGroup(*[Square(side_length=0.8, color=GREEN).shift(ORIGIN + UP * i) for i in range(-1, 2)])
+        
+        self.play(LaggedStart(*[Create(s) for s in squares], lag_ratio=0.3))
+        self.wait(0.5)
+        
+        # Succession: play animations one after another
+        triangles = VGroup(*[Triangle(color=RED).scale(0.6).shift(RIGHT * 4 + UP * i) for i in range(-1, 2)])
+        
+        self.play(Succession(*[Create(t) for t in triangles]))
+        self.wait(0.5)
+        
+        # Practical pacing for readability: combine techniques
+        all_shapes = VGroup(circles, squares, triangles)
+        self.play(LaggedStart(*[FadeOut(group) for group in all_shapes], lag_ratio=0.2))
+        self.wait(0.3)
 ```
 
 ---
@@ -163,25 +310,91 @@ Doc-backed assertions:
   Source: [Building Blocks Tutorial](https://docs.manim.community/en/stable/tutorials/building_blocks.html), [Reference Manual](https://docs.manim.community/en/stable/reference.html)
 
 ```python
-# PLACEHOLDER: E1 Axes and Function Plot
-# Future source: docs/reference_docs/kitchen_sink/kitchen_sink_graphing.py
-# Future class: AxesAndFunctionPlot
-#
-# Insert canonical example demonstrating:
-# - axis setup
-# - function or parametric plot
-# - labels/highlights tied to instructional intent
+from manim import *
+
+class AxesAndFunctionPlot(Scene):
+    """
+    Demonstrates axis setup with function plotting and instructional labels.
+    Source: https://docs.manim.community/en/stable/reference_index/mobjects.html
+    """
+    def construct(self):
+        # Axis setup
+        axes = Axes(
+            x_range=[-3, 3, 1],
+            y_range=[-2, 6, 1],
+            x_length=8,
+            y_length=6,
+            axis_config={"color": BLUE},
+        )
+        
+        # Add axis labels
+        x_label = axes.get_x_axis_label("x")
+        y_label = axes.get_y_axis_label("y")
+        labels = VGroup(x_label, y_label)
+        
+        self.play(Create(axes), Write(labels))
+        self.wait(0.5)
+        
+        # Function plot
+        graph = axes.plot(lambda x: x**2, color=YELLOW)
+        graph_label = axes.get_graph_label(graph, label=r"f(x) = x^2")
+        
+        self.play(Create(graph))
+        self.wait(0.3)
+        self.play(Write(graph_label))
+        self.wait(0.5)
+        
+        # Highlights tied to instructional intent
+        dot = Dot(axes.c2p(1, 1), color=RED)
+        dot_label = Text("(1, 1)", font_size=24).next_to(dot, UP + RIGHT, buff=0.2)
+        
+        self.play(FadeIn(dot), Write(dot_label))
+        self.wait(0.5)
 ```
 
 ```python
-# PLACEHOLDER: E2 Comparative Graph Narrative
-# Future source: docs/reference_docs/kitchen_sink/kitchen_sink_graphing.py
-# Future class: DataNarrativeGraphing
-#
-# Insert canonical example demonstrating:
-# - progressive data/curve reveal
-# - visual comparison pattern
-# - cleanup between narrative beats
+from manim import *
+
+class DataNarrativeGraphing(Scene):
+    """
+    Demonstrates progressive data reveal with visual comparison and cleanup.
+    Source: https://docs.manim.community/en/stable/reference_index/mobjects.html
+    """
+    def construct(self):
+        # Setup axes for comparison
+        axes = Axes(
+            x_range=[0, 5, 1],
+            y_range=[0, 10, 2],
+            x_length=7,
+            y_length=5,
+            axis_config={"color": GRAY},
+        )
+        
+        self.play(Create(axes))
+        self.wait(0.3)
+        
+        # Progressive data/curve reveal - first dataset
+        graph1 = axes.plot(lambda x: x, color=BLUE)
+        label1 = Text("Linear", font_size=28, color=BLUE).to_edge(UP).shift(LEFT * 3)
+        
+        self.play(Create(graph1), Write(label1))
+        self.wait(0.5)
+        
+        # Second dataset for visual comparison pattern
+        graph2 = axes.plot(lambda x: x**1.5, color=RED)
+        label2 = Text("Power", font_size=28, color=RED).to_edge(UP).shift(RIGHT * 3)
+        
+        self.play(Create(graph2), Write(label2))
+        self.wait(0.8)
+        
+        # Cleanup between narrative beats
+        self.play(
+            FadeOut(graph1),
+            FadeOut(label1),
+            graph2.animate.set_color(YELLOW),
+            label2.animate.set_color(YELLOW)
+        )
+        self.wait(0.5)
 ```
 
 ---
@@ -195,25 +408,63 @@ Doc-backed assertions:
   Source: [ThreeDScene Reference](https://docs.manim.community/en/stable/reference/manim.scene.three_d_scene.ThreeDScene.html)
 
 ```python
-# PLACEHOLDER: F1 3D Orientation Baseline
-# Future source: docs/reference_docs/kitchen_sink/kitchen_sink_3d.py
-# Future class: ThreeDOrientationBaseline
-#
-# Insert canonical example demonstrating:
-# - ThreeDScene setup
-# - camera orientation initialization
-# - simple 3D object reveal with readable framing
+from manim import *
+
+class ThreeDOrientationBaseline(ThreeDScene):
+    """
+    Demonstrates ThreeDScene setup with camera orientation and 3D object reveal.
+    Source: https://docs.manim.community/en/stable/reference/manim.scene.three_d_scene.ThreeDScene.html
+    """
+    def construct(self):
+        # Camera orientation initialization
+        self.set_camera_orientation(phi=75 * DEGREES, theta=-45 * DEGREES)
+        
+        # Simple 3D object reveal with readable framing
+        axes = ThreeDAxes()
+        cube = Cube(side_length=2, fill_opacity=0.7, color=BLUE)
+        
+        self.play(Create(axes))
+        self.wait(0.3)
+        self.play(Create(cube))
+        self.wait(0.5)
+        
+        # Demonstrate 3D rotation for spatial understanding
+        self.play(Rotate(cube, angle=PI/2, axis=UP))
+        self.wait(0.5)
 ```
 
 ```python
-# PLACEHOLDER: F2 Camera Motion with Focus
-# Future source: docs/reference_docs/kitchen_sink/kitchen_sink_3d.py
-# Future class: CameraMotionAndFocus3D
-#
-# Insert canonical example demonstrating:
-# - purposeful camera movement
-# - object transformation under camera change
-# - readability-oriented camera choices
+from manim import *
+
+class CameraMotionAndFocus3D(ThreeDScene):
+    """
+    Demonstrates purposeful camera movement with object transformation.
+    Source: https://docs.manim.community/en/stable/reference/manim.scene.three_d_scene.ThreeDScene.html
+    """
+    def construct(self):
+        # Initial camera setup
+        self.set_camera_orientation(phi=60 * DEGREES, theta=-45 * DEGREES)
+        
+        # Create 3D objects
+        axes = ThreeDAxes()
+        sphere = Sphere(radius=1.5, resolution=(20, 20), color=GREEN)
+        sphere.set_opacity(0.8)
+        
+        self.play(Create(axes))
+        self.play(Create(sphere))
+        self.wait(0.5)
+        
+        # Purposeful camera movement for different view angles
+        self.move_camera(phi=30 * DEGREES, theta=-60 * DEGREES, run_time=2)
+        self.wait(0.3)
+        
+        # Object transformation under camera change
+        self.play(sphere.animate.scale(0.5).shift(UP * 2))
+        self.wait(0.5)
+        
+        # Readability-oriented camera choice: zoom in on transformed object
+        self.move_camera(phi=45 * DEGREES, theta=-30 * DEGREES, zoom=1.5, run_time=2)
+        self.wait(0.5)
 ```
 
 ---
@@ -227,14 +478,49 @@ Doc-backed assertions:
   Source: [Mobject Reference](https://docs.manim.community/en/stable/reference/manim.mobject.mobject.Mobject.html), [Wait Reference](https://docs.manim.community/en/stable/reference/manim.animation.animation.Wait.html)
 
 ```python
-# PLACEHOLDER: G1 ValueTracker + Updater Lifecycle
-# Future source: docs/reference_docs/kitchen_sink/kitchen_sink_transitions.py
-# Future class: ValueTrackerDrivenMotion
-#
-# Insert canonical example demonstrating:
-# - ValueTracker-driven parameter updates
-# - add_updater and remove_updater lifecycle
-# - controlled motion window with clear start/stop behavior
+from manim import *
+
+class ValueTrackerDrivenMotion(Scene):
+    """
+    Demonstrates ValueTracker with updater lifecycle for controlled motion.
+    Source: https://docs.manim.community/en/stable/reference/manim.mobject.value_tracker.ValueTracker.html
+    """
+    def construct(self):
+        # ValueTracker-driven parameter updates
+        tracker = ValueTracker(0)
+        
+        # Create objects that depend on tracker value
+        circle = Circle(radius=1, color=BLUE)
+        number = DecimalNumber(0).next_to(circle, DOWN, buff=0.5)
+        
+        # add_updater lifecycle
+        def update_circle(mob):
+            # Update circle position based on tracker value
+            mob.move_to(RIGHT * tracker.get_value())
+        
+        def update_number(mob):
+            # Update displayed number to match tracker value
+            mob.set_value(tracker.get_value())
+            mob.next_to(circle, DOWN, buff=0.5)
+        
+        circle.add_updater(update_circle)
+        number.add_updater(update_number)
+        
+        self.add(circle, number)
+        
+        # Controlled motion window with clear start/stop behavior
+        self.play(tracker.animate.set_value(3), run_time=2)
+        self.wait(0.5)
+        self.play(tracker.animate.set_value(-2), run_time=2)
+        self.wait(0.5)
+        
+        # remove_updater to stop tracking
+        circle.remove_updater(update_circle)
+        number.remove_updater(update_number)
+        
+        # Demonstrate that updaters are removed
+        self.play(tracker.animate.set_value(0), run_time=1)
+        self.wait(0.5)
 ```
 
 ---
@@ -250,25 +536,84 @@ Doc-backed assertions:
   Source: [Animations Index](https://docs.manim.community/en/stable/reference_index/animations.html)
 
 ```python
-# PLACEHOLDER: H1 Color Palette and Semantic Mapping
-# Future source: docs/reference_docs/kitchen_sink/kitchen_sink_2d.py
-# Future class: ColorSemanticPalette
-#
-# Insert canonical example demonstrating:
-# - a small, coherent palette
-# - semantic color mapping (for example state A/state B/highlight)
-# - consistent color reuse across scene beats
+from manim import *
+
+class ColorSemanticPalette(Scene):
+    """
+    Demonstrates coherent color palette with semantic mapping.
+    Source: https://docs.manim.community/en/stable/reference/manim.utils.color.html
+    """
+    def construct(self):
+        # A small, coherent palette
+        primary_color = BLUE
+        secondary_color = GREEN
+        highlight_color = YELLOW
+        
+        # Semantic color mapping: state A (blue), state B (green), highlight (yellow)
+        state_a = Circle(radius=1.5, color=primary_color).shift(LEFT * 3)
+        state_b = Square(side_length=2.5, color=secondary_color).shift(RIGHT * 3)
+        
+        label_a = Text("State A", font_size=28, color=primary_color).next_to(state_a, DOWN)
+        label_b = Text("State B", font_size=28, color=secondary_color).next_to(state_b, DOWN)
+        
+        self.play(Create(state_a), Write(label_a))
+        self.wait(0.3)
+        self.play(Create(state_b), Write(label_b))
+        self.wait(0.5)
+        
+        # Consistent color reuse across scene beats
+        # Highlight important transition
+        arrow = Arrow(state_a.get_right(), state_b.get_left(), color=highlight_color, buff=0.5)
+        arrow_label = Text("Transition", font_size=24, color=highlight_color).next_to(arrow, UP)
+        
+        self.play(GrowArrow(arrow), Write(arrow_label))
+        self.wait(0.5)
 ```
 
 ```python
-# PLACEHOLDER: H2 Fill/Stroke/Opacity Styling Pattern
-# Future source: docs/reference_docs/kitchen_sink/kitchen_sink_transitions.py
-# Future class: FillStrokeStyleTransitions
-#
-# Insert canonical example demonstrating:
-# - set_fill / set_stroke style changes
-# - opacity and emphasis transitions
-# - readability-preserving contrast choices
+from manim import *
+
+class FillStrokeStyleTransitions(Scene):
+    """
+    Demonstrates fill, stroke, and opacity styling with emphasis transitions.
+    Source: https://docs.manim.community/en/stable/reference/manim.mobject.mobject.Mobject.html
+    """
+    def construct(self):
+        # Initial object with basic styling
+        circle = Circle(radius=1.5)
+        circle.set_fill(BLUE, opacity=0.5)
+        circle.set_stroke(WHITE, width=3)
+        
+        self.play(Create(circle))
+        self.wait(0.5)
+        
+        # set_fill / set_stroke style changes
+        self.play(
+            circle.animate.set_fill(RED, opacity=0.8).set_stroke(YELLOW, width=6)
+        )
+        self.wait(0.5)
+        
+        # Opacity and emphasis transitions
+        # Emphasize by increasing opacity and size
+        self.play(
+            circle.animate.set_fill(GREEN, opacity=1.0).scale(1.3)
+        )
+        self.wait(0.5)
+        
+        # Readability-preserving contrast choices
+        # Add contrasting text that remains readable
+        text = Text("Emphasis", font_size=36, color=WHITE, weight=BOLD)
+        text.move_to(circle.get_center())
+        
+        self.play(Write(text))
+        self.wait(0.5)
+        
+        # Fade out with opacity control
+        self.play(
+            circle.animate.set_opacity(0.3),
+            text.animate.set_opacity(0.3)
+        )
+        self.wait(0.5)
 ```
 
 ---
