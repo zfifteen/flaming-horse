@@ -29,7 +29,6 @@ PHASE_SEQUENCE = (
     "plan",
     "review",
     "narration",
-    "training",
     "build_scenes",
     "scene_qc",
     "precache_voiceovers",
@@ -144,6 +143,9 @@ def normalize_state(project_dir: Path, state: dict) -> dict:
         topic = _safe_str(topic)
 
     phase = _safe_str(state.get("phase")) or "plan"
+    # Backward compatibility: legacy projects may still be parked at training.
+    if phase == "training":
+        phase = "build_scenes"
     if phase not in VALID_PHASES:
         phase = "plan"
 
@@ -362,27 +364,27 @@ def apply_phase(project_dir: Path, state: dict, phase: str) -> dict:
             state["flags"]["needs_human_review"] = True
             return state
         state["narration_file"] = "narration_script.py"
-        state["phase"] = "training"
+        state["phase"] = "build_scenes"
         state["flags"]["needs_human_review"] = False
         _clear_errors_matching(state, lambda e: e.startswith("narration failed:"))
         state.setdefault("history", []).append(
             {
                 "timestamp": utc_now(),
                 "phase": "narration",
-                "action": "Detected narration_script.py; advanced to training (deterministic)",
+                "action": "Detected narration_script.py; advanced to build_scenes (deterministic)",
             }
         )
         return state
 
     if phase == "training":
-        # Training phase always advances to build_scenes (fire and forget)
+        # Compatibility alias for legacy orchestrator calls.
         state["phase"] = "build_scenes"
         state["flags"]["needs_human_review"] = False
         state.setdefault("history", []).append(
             {
                 "timestamp": utc_now(),
                 "phase": "training",
-                "action": "Training completed; advanced to build_scenes (deterministic)",
+                "action": "Legacy training phase mapped to build_scenes (deterministic)",
             }
         )
         return state

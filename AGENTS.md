@@ -129,7 +129,7 @@ Consult these files for technical details:
 {
   "project_name": "string",
   "topic": "string|null",
-  "phase": "plan|review|narration|training|build_scenes|final_render|assemble|complete",
+  "phase": "plan|review|narration|build_scenes|final_render|assemble|complete",
   "created_at": "ISO8601",
   "updated_at": "ISO8601",
   "run_count": 0,
@@ -588,7 +588,7 @@ If validation detects overlaps/desyncs:
 ## Workflow Summary
 
 ```
-plan → review → narration → training → build_scenes → final_render → assemble → complete
+plan → review → narration → build_scenes → final_render → assemble → complete
   ↓       ↓          ↓           ↓            ↓              ↓             ↓          ↓
 plan.   validate   scripts    Manim         code          render        concat    done
 json    feasib.    + voice    docs          files         videos        final

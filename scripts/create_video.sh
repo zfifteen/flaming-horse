@@ -13,7 +13,7 @@ Usage:
 
 Examples:
   ./scripts/create_video.sh semi_prime_factorization --topic "Create a video about factoring semi primes"
-  ./scripts/create_video.sh my-video --topic "Explain hash functions" --phase training
+  ./scripts/create_video.sh my-video --topic "Explain hash functions" --phase build_scenes
 
 Notes:
   - Canonical entrypoint for users: this script.

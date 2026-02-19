@@ -718,12 +718,6 @@ def parse_and_write_artifacts(
             print(f"✅ Wrote {narration_file}")
             return True
 
-        elif phase == "training":
-            # Training phase: accept any response, no artifacts to write
-            # The response is just to prime the model with Manim docs
-            print("✅ Training phase completed (response received)")
-            return True
-
         elif phase == "build_scenes":
             scenes = state.get("scenes", [])
             current_index = state.get("current_scene_index", 0)

@@ -5,7 +5,6 @@ This directory is organized in pipeline order.
 - `00_plan`
 - `01_review`
 - `02_narration`
-- `03_training`
 - `04_build_scenes`
 - `05_scene_qc`
 - `06_scene_repair`

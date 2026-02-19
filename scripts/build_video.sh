@@ -39,7 +39,6 @@ PHASE_SEQUENCE=(
   "plan"
   "review"
   "narration"
-  "training"
   "build_scenes"
   "scene_qc"
   "precache_voiceovers"
@@ -257,7 +256,6 @@ try:
         'plan',
         'review',
         'narration',
-        'training',
         'build_scenes',
         'scene_qc',
         'precache_voiceovers',
@@ -304,7 +302,7 @@ apply_state_phase() {
 is_retryable_phase() {
   local phase="$1"
   case "$phase" in
-    init|plan|narration|training|build_scenes|scene_qc|final_render|assemble)
+    init|plan|narration|build_scenes|scene_qc|final_render|assemble)
       return 0
       ;;
     *)
@@ -1403,23 +1401,6 @@ PY
   apply_state_phase "narration" || true
 }
 
-handle_training() {
-  # Check if training phase should be skipped
-  if [[ "${SKIP_TRAINING_PHASE:-0}" == "1" ]]; then
-    echo "⏭️  Skipping training phase (SKIP_TRAINING_PHASE=1)" | tee -a "$LOG_FILE"
-    apply_state_phase "training" || true
-    return 0
-  fi
-
-  echo "📚 Running Manim training phase..." | tee -a "$LOG_FILE"
-  invoke_agent "training" "$(get_run_count)"
-
-  normalize_state_json || true
-
-  # Training phase always succeeds - just advance state
-  apply_state_phase "training" || true
-}
-
 handle_precache_voiceovers() {
   echo "🎙️  Precaching voiceovers (backend: ${FLAMING_HORSE_TTS_BACKEND:-qwen})..." | tee -a "$LOG_FILE"
   cd "$PROJECT_DIR"
@@ -2328,7 +2309,6 @@ run_phase_once() {
     plan) handle_plan ;;
     review) handle_review ;;
     narration) handle_narration ;;
-    training) handle_training ;;
     build_scenes) handle_build_scenes ;;
     scene_qc) handle_scene_qc ;;
     precache_voiceovers) handle_precache_voiceovers ;;

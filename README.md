@@ -150,3 +150,32 @@ python3 scripts/precache_voiceovers_qwen.py projects/my_video
 ## License
 
 MIT License.
+
+## Environment Variables Used
+
+The following variables are present in `.env` and are actively used by the application/runtime scripts:
+
+| Variable | Used by | Purpose |
+| --- | --- | --- |
+| `AGENT_MODEL` | `scripts/build_video.sh`, `harness/client.py` | Global fallback model selection for harness calls. |
+| `PROJECTS_BASE_DIR` | `scripts/new_project.sh`, `scripts/create_video.sh`, `scripts/build_video.sh` | Default root directory for project creation/build paths. |
+| `PROJECT_DEFAULT_NAME` | `scripts/build_video.sh` | Default project name when no project path is provided. |
+| `PHASE_RETRY_LIMIT` | `scripts/build_video.sh` | Max retry attempts for phase/scene self-heal loops. |
+| `PHASE_RETRY_BACKOFF_SECONDS` | `scripts/build_video.sh` | Sleep duration between retry attempts. |
+| `HF_HUB_OFFLINE` | `scripts/build_video.sh`, `scripts/precache_voiceovers_qwen.py`, `scripts/prepare_qwen_voice.py` | Forces Hugging Face operations into offline mode. |
+| `TRANSFORMERS_OFFLINE` | `scripts/build_video.sh`, `scripts/precache_voiceovers_qwen.py`, `scripts/prepare_qwen_voice.py` | Forces Transformers operations into offline mode. |
+| `TOKENIZERS_PARALLELISM` | `scripts/build_video.sh`, `scripts/precache_voiceovers_qwen.py`, `scripts/prepare_qwen_voice.py` | Controls tokenizer parallelism behavior. |
+| `PYTHON` | `scripts/create_video.sh`, `scripts/build_video.sh` | Python interpreter override (3.13 requirement checks and execution). |
+| `PYTHON3` | `scripts/build_video.sh` | Secondary Python interpreter override fallback. |
+| `PATH` | shell/runtime invocation of `manim`, `ffmpeg`, venv tools | Determines executable resolution during build and render steps. |
+| `FLAMING_HORSE_TTS_BACKEND` | `scripts/prepare_voice_service.py`, `scripts/qwen_tts_mediator.py`, `scripts/precache_voiceovers_qwen*.py`, `scripts/prepare_qwen_voice*.py`, `scripts/build_video.sh` | Selects local cached TTS backend (`qwen` or `mlx`). |
+| `FLAMING_HORSE_MLX_PYTHON` | `scripts/qwen_tts_mediator.py` | Python interpreter path for MLX TTS subprocess execution. |
+| `FLAMING_HORSE_MLX_MODEL_ID` | `scripts/qwen_tts_mediator.py`, `scripts/prepare_qwen_voice.py` | Overrides MLX model identifier. |
+| `FLAMING_HORSE_VOICE_REF_DIR` | `scripts/voice_ref_mediator.py`, `scripts/build_video.sh` | Overrides voice reference directory (`ref.wav`/`ref.txt`). |
+| `LLM_PROVIDER` | `harness/client.py`, `scripts/build_video.sh` | Selects harness LLM provider (`XAI` or `MINIMAX`). |
+| `XAI_API_KEY` | `harness/client.py`, `scripts/build_video.sh`, `scripts/check_dependencies.sh`, test scripts | xAI API authentication credential. |
+| `MINIMAX_API_KEY` | `harness/client.py`, `scripts/build_video.sh` | MiniMax API authentication credential. |
+| `XAI_BASE_URL` | `harness/client.py` | Optional xAI API endpoint override. |
+| `MINIMAX_BASE_URL` | `harness/client.py` | Optional MiniMax API endpoint override. |
+| `XAI_MODEL` | `harness/client.py` | Optional xAI model override. |
+| `MINIMAX_MODEL` | `harness/client.py` | Optional MiniMax model override. |

@@ -17,7 +17,6 @@ PHASE_DIRS = {
     "plan": "00_plan",
     "review": "01_review",
     "narration": "02_narration",
-    "training": "03_training",
     "build_scenes": "04_build_scenes",
     "scene_qc": "05_scene_qc",
     "scene_repair": "06_scene_repair",
@@ -356,20 +355,6 @@ def compose_scene_repair_prompt(
     return system_prompt, user_prompt
 
 
-def compose_training_prompt(
-    state: Dict[str, Any],
-    project_dir: Path,
-) -> Tuple[str, str]:
-    _ = (state, project_dir)
-    system_prompt = load_prompt_template(
-        "training",
-        "system.md",
-        {},
-    )
-    user_prompt = load_prompt_template("training", "user.md", {})
-    return system_prompt, user_prompt
-
-
 def compose_prompt(
     phase: str,
     state: Dict[str, Any],
@@ -388,8 +373,6 @@ def compose_prompt(
         return compose_review_prompt(state, project_dir)
     if phase == "narration":
         return compose_narration_prompt(state, project_dir)
-    if phase == "training":
-        return compose_training_prompt(state, project_dir)
     if phase == "build_scenes":
         return compose_build_scenes_prompt(state, project_dir, retry_context)
     if phase == "scene_qc":

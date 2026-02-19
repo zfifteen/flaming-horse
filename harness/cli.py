@@ -35,7 +35,6 @@ def main() -> int:
         choices=[
             "plan",
             "narration",
-            "training",
             "build_scenes",
             "scene_qc",
             "scene_repair",
