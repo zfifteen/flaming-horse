@@ -6,7 +6,6 @@ inputs:
   - scene_metadata: state.current_scene
   - scene_narration: SCRIPT[narration_key]
   - retry_context: required
-  - references: core_rules
   - exclude: unrelated_scenes, full_pipeline_doc
 
 output:

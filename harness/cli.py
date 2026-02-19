@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 from typing import Optional
+from datetime import datetime, timezone
 
 from harness.prompts import compose_prompt
 from harness.client import call_xai_api
@@ -22,6 +23,48 @@ def load_project_state(project_dir: Path) -> dict:
 
     with open(state_file, "r") as f:
         return json.load(f)
+
+
+def utc_timestamp() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def append_conversation_log(
+    conversation_log: Path,
+    *,
+    phase: str,
+    system_prompt: str,
+    user_prompt: str,
+    response_text: Optional[str],
+    status: str,
+    error_text: Optional[str] = None,
+) -> None:
+    """Append full prompt/response transcript for a harness call."""
+    entry_parts = [
+        "============================================================",
+        f"timestamp_utc: {utc_timestamp()}",
+        f"phase: {phase}",
+        f"status: {status}",
+    ]
+    if error_text:
+        entry_parts.append(f"error: {error_text}")
+    entry_parts.extend(
+        [
+            "",
+            "----- SYSTEM PROMPT -----",
+            system_prompt,
+            "",
+            "----- USER PROMPT -----",
+            user_prompt,
+            "",
+            "----- ASSISTANT RESPONSE -----",
+            response_text if response_text is not None else "<no response>",
+            "",
+        ]
+    )
+
+    with open(conversation_log, "a", encoding="utf-8") as f:
+        f.write("\n".join(entry_parts))
 
 
 def main() -> int:
@@ -75,6 +118,10 @@ def main() -> int:
         return 1
 
     try:
+        log_dir = args.project_dir / "log"
+        log_dir.mkdir(parents=True, exist_ok=True)
+        conversation_log = log_dir / "conversation.log"
+
         # Load project state
         state = load_project_state(args.project_dir)
         if args.scene_file:
@@ -98,6 +145,14 @@ def main() -> int:
             print(system_prompt[:500])
             print("\n=== User Prompt (first 500 chars) ===")
             print(user_prompt[:500])
+            append_conversation_log(
+                conversation_log,
+                phase=args.phase,
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                response_text=None,
+                status="dry_run",
+            )
             return 0
 
         # Optional runtime tuning via environment variables.
@@ -115,6 +170,14 @@ def main() -> int:
             user_prompt=user_prompt,
             temperature=temperature,
         )
+        append_conversation_log(
+            conversation_log,
+            phase=args.phase,
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            response_text=response_text,
+            status="api_success",
+        )
 
         # Parse response and write artifacts
         print(f"📝 Parsing response and writing artifacts...")
@@ -129,7 +192,7 @@ def main() -> int:
             print(f"✅ Phase {args.phase} completed successfully")
             return 0
         else:
-            debug_file = args.project_dir / f"debug_response_{args.phase}.txt"
+            debug_file = log_dir / f"debug_response_{args.phase}.txt"
             try:
                 debug_file.write_text(response_text)
                 print(f"🧾 Wrote debug response: {debug_file}")
@@ -142,6 +205,20 @@ def main() -> int:
         print(f"❌ File not found: {e}", file=sys.stderr)
         return 1
     except Exception as e:
+        try:
+            # Best-effort logging for failures after prompt composition.
+            if "conversation_log" in locals() and "system_prompt" in locals() and "user_prompt" in locals():
+                append_conversation_log(
+                    conversation_log,
+                    phase=args.phase,
+                    system_prompt=system_prompt,
+                    user_prompt=user_prompt,
+                    response_text=locals().get("response_text"),
+                    status="error",
+                    error_text=str(e),
+                )
+        except Exception:
+            pass
         print(f"❌ Error: {e}", file=sys.stderr)
         import traceback
 

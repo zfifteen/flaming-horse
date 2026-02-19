@@ -23,6 +23,7 @@ PHASE_DIRS = {
 }
 
 PLACEHOLDER_RE = re.compile(r"{{\s*([A-Za-z0-9_]+)\s*}}")
+DEFAULT_SPEECH_WPM = 150
 
 
 def read_file(path: Path) -> str:
@@ -110,12 +111,37 @@ def extract_scene_narration(
     return None
 
 
+def count_words(text: str) -> int:
+    """Count words using a stable token pattern for narration pacing estimates."""
+    if not text:
+        return 0
+    return len(re.findall(r"[A-Za-z0-9']+", text))
+
+
+def estimate_duration_seconds(word_count: int, wpm: int = DEFAULT_SPEECH_WPM) -> int:
+    """Estimate speech duration from word count and words-per-minute baseline."""
+    if word_count <= 0 or wpm <= 0:
+        return 0
+    words_per_second = wpm / 60.0
+    return int(round(word_count / words_per_second))
+
+
+def format_duration(seconds: int) -> str:
+    """Format seconds as human-readable prompt text."""
+    if seconds <= 0:
+        return "0s"
+    mins = seconds // 60
+    secs = seconds % 60
+    if mins > 0:
+        return f"{mins}m {secs:02d}s"
+    return f"{secs}s"
+
+
 def compose_plan_prompt(state: Dict[str, Any], topic: Optional[str]) -> Tuple[str, str]:
     system_prompt = load_prompt_template(
         "plan",
         "system.md",
         {
-            "core_rules": read_file(PROMPTS_DIR / "_shared" / "core_rules.md"),
             "pipeline_doc": read_file(TEMPLATES_DIR / "manim_content_pipeline.md"),
         },
     )
@@ -141,7 +167,6 @@ def compose_narration_prompt(
         "narration",
         "system.md",
         {
-            "core_rules": read_file(PROMPTS_DIR / "_shared" / "core_rules.md"),
             "pipeline_doc": read_file(TEMPLATES_DIR / "manim_content_pipeline.md"),
         },
     )
@@ -201,6 +226,10 @@ def compose_build_scenes_prompt(
         raise ValueError(
             f"Could not extract SCRIPT[{narration_key!r}] from {narration_file.name}"
         )
+    narration_word_count = count_words(scene_narration)
+    speech_wpm = DEFAULT_SPEECH_WPM
+    estimated_duration_seconds = estimate_duration_seconds(narration_word_count, speech_wpm)
+    estimated_duration_text = format_duration(estimated_duration_seconds)
 
     reference_section = ""
     if current_index == 0:
@@ -240,6 +269,10 @@ def compose_build_scenes_prompt(
             "scene_title": scene_title,
             "scene_details": scene_details,
             "scene_narration": scene_narration,
+            "narration_word_count": narration_word_count,
+            "speech_wpm": speech_wpm,
+            "estimated_duration_seconds": estimated_duration_seconds,
+            "estimated_duration_text": estimated_duration_text,
             "reference_section": reference_section,
             "retry_section": retry_section,
         },
@@ -267,7 +300,6 @@ def compose_scene_qc_prompt(
         "scene_qc",
         "system.md",
         {
-            "core_rules": read_file(PROMPTS_DIR / "_shared" / "core_rules.md"),
             "scenes_doc": read_file(TEMPLATES_DIR / "phase_scenes.md"),
         },
     )
@@ -326,9 +358,7 @@ def compose_scene_repair_prompt(
     system_prompt = load_prompt_template(
         "scene_repair",
         "system.md",
-        {
-            "core_rules": read_file(PROMPTS_DIR / "_shared" / "core_rules.md"),
-        },
+        {},
     )
     user_prompt = load_prompt_template(
         "scene_repair",

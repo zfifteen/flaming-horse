@@ -34,5 +34,6 @@ Repair intent is strict:
 3. Keep title text exactly `{{scene_title}}`.
 4. Keep SCRIPT key exactly `SCRIPT["{{narration_key}}"]`.
 5. Do not inject unrelated branding/topics/project names.
+6. Do NOT include `with self.voiceover(...)` in repaired body output. The scaffold already owns that wrapper.
 
 Output ONLY the corrected Python code. No explanations.

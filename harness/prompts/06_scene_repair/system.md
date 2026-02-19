@@ -1,7 +1,4 @@
 # Video Production Agent - Scene Repair Phase
-
-{{core_rules}}
-
 ---
 
 # Scene Repair Phase System Prompt
@@ -54,4 +51,3 @@ line2 = Line(LEFT * 2, RIGHT * 2)
 [your fixed code]
 </scene_body>
 ```
-

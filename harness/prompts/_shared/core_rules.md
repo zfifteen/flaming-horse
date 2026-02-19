@@ -92,12 +92,7 @@ The intent of this system is to generate videos from a single prompt without app
 - ✅ Maintain high informational density for non-math topics using explainer-slide structure
 - ✅ Use progressive bullets plus evolving right-side visuals instead of sparse placeholder scenes
 - ✅ If content is too dense for one block, split across multiple voiceover segments
-- ✅ Remove (FadeOut/Transform) previous elements before introducing new ones
-
-### Element Cleanup
-- ✅ ALWAYS FadeOut previous section content before new section begins
-- ✅ Exception: titles/headers that persist across segments
-- ❌ NEVER let more than 2 "layers" of content coexist on screen
+- ✅ Use section transitions that preserve at least one anchor visual (crossfade/transform preferred over full clear)
 
 ### Animation Smoothness
 - ✅ Use `rate_func=smooth` for most transitions (this is the default)
@@ -105,8 +100,9 @@ The intent of this system is to generate videos from a single prompt without app
 - ❌ NEVER set run_time < 0.2 (imperceptible, creates visual artifacts)
 - ✅ For sequential reveals, use lag_ratio=0.1 to 0.3
 
-### Continuous Motion Standard
-- ❌ NEVER leave long static/black intervals where little changes on screen
-- ✅ Target a visible visual state change every ~1.5-3 seconds
-- ✅ For non-math topics, default to explainer-slide cadence: title/subtitle, progressive bullets, evolving diagram, recap/callout
-- ❌ Avoid generic filler visuals (single circle/ellipse/equation) unless explicitly topic-relevant
+### Scene Occupancy (Canonical Rule)
+- ✅ Keep at least one meaningful visual cluster visible until the voiceover block ends.
+- ❌ Do not clear all non-title content before narration ends.
+- ✅ If reducing density, transition by replacing content (Transform/FadeTransform), not emptying the frame.
+- ✅ Maintain readable contrast on dark backgrounds (avoid near-black foreground elements).
+- ✅ Target a visible visual state change every ~1.5-3 seconds.

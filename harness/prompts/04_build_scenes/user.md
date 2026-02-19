@@ -12,6 +12,29 @@ Scene details:
 Narration text (must be used via SCRIPT key):
 SCRIPT["{{narration_key}}"] = {{scene_narration}}
 
+## Narration Timing Estimate (Use This To Pace The Scene)
+
+- Narration word count: `{{narration_word_count}}`
+- Speech-rate baseline: `{{speech_wpm}} WPM` (normal speech)
+- Estimated narration duration: `{{estimated_duration_text}}` (`{{estimated_duration_seconds}}s`)
+
+### Timing Requirements
+
+1. Treat `{{estimated_duration_seconds}}s` as the scene timing budget for narration-synced visuals.
+2. Pace animation sequence so visible content remains meaningful from start to end of narration.
+3. Do not clear all non-title elements before narration ends.
+4. Use transitions (`Transform`, `FadeTransform`, anchored crossfades) instead of full-frame clears.
+5. Keep a consistent cadence: introduce or evolve visual state every ~1.5-3 seconds.
+6. If the scene would overrun the estimate, simplify visuals (fewer elements, shorter transitions) instead of rushing text readability.
+7. If the scene would underrun the estimate, extend with meaningful visual evolution (diagram progression, highlight passes, or recap callouts), not dead air.
+8. Keep text reveal/readability constraints intact.
+
+### Self-Check Before Output
+
+- [ ] Planned visual timeline approximately matches `{{estimated_duration_seconds}}s`
+- [ ] No long black/near-empty tail while narration is still speaking
+- [ ] At least one meaningful visual cluster remains visible until narration end
+
 {{reference_section}}
 {{retry_section}}
 
@@ -23,11 +46,11 @@ Output format (mandatory):
 Hard requirements:
 1. Output must be valid Python and compile as a scene-body block.
 2. Use this exact narration key: `SCRIPT["{{narration_key}}"]`.
-3. Use voice sync pattern: `with self.voiceover(text=SCRIPT["{{narration_key}}"]) as tracker:`
+3. Do NOT add `with self.voiceover(...)` in your output. The scaffold already provides it.
 4. Use `self.play(...)` for visual reveals/transitions.
 5. Title text must exactly match: `{{scene_title}}`.
 6. Keep content specific to this scene only.
-7. Indentation is mandatory: every executable line inside `with self.voiceover(...):` must be indented exactly one block (4 spaces) deeper than the `with` line.
+7. Return only statements intended to run inside the existing voiceover block.
 8. Do not use tabs; use spaces only.
 9. Return exactly one fenced Python code block (start with ```python and end with ```).
 
@@ -36,12 +59,9 @@ Required structural pattern (must compile exactly as Python block structure):
 title = Text("{{scene_title}}", font_size=48, weight=BOLD)
 title.move_to(UP * 3.8)
 self.play(Write(title))
-
-with self.voiceover(text=SCRIPT["{{narration_key}}"]) as tracker:
-    # all narration-synced actions must be indented in this block
-    self.play(...)
-    self.play(...)
-    self.wait(...)
+self.play(...)
+self.play(...)
+self.wait(...)
 ```
 
 Allowed API subset:

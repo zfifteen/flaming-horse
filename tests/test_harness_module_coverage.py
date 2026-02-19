@@ -320,6 +320,8 @@ def test_parser_helpers_and_phase_parsers(tmp_path):
     assert parser.parse_scene_repair_response("<scene_body>x=1</scene_body>") == "x=1"
     assert parser.parse_scene_repair_response("```python\nx=1\n```") == "x=1"
     assert parser.parse_scene_repair_response("```python\nfrom manim import *\n```") is None
+    assert parser.class_name_to_scene_filename("Scene01Intro") == "scene_01_intro.py"
+    assert parser.class_name_to_scene_filename("Scene10FarewellIllusion") == "scene_10_farewell_illusion.py"
 
     # inject body
     scaffold = tmp_path / "s.py"
@@ -548,6 +550,24 @@ def test_parse_and_write_artifacts_additional_branches(tmp_path, monkeypatch):
     qc_with_class = "```python\nclass SceneOne(VoiceoverScene):\n    pass\n```\n# Scene QC Report\nok"
     assert parser.parse_and_write_artifacts("scene_qc", qc_with_class, project, state)
     assert (project / "scene_one.py").exists()
+
+    canonical_state = {
+        "scenes": [
+            {
+                "id": "scene_01_welcome_to_reality",
+                "class_name": "Scene01WelcomeToReality",
+                "file": "scene_01_welcome_to_reality.py",
+            }
+        ],
+        "current_scene_index": 0,
+    }
+    qc_canonical = (
+        "```python\nclass Scene01WelcomeToReality(VoiceoverScene):\n    pass\n```\n"
+        "# Scene QC Report\nok"
+    )
+    assert parser.parse_and_write_artifacts("scene_qc", qc_canonical, project, canonical_state)
+    assert (project / "scene_01_welcome_to_reality.py").exists()
+    assert not (project / "scene01_welcome_to_reality.py").exists()
 
     qc_without_class = "```python\nx=1\n```\n# Scene QC Report\nok"
     assert parser.parse_and_write_artifacts("scene_qc", qc_without_class, project, state)

@@ -12,6 +12,19 @@ from pathlib import Path
 from typing import Dict, Any, Optional, List, Tuple
 
 
+def class_name_to_scene_filename(class_name: str) -> str:
+    """Convert a scene class name to canonical scene_XX_slug.py filename."""
+    m = re.match(r"^Scene(\d{2})([A-Za-z0-9_]*)$", class_name)
+    if m:
+        num = m.group(1)
+        suffix = m.group(2)
+        if suffix:
+            slug = re.sub(r"(?<!^)(?=[A-Z])", "_", suffix).lower().strip("_")
+            return f"scene_{num}_{slug}.py" if slug else f"scene_{num}.py"
+        return f"scene_{num}.py"
+    return re.sub(r"(?<!^)(?=[A-Z])", "_", class_name).lower() + ".py"
+
+
 def strip_harness_preamble(text: str) -> str:
     """
     Remove non-model preamble lines printed by harness client logging.
@@ -591,6 +604,9 @@ def parse_build_scenes_response(response_text: str) -> Optional[str]:
     # Reject if contains forbidden header tokens
     if any(token in candidate for token in forbidden_tokens):
         return None
+    # Scene body must not contain a nested voiceover wrapper; scaffold owns it.
+    if re.search(r"with\s+self\.voiceover\(", candidate):
+        return None
     # Should be body code: indented statements, no class/def/import at top level
     if candidate.strip().startswith(("class ", "def ", "import ", "from ")):
         return None
@@ -612,16 +628,10 @@ def parse_scene_qc_response(
     Returns:
         (list of (filename, code) tuples, report markdown or None)
     """
-    scene_files = []
+    # Scene QC is report-only by policy. Ignore any returned code blocks so
+    # QC cannot rewrite scene files.
+    scene_files: List[Tuple[str, str]] = []
     report = None
-
-    # Extract all Python code blocks (these are the modified scenes)
-    code_blocks = extract_python_code_blocks(response_text)
-
-    for filename_hint, code in code_blocks:
-        code = sanitize_code(code)
-        if verify_python_syntax(code):
-            scene_files.append((filename_hint, code))
 
     # Extract markdown report
     # Look for "# Scene QC Report" or similar
@@ -676,6 +686,9 @@ def parse_scene_repair_response(response_text: str) -> Optional[str]:
         # Should be body code: no class/def/import at top level
         if candidate.strip().startswith(("class ", "def ", "import ", "from ")):
             continue
+        # Repaired body must not include nested voiceover wrapper.
+        if re.search(r"with\s+self\.voiceover\(", candidate):
+            continue
         # Reject if has scaffold placeholders
         if has_scaffold_artifacts(candidate):
             continue
@@ -693,6 +706,9 @@ def parse_scene_repair_response(response_text: str) -> Optional[str]:
         return None
     # Ensure body
     if code.strip().startswith(("class ", "def ", "import ", "from ")):
+        return None
+    # Repaired body must not include nested voiceover wrapper.
+    if re.search(r"with\s+self\.voiceover\(", code):
         return None
     # Reject repaired code that still has scaffold placeholders
     if has_scaffold_artifacts(code):
@@ -787,26 +803,12 @@ def parse_and_write_artifacts(
                 print("❌ Failed to parse any artifacts from QC response")
                 return False
 
-            # Write modified scene files
-            for filename, code in scene_files:
-                if filename:
-                    scene_file = project_dir / filename
-                else:
-                    # Try to infer filename from class name in code
-                    class_match = re.search(r"class\s+(\w+)\(", code)
-                    if class_match:
-                        # Convert class name to filename (e.g., Scene01Intro -> scene_01_intro.py)
-                        class_name = class_match.group(1)
-                        filename = (
-                            re.sub(r"(?<!^)(?=[A-Z])", "_", class_name).lower() + ".py"
-                        )
-                        scene_file = project_dir / filename
-                    else:
-                        print(f"⚠️  Could not determine filename for scene, skipping")
-                        continue
-
-                scene_file.write_text(code)
-                print(f"✅ Wrote {scene_file}")
+            # Scene QC is report-only: no scene file rewrites in this phase.
+            if scene_files:
+                print(
+                    f"ℹ️  Ignored {len(scene_files)} scene code block(s) from scene_qc response "
+                    "(report-only policy)"
+                )
 
             # Write QC report
             if report:
