@@ -7,13 +7,12 @@ inputs:
   - exclude: pipeline_overview, voice_runtime_policy
 
 output:
-  format: python_only
+  format: json_only
   file: narration_script.py
   required_fields:
-    - SCRIPT
-    - SCRIPT[scene_narration_key]
+    - scene_narration_key => narration_text
 
 validation:
-  python_syntax_valid: true
-  script_is_dict: true
+  response_is_json_object: true
+  all_values_are_strings: true
   all_scene_narration_keys_present: true
