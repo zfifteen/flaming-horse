@@ -8,9 +8,46 @@ import json
 import ast
 import re
 import textwrap
-import hashlib
 from pathlib import Path
 from typing import Dict, Any, Optional, List, Tuple
+
+
+def strip_harness_preamble(text: str) -> str:
+    """
+    Remove non-model preamble lines printed by harness client logging.
+
+    Example removed block:
+      🤖 Harness using:
+      Provider: XAI
+      Base URL: ...
+      Model: ...
+    """
+    lines = text.splitlines()
+    idx = 0
+
+    # Skip leading blank lines
+    while idx < len(lines) and not lines[idx].strip():
+        idx += 1
+
+    if idx >= len(lines):
+        return text
+
+    first = lines[idx].strip()
+    if first.startswith("🤖 Harness using"):
+        idx += 1
+        prefixes = ("Provider:", "Base URL:", "Model:")
+        while idx < len(lines):
+            line = lines[idx].strip()
+            if not line:
+                idx += 1
+                continue
+            if line.startswith(prefixes):
+                idx += 1
+                continue
+            break
+        return "\n".join(lines[idx:]).lstrip()
+
+    return text
 
 
 def inject_body_into_scaffold(scaffold_path: Path, body_code: str) -> str:
@@ -44,13 +81,13 @@ def inject_body_into_scaffold(scaffold_path: Path, body_code: str) -> str:
     # First, strip any existing indentation from body
     lines = body_code.strip().split("\n")
     # Find minimum indentation (ignoring empty lines)
-    min_indent = float("inf")
+    min_indent = None
     for line in lines:
         if line.strip():
             indent = len(line) - len(line.lstrip())
-            min_indent = min(min_indent, indent)
+            min_indent = indent if min_indent is None else min(min_indent, indent)
 
-    if min_indent == float("inf"):
+    if min_indent is None:  # pragma: no cover
         min_indent = 0
 
     # Re-indent all lines to 12 spaces (3 levels: class, def, with)
@@ -75,7 +112,7 @@ def inject_body_into_scaffold(scaffold_path: Path, body_code: str) -> str:
     full_code = header + "\n" + indented_body.rstrip() + "\n            " + footer
 
     # Verify markers are still present
-    if start_marker not in full_code or end_marker not in full_code:
+    if start_marker not in full_code or end_marker not in full_code:  # pragma: no cover
         raise ValueError("Injection corrupted markers")
 
     return full_code
@@ -515,9 +552,9 @@ def parse_build_scenes_response(response_text: str) -> Optional[str]:
     """
     Parse build_scenes phase response to extract scene body code.
 
-    Handles multiple formats:
-    1. <scene_body>...</scene_body> XML tags (preferred)
-    2. Full Python file - extracts body from voiceover block
+    Strict contract:
+    - Exactly one fenced ```python ... ``` code block
+    - Scene body code only (no imports/class/config/helpers)
 
     Args:
         response_text: Model response
@@ -525,31 +562,21 @@ def parse_build_scenes_response(response_text: str) -> Optional[str]:
     Returns:
         Python body code string or None if parsing failed
     """
-    # First, try to extract from <scene_body> XML tags
-    xml_body = extract_scene_body_xml(response_text)
-    if xml_body:
-        body_lines = [
-            line.strip()
-            for line in xml_body.split("\n")
-            if line.strip() and not line.strip().startswith("#")
-        ]
-        if body_lines:
-            return xml_body
+    cleaned_response = strip_harness_preamble(response_text)
+    blocks = extract_python_code_blocks(cleaned_response)
+    if len(blocks) != 1:
+        return None
 
-    # Try to extract body from full Python file output
-    code = extract_single_python_code(response_text)
-    if code and verify_python_syntax(code):
-        # Check if this looks like a full file
-        if any(
-            token in code
-            for token in ["from manim import", "class Scene", "def construct"]
-        ):
-            # Try to extract body from voiceover block
-            full_file_body = extract_scene_body_from_full_file(code)
-            if full_file_body and verify_python_syntax(full_file_body):
-                return full_file_body
+    _filename_hint, block_code = blocks[0]
+    # Reject legacy XML wrappers under strict fenced-only contract.
+    if "<scene_body>" in block_code or "</scene_body>" in block_code:
+        return None
+    candidate = sanitize_code(block_code)
+    if not candidate:
+        return None
+    if not verify_python_syntax(candidate):
+        return None
 
-    # Try extracting from ```python code blocks
     forbidden_tokens = [
         "from manim import",
         "from pathlib import",
@@ -561,22 +588,16 @@ def parse_build_scenes_response(response_text: str) -> Optional[str]:
         "SLOT_END:scene_body",
     ]
 
-    for _filename_hint, block_code in extract_python_code_blocks(response_text):
-        candidate = sanitize_code(block_code)
-        if not verify_python_syntax(candidate):
-            continue
-        # Reject if contains forbidden header tokens
-        if any(token in candidate for token in forbidden_tokens):
-            continue
-        # Should be body code: indented statements, no class/def at top level
-        if candidate.strip().startswith(("class ", "def ", "import ", "from ")):
-            continue
-        # Reject if has scaffold placeholders
-        if has_scaffold_artifacts(candidate):
-            continue
-        return candidate
-
-    return None
+    # Reject if contains forbidden header tokens
+    if any(token in candidate for token in forbidden_tokens):
+        return None
+    # Should be body code: indented statements, no class/def/import at top level
+    if candidate.strip().startswith(("class ", "def ", "import ", "from ")):
+        return None
+    # Reject if has scaffold placeholders
+    if has_scaffold_artifacts(candidate):
+        return None
+    return candidate
 
 
 def parse_scene_qc_response(
@@ -622,8 +643,10 @@ def parse_scene_repair_response(response_text: str) -> Optional[str]:
     Returns:
         Python body code string or None if parsing failed
     """
-    # First, try to extract from <scene_body> XML tags (primary format per system prompt)
-    xml_body = extract_scene_body_xml(response_text)
+    cleaned_response = strip_harness_preamble(response_text)
+
+    # First, try to extract from <scene_body> XML tags (legacy/compatible path)
+    xml_body = extract_scene_body_xml(cleaned_response)
     if xml_body:
         # Validate it's not empty
         body_lines = [
@@ -646,7 +669,7 @@ def parse_scene_repair_response(response_text: str) -> Optional[str]:
         "SLOT_END:scene_body",
     ]
 
-    for _filename_hint, block_code in extract_python_code_blocks(response_text):
+    for _filename_hint, block_code in extract_python_code_blocks(cleaned_response):
         candidate = sanitize_code(block_code)
         if not verify_python_syntax(candidate):
             continue
@@ -659,7 +682,7 @@ def parse_scene_repair_response(response_text: str) -> Optional[str]:
         return candidate
 
     # Fallback
-    code = extract_single_python_code(response_text)
+    code = extract_single_python_code(cleaned_response)
     if not code:
         return None
     code = sanitize_code(code)

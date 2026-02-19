@@ -1,60 +1,74 @@
-You are generating exactly ONE scene body for this run.
+Generate exactly ONE scene body for this run.
 
-Current Scene ID: {{scene_id}}
-Expected Narration Key: {{narration_key}}
-Expected Title (exact match required): {{scene_title}}
+Scene ID: {{scene_id}}
+Scene file: {{scene_file_name}}
+Scene class: {{scene_class_name}}
+Narration key: {{narration_key}}
+Title (exact text): {{scene_title}}
 
-Scene details from plan:
+Scene details:
 {{scene_details}}
 
-Current scene narration from SCRIPT["{{narration_key}}"]:
-{{scene_narration}}
+Narration text (must be used via SCRIPT key):
+SCRIPT["{{narration_key}}"] = {{scene_narration}}
 
 {{reference_section}}
-
 {{retry_section}}
 
-Available in scaffold:
-- Text(), MathTex(), Circle(), Rectangle(), Line(), Arrow(), VGroup()
-- harmonious_color(), safe_position(), polished_fade_in(), safe_layout()
-- clamp_text_width()
-- UP * 3.8, LEFT * 3.5, RIGHT * 3.5, DOWN * 0.4
-- self.play() for animations
-- Built-in colors like GREEN or hex strings
-
-Canonical execution contract for this run:
-This is the run-scoped source of truth for output and syntax constraints.
-
-Output format:
-<scene_body>
-scene body code only
-</scene_body>
-
-Hard output mechanics:
-1. START with <scene_body>; nothing before it.
-2. END with </scene_body>; nothing after it.
-3. NO imports - scaffold already has them.
-4. NO class definition - scaffold already has it.
-5. NO config block - scaffold already has it.
-6. NO helper function definitions - scaffold already has them.
-7. NO loops - write each element explicitly.
-8. NO random functions - deterministic output only.
-9. Use normal Python indentation. Do not add wrapper indentation for class/def/with blocks.
-
-Generate ONLY the scene body code for `{{scene_id}}`.
+Output format (mandatory):
+```python
+# python scene body only
+```
 
 Hard requirements:
-1. Use the exact SCRIPT key: `SCRIPT["{{narration_key}}"]`.
-2. The title text in code must exactly match: `{{scene_title}}` (no paraphrase).
-3. Use subtitle and bullets grounded in this scene's plan details; do not use placeholders.
-4. Keep semantics strictly scene-specific: use only this scene's plan details + narration text.
-5. Do not introduce unrelated branding/topics/project names unless they appear in this scene's provided inputs.
-6. Do not output filename/class wrappers; harness owns file/class mapping deterministically.
-7. Follow positioning rules (title at `UP * 3.8`, `safe_position` after `.next_to`, etc.).
-8. Use standard `self.play()` for animations.
-9. Forbidden placeholder strings/tokens: `{{{{TITLE}}}}`, `{{{{SUBTITLE}}}}`, `{{{{KEY_POINT_1}}}}`, `{{{{KEY_POINT_2}}}}`, `{{{{KEY_POINT_3}}}}` (and any `{{{{...}}}}` left in scaffold strings).
-10. Do not reuse scaffold demo animations (default box/shape demo) unless explicitly required by this scene's plan.
-11. Do not fully clear the screen before narration completion; keep at least one meaningful visual visible until near the end of voiceover.
-12. If you fade out a full section early, immediately replace it with new visible content in the same segment (no black tail).
+1. Output must be valid Python and compile as a scene-body block.
+2. Use this exact narration key: `SCRIPT["{{narration_key}}"]`.
+3. Use voice sync pattern: `with self.voiceover(text=SCRIPT["{{narration_key}}"]) as tracker:`
+4. Use `self.play(...)` for visual reveals/transitions.
+5. Title text must exactly match: `{{scene_title}}`.
+6. Keep content specific to this scene only.
+7. Indentation is mandatory: every executable line inside `with self.voiceover(...):` must be indented exactly one block (4 spaces) deeper than the `with` line.
+8. Do not use tabs; use spaces only.
+9. Return exactly one fenced Python code block (start with ```python and end with ```).
 
-Output only scene body code wrapped in <scene_body> tags. Do not include imports, config, class definition, or helper functions.
+Required structural pattern (must compile exactly as Python block structure):
+```python
+title = Text("{{scene_title}}", font_size=48, weight=BOLD)
+title.move_to(UP * 3.8)
+self.play(Write(title))
+
+with self.voiceover(text=SCRIPT["{{narration_key}}"]) as tracker:
+    # all narration-synced actions must be indented in this block
+    self.play(...)
+    self.play(...)
+    self.wait(...)
+```
+
+Allowed API subset:
+- `self.play(...)`, `self.wait(...)`
+- `Text`, `MathTex`, `Tex`, `VGroup`, standard Manim primitives
+- `safe_position`, `safe_layout`, `polished_fade_in`, `harmonious_color`
+- `FadeIn`, `FadeOut`, `Create`, `Transform`, `LaggedStart`, `Write`
+
+Forbidden:
+- `play_next(...)`, `play_text_next(...)`
+- `self.add(...)` for first-time visible content
+- imports, class definitions, config blocks, helper function definitions
+- unresolved placeholders like `{{...}}`
+- `.to_edge(UP)` for titles/labels
+
+MathTex rule:
+- Use `MathTex(r"... \times ...")` (single backslash command in raw string), not `\\times`.
+
+Final output rule:
+- Return only one fenced Python block containing scene body code and no extra text.
+- BAD wrapper example (forbidden):
+```text
+Any plain text outside fences.
+```
+- GOOD wrapper example (required):
+```text
+```python
+# code...
+```
+```
