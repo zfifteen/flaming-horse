@@ -88,3 +88,9 @@ MathTex rule:
 
 Final output rule:
 - Return only one JSON object containing `scene_body` and no extra text.
+
++ HARD CONSTRAINT: scene_body must contain ONLY statements valid inside
++ a `construct(self)` method body. NEVER include: import statements,
++ class definitions, function definitions (def), or config/scaffold
++ markers. The scaffold already provides these. Violation = instant rejection.
+
