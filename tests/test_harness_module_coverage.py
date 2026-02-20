@@ -585,7 +585,6 @@ def test_parser_additional_helpers_and_parsers(tmp_path, monkeypatch):
         parser.parse_build_scenes_response('{"scene_body":"x="}')
     with pytest.raises(parser.SchemaValidationError):
         parser.parse_build_scenes_response('{"scene_body":"def f():\\n    pass"}')
-
     with pytest.raises(parser.SchemaValidationError):
         parser.parse_scene_repair_response('{"scene_body":"x="}')
     with pytest.raises(parser.SchemaValidationError):
@@ -605,6 +604,31 @@ def test_parser_additional_helpers_and_parsers(tmp_path, monkeypatch):
     injected = parser.inject_body_into_scaffold(scaffold, "x=1\n\n    y=2")
     assert "            y=2" in injected
     assert parser.validate_scene_body_syntax("choice([1,2])")
+
+
+def test_build_scenes_parser_accepts_comments_and_dict_literals():
+    response_with_comments = (
+        '{"scene_body":"# Title reveal\\n'
+        'title = Text(\\"What is Real?\\", font_size=48)\\n'
+        'self.play(Write(title))"}'
+    )
+    parsed_comments = parser.parse_build_scenes_response(response_with_comments)
+    assert "Write(title)" in parsed_comments
+
+    response_with_dict_literal = (
+        '{"scene_body":"style = {\\n'
+        '    \\"run_time\\": 1\\n'
+        '}\\n'
+        'self.play(Write(title), run_time=style[\\"run_time\\"])"}'
+    )
+    parsed_dict = parser.parse_build_scenes_response(response_with_dict_literal)
+    assert 'style["run_time"]' in parsed_dict
+
+
+def test_narration_parser_rejects_placeholder_punctuation():
+    bad = '{"script":{"scene_01_intro":"...","scene_02":"Legit narration"}}'
+    with pytest.raises(parser.SchemaValidationError):
+        parser.parse_narration_response(bad)
 
 
 def test_parse_and_write_artifacts_additional_branches(tmp_path, monkeypatch):

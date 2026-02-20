@@ -660,15 +660,13 @@ validate_voiceover_sync() {
 
   # Deterministic timing budget gate: fail fast when projected scene timing
   # clearly exceeds cached narration duration budget.
-  local timing_status=0
-  if ! $PYTHON_BIN "${SCRIPT_DIR}/validate_scene_timing_budget.py" \
+  $PYTHON_BIN "${SCRIPT_DIR}/validate_scene_timing_budget.py" \
     --scene-file "$scene_file" \
     --project-dir "$PROJECT_DIR" \
     --min-ratio 0.90 \
     > >(tee -a "$LOG_FILE") \
-    2> >(tee -a "$LOG_FILE" >&2); then
-    timing_status=$?
-  fi
+    2> >(tee -a "$LOG_FILE" >&2)
+  local timing_status=${PIPESTATUS[0]}
 
   if [[ $timing_status -eq 1 ]]; then
     echo "✗ ERROR: Scene failed deterministic timing budget validation" | tee -a "$LOG_FILE"

@@ -16,6 +16,17 @@ class SchemaValidationError(ValueError):
     """Raised when a phase response fails strict JSON schema validation."""
 
 
+def _looks_like_placeholder_narration(text: str) -> bool:
+    """Return True when narration text is punctuation-only placeholder content."""
+    stripped = text.strip()
+    if not stripped:
+        return True
+    # Reject degenerate filler like "...", "…", or repeated punctuation/symbols.
+    if re.fullmatch(r"[\.\u2026,\-_=~`'\"*#\s]+", stripped):
+        return True
+    return False
+
+
 def class_name_to_scene_filename(class_name: str) -> str:
     """Convert a scene class name to canonical scene_XX_slug.py filename."""
     m = re.match(r"^Scene(\d{2})([A-Za-z0-9_]*)$", class_name)
@@ -287,10 +298,6 @@ def sanitize_code(code: str) -> str:
     code = re.sub(r"^```python\s*", "", code, flags=re.MULTILINE)
     code = re.sub(r"^```\s*$", "", code, flags=re.MULTILINE)
 
-    # Strip trailing closing braces/brackets that can cause syntax errors
-    # (some models output extra }, ], or > at the end)
-    code = re.sub(r"[\}\]\>]+$", "", code, flags=re.MULTILINE)
-
     return code.strip()
 
 
@@ -464,6 +471,10 @@ def parse_narration_response(response_text: str) -> Optional[str]:
         if not isinstance(value, str) or not value.strip():
             raise SchemaValidationError(
                 f"narration.script[{key!r}] must be a non-empty string"
+            )
+        if _looks_like_placeholder_narration(value):
+            raise SchemaValidationError(
+                f"narration.script[{key!r}] must contain real narration text (not placeholder punctuation)"
             )
 
     # Convert to Python code
