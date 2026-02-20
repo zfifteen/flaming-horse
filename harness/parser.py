@@ -452,13 +452,12 @@ def parse_plan_response(response_text: str) -> Optional[Dict[str, Any]]:
         if not isinstance(scene, dict):
             raise SchemaValidationError(f"plan.scenes[{idx}] must be an object")
 
-        # Assign id and narration_key automatically if not present
-        scene_id = scene.get("id") or f"scene_{idx + 1}"
-        narration_key = scene.get("narration_key") or scene_id
-
-        # Normalize to single-digit format (scene_1, scene_2, etc.)
+        # Deterministic ID assignment by array index (harness responsibility)
+        # The LLM should NOT provide id or narration_key - harness generates these
+        scene_number = idx + 1
+        scene_id = f"scene_{scene_number:02d}"  # scene_01, scene_02, etc.
         scene["id"] = scene_id
-        scene["narration_key"] = narration_key
+        scene["narration_key"] = scene_id
 
         # Validate required fields
         if (
