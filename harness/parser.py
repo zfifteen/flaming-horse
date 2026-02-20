@@ -180,6 +180,16 @@ def validate_scene_body_syntax(body_code: str) -> bool:
     return True
 
 
+def _is_non_empty(value: Any) -> bool:
+    """Check if a value is present and non-empty."""
+    if value is None:
+        return False
+    # Treat empty strings and empty collections as empty
+    if isinstance(value, (str, list, dict, tuple, set)):
+        return len(value) > 0
+    return True
+
+
 def extract_json_block(
     text: str, required_keys: Optional[List[str]] = None
 ) -> Optional[str]:
@@ -195,7 +205,7 @@ def extract_json_block(
     """
     decoder = json.JSONDecoder()
 
-    # Collect all valid dicts that have the required keys
+    # Collect all valid dicts
     # Then return the one with the most keys (likely the complete one)
     candidates = []
 
@@ -207,17 +217,33 @@ def extract_json_block(
             if isinstance(obj, dict):
                 if required_keys:
                     if all(k in obj for k in required_keys):
-                        candidates.append((len(obj), json.dumps(obj)))
+                        candidates.append((len(obj), obj))
                 else:
-                    candidates.append((len(obj), json.dumps(obj)))
+                    candidates.append((len(obj), obj))
         except json.JSONDecodeError:
             continue
 
-    if candidates:
-        # Return dict with most keys (likely the complete one)
-        return max(candidates, key=lambda x: x[0])[1]
+    if not candidates:
+        return None
 
-    return None
+    # When required_keys are provided, prefer objects where those keys
+    # have non-empty values, not just presence.
+    if required_keys:
+        valid_candidates = []
+        for size, obj in candidates:
+            if all(_is_non_empty(obj.get(k)) for k in required_keys):
+                valid_candidates.append((size, obj))
+
+        # If we have any fully valid candidates, choose among them.
+        if valid_candidates:
+            selected_obj = max(valid_candidates, key=lambda x: x[0])[1]
+        else:
+            # Fall back to the original behavior: choose largest by key count
+            selected_obj = max(candidates, key=lambda x: x[0])[1]
+    else:
+        selected_obj = max(candidates, key=lambda x: x[0])[1]
+
+    return json.dumps(selected_obj)
 
 
 def extract_python_code_blocks(text: str) -> List[Tuple[str, str]]:

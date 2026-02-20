@@ -1423,9 +1423,9 @@ for i, s in enumerate(scenes):
         if not s.get(k):
             raise SystemExit(f'scene[{i}] missing {k}')
     scene_id = str(s.get('id'))
-    if not re.match(r'^scene_[0-9]+_[a-z0-9_]+$', scene_id):
+    if not re.match(r'^scene_[0-9]+(_[a-z0-9_]+)?$', scene_id):
         raise SystemExit(
-            f"scene[{i}] invalid id '{scene_id}'; expected pattern scene_X_slug (e.g., scene_01_intro)"
+            f"scene[{i}] invalid id '{scene_id}'; expected pattern scene_N or scene_N_slug (e.g., scene_1_intro)"
         )
 print('✓ plan.json structure looks valid')
 PY
