@@ -1623,7 +1623,7 @@ PY
   fi
 
   if [[ ! "$scene_id" =~ ^scene_[0-9]+(_[a-z0-9_]+)?$ ]]; then
-    echo "✗ ERROR: Invalid scene id format '${scene_id}'. Expected scene_X or scene_X_slug (e.g., scene_1 or scene_1_intro)." | tee -a "$LOG_FILE" >&2
+    echo "✗ ERROR: Invalid scene id format '${scene_id}'. Expected scene_N or scene_N_slug (where N is one or more digits, e.g., scene_1 or scene_1_intro)." | tee -a "$LOG_FILE" >&2
     $PYTHON_BIN - <<PY
 import json
 from datetime import datetime, UTC
