@@ -235,6 +235,9 @@ def test_prompts_core_and_compose(tmp_path):
     assert prompts.extract_scene_narration("not python", "k") is None
     assert prompts.extract_scene_narration("SCRIPT = []", "k") is None
     assert prompts.extract_scene_narration("SCRIPT = {'k': '  v  '}", "k") == "v"
+    assert prompts.resolve_narration_binding(
+        "SCRIPT = {'scene_01_intro': 'Narr'}", "bad_key", "scene_01_intro"
+    ) == ("scene_01_intro", "Narr")
 
     project = tmp_path / "p"
     project.mkdir()
@@ -278,6 +281,47 @@ def test_prompts_core_and_compose(tmp_path):
     (project / "narration_script.py").write_text("SCRIPT = {}", encoding="utf-8")
     with pytest.raises(ValueError):
         prompts.compose_prompt(phase="build_scenes", state=state, project_dir=project)
+
+
+def test_build_scenes_prompt_fallbacks_to_scene_id_key(tmp_path):
+    project = tmp_path / "p2"
+    project.mkdir()
+    (project / "plan.json").write_text(
+        json.dumps(
+            {
+                "title": "T",
+                "scenes": [
+                    {
+                        "id": "scene_01_intro",
+                        "title": "Intro",
+                        "narration_key": "scene_01_intro",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (project / "narration_script.py").write_text(
+        "SCRIPT = {'scene_01_intro': 'Narr via scene id'}", encoding="utf-8"
+    )
+    state = {
+        "plan_file": "plan.json",
+        "narration_file": "narration_script.py",
+        "scenes": [
+            {
+                "id": "scene_01_intro",
+                "title": "Intro",
+                "file": "scene_01_intro.py",
+                "narration_key": "bad key from plan",
+            }
+        ],
+        "current_scene_index": 0,
+    }
+
+    _, user_prompt = prompts.compose_prompt(
+        phase="build_scenes", state=state, topic="topic", project_dir=project
+    )
+    assert 'SCRIPT["scene_01_intro"]' in user_prompt
 
 
 def test_parser_helpers_and_phase_parsers(tmp_path):

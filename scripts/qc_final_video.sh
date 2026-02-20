@@ -91,9 +91,13 @@ fi
 echo ""
 echo "Per-scene audio verification:"
 SCENE_FAIL=0
-
+SEEN_SCENES_FILE="$(mktemp "${TMPDIR:-/tmp}/fh_qc_seen.XXXXXX")"
 for scene_video in "${PROJECT_DIR}"/media/videos/scene_*/1440p60/*.mp4 "${PROJECT_DIR}"/media/videos/s*/1440p60/*.mp4; do
     [[ -f "$scene_video" ]] || continue
+    if grep -Fqx "$scene_video" "$SEEN_SCENES_FILE"; then
+        continue
+    fi
+    printf '%s\n' "$scene_video" >> "$SEEN_SCENES_FILE"
     
     scene_name=$(basename "$scene_video" .mp4)
     scene_dur=$(ffprobe "$scene_video" 2>&1 | grep "Duration:" | head -1 | awk '{print $2}' | tr -d ',')
@@ -129,6 +133,7 @@ fi
 
 # Cleanup
 rm -f "${PROJECT_DIR}/qc_audio.aac"
+rm -f "$SEEN_SCENES_FILE"
 
 echo ""
 echo "═══════════════════════════════════════════════════════════════"
