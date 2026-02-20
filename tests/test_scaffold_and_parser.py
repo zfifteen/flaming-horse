@@ -72,6 +72,53 @@ self.play(Write(title))
         assert body is not None
         assert "Write(title)" in body
 
+    def test_reject_scene_body_wrappers_in_build_scenes(self):
+        """Build-scenes parser is strict fenced-only body and rejects XML wrappers."""
+        response = """
+```python
+<scene_body>
+title = Text("Welcome", font_size=48)
+self.play(Write(title))
+</scene_body>
+```
+"""
+        body = parse_build_scenes_response(response)
+        assert body is None
+
+    def test_require_exactly_one_fenced_block(self):
+        """Build-scenes parser should reject responses without exactly one fenced block."""
+        raw_response = """
+title = Text("Welcome", font_size=48)
+self.play(Write(title))
+"""
+        assert parse_build_scenes_response(raw_response) is None
+
+        multi_block_response = """
+```python
+title = Text("A")
+```
+```python
+self.play(Write(title))
+```
+"""
+        assert parse_build_scenes_response(multi_block_response) is None
+
+    def test_strip_harness_preamble_for_build_scenes(self):
+        """Build-scenes parser should ignore harness logging lines before fenced code."""
+        response = """
+🤖 Harness using:
+Provider: XAI
+Base URL: https://api.x.ai/v1
+Model: grok-4-1-fast-reasoning
+```python
+title = Text("Welcome", font_size=48)
+self.play(Write(title))
+```
+"""
+        body = parse_build_scenes_response(response)
+        assert body is not None
+        assert body.splitlines()[0].startswith('title = Text("Welcome"')
+
     def test_reject_scaffold_placeholders(self):
         """Parser should reject code with scaffold placeholders."""
         responses = [

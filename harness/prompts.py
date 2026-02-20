@@ -23,6 +23,7 @@ PHASE_DIRS = {
 }
 
 PLACEHOLDER_RE = re.compile(r"{{\s*([A-Za-z0-9_]+)\s*}}")
+DEFAULT_SPEECH_WPM = 150
 
 
 def read_file(path: Path) -> str:
@@ -33,21 +34,16 @@ def read_file(path: Path) -> str:
 
 
 def render_template(template_text: str, values: Dict[str, Any]) -> str:
-    """Render {{placeholders}} with strict unresolved placeholder failures."""
+    """Render {{placeholders}}. Missing placeholders become empty strings."""
     # Protect literal braces represented as {{{{...}}}} in prompt text.
     left_escape = "__FH_LBRACE_ESCAPE__"
     right_escape = "__FH_RBRACE_ESCAPE__"
     working = template_text.replace("{{{{", left_escape).replace("}}}}", right_escape)
 
-    placeholders = {m.group(1) for m in PLACEHOLDER_RE.finditer(working)}
-    missing = {key for key in placeholders if key not in values}
-    if missing:
-        joined = ", ".join(sorted(missing))
-        raise ValueError(f"Unresolved template placeholders: {joined}")
-
+    # Fill in missing placeholders with empty strings (allows optional sections)
     def replace(match: re.Match[str]) -> str:
         key = match.group(1)
-        value = values[key]
+        value = values.get(key, "")  # Use .get() to default to empty string
         return "" if value is None else str(value)
 
     rendered = PLACEHOLDER_RE.sub(replace, working)
@@ -115,12 +111,37 @@ def extract_scene_narration(
     return None
 
 
+def count_words(text: str) -> int:
+    """Count words using a stable token pattern for narration pacing estimates."""
+    if not text:
+        return 0
+    return len(re.findall(r"[A-Za-z0-9']+", text))
+
+
+def estimate_duration_seconds(word_count: int, wpm: int = DEFAULT_SPEECH_WPM) -> int:
+    """Estimate speech duration from word count and words-per-minute baseline."""
+    if word_count <= 0 or wpm <= 0:
+        return 0
+    words_per_second = wpm / 60.0
+    return int(round(word_count / words_per_second))
+
+
+def format_duration(seconds: int) -> str:
+    """Format seconds as human-readable prompt text."""
+    if seconds <= 0:
+        return "0s"
+    mins = seconds // 60
+    secs = seconds % 60
+    if mins > 0:
+        return f"{mins}m {secs:02d}s"
+    return f"{secs}s"
+
+
 def compose_plan_prompt(state: Dict[str, Any], topic: Optional[str]) -> Tuple[str, str]:
     system_prompt = load_prompt_template(
         "plan",
         "system.md",
         {
-            "core_rules": read_file(PROMPTS_DIR / "_shared" / "core_rules.md"),
             "pipeline_doc": read_file(TEMPLATES_DIR / "manim_content_pipeline.md"),
         },
     )
@@ -146,7 +167,6 @@ def compose_narration_prompt(
         "narration",
         "system.md",
         {
-            "core_rules": read_file(PROMPTS_DIR / "_shared" / "core_rules.md"),
             "pipeline_doc": read_file(TEMPLATES_DIR / "manim_content_pipeline.md"),
         },
     )
@@ -206,6 +226,10 @@ def compose_build_scenes_prompt(
         raise ValueError(
             f"Could not extract SCRIPT[{narration_key!r}] from {narration_file.name}"
         )
+    narration_word_count = count_words(scene_narration)
+    speech_wpm = DEFAULT_SPEECH_WPM
+    estimated_duration_seconds = estimate_duration_seconds(narration_word_count, speech_wpm)
+    estimated_duration_text = format_duration(estimated_duration_seconds)
 
     reference_section = ""
     if current_index == 0:
@@ -231,9 +255,6 @@ def compose_build_scenes_prompt(
         "build_scenes",
         "system.md",
         {
-            "core_rules": read_file(PROMPTS_DIR / "_shared" / "core_rules.md"),
-            "config_guide": read_file(TEMPLATES_DIR / "manim_config_guide.md"),
-            "visual_helpers": read_file(TEMPLATES_DIR / "visual_helpers.md"),
             "kitchen_sink": read_file(TEMPLATES_DIR / "kitchen_sink.md"),
         },
     )
@@ -248,6 +269,10 @@ def compose_build_scenes_prompt(
             "scene_title": scene_title,
             "scene_details": scene_details,
             "scene_narration": scene_narration,
+            "narration_word_count": narration_word_count,
+            "speech_wpm": speech_wpm,
+            "estimated_duration_seconds": estimated_duration_seconds,
+            "estimated_duration_text": estimated_duration_text,
             "reference_section": reference_section,
             "retry_section": retry_section,
         },
@@ -275,11 +300,12 @@ def compose_scene_qc_prompt(
         "scene_qc",
         "system.md",
         {
-            "core_rules": read_file(PROMPTS_DIR / "_shared" / "core_rules.md"),
             "scenes_doc": read_file(TEMPLATES_DIR / "phase_scenes.md"),
         },
     )
-    user_prompt = load_prompt_template("scene_qc", "user.md", {"all_scenes": all_scenes})
+    user_prompt = load_prompt_template(
+        "scene_qc", "user.md", {"all_scenes": all_scenes}
+    )
     return system_prompt, user_prompt
 
 
@@ -332,9 +358,7 @@ def compose_scene_repair_prompt(
     system_prompt = load_prompt_template(
         "scene_repair",
         "system.md",
-        {
-            "core_rules": read_file(PROMPTS_DIR / "_shared" / "core_rules.md"),
-        },
+        {},
     )
     user_prompt = load_prompt_template(
         "scene_repair",
@@ -380,6 +404,8 @@ def compose_prompt(
     if phase == "scene_repair":
         if not scene_file:
             raise ValueError("scene_file is required for scene_repair phase")
-        return compose_scene_repair_prompt(state, project_dir, scene_file, retry_context)
+        return compose_scene_repair_prompt(
+            state, project_dir, scene_file, retry_context
+        )
 
     raise ValueError(f"Unknown phase: {phase}")

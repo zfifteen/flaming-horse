@@ -76,90 +76,31 @@ Here is the video plan:
 
 def create_mock_narration_response():
     """Create a mock response for the narration phase."""
-    return '''
-```python
-# Voiceover script for Understanding the Pythagorean Theorem
-
-SCRIPT = {
-    "scene_01": """
-    Welcome! Today we're going to explore one of the most famous theorems
-    in mathematics: the Pythagorean theorem. This ancient discovery has been
-    fundamental to mathematics for over two thousand years.
-    """,
-    
-    "scene_02": """
-    The Pythagorean theorem states that in a right triangle, the square of
-    the length of the hypotenuse equals the sum of the squares of the other
-    two sides. We write this as: a squared plus b squared equals c squared.
-    """,
-    
-    "scene_03": """
-    Let's see why this works with a visual proof. If we draw squares on each
-    side of our right triangle, the areas of the two smaller squares will
-    exactly equal the area of the largest square. It's a beautiful geometric
-    relationship that we can see with our own eyes.
-    """,
-    
-    "scene_04": """
-    The Pythagorean theorem isn't just theoretical. It's used in construction,
-    navigation, computer graphics, and countless other fields. Whenever you need
-    to find distances or work with right angles, this theorem is there to help.
-    Thanks for watching!
-    """
+    return """
+```json
+{
+  "scene_01": "Welcome! Today we're going to explore one of the most famous theorems in mathematics: the Pythagorean theorem.",
+  "scene_02": "The Pythagorean theorem states that in a right triangle, the square of the hypotenuse equals the sum of the squares of the other two sides.",
+  "scene_03": "A visual proof shows that the areas of the two smaller squares exactly equal the area of the largest square.",
+  "scene_04": "The theorem is used in construction, navigation, computer graphics, and many other fields."
 }
 ```
-'''
+"""
 
 
 def create_mock_scene_response():
     """Create a mock response for the build_scenes phase."""
     return """
 ```python
-from manim import *
-import numpy as np
-from pathlib import Path
-from manim_voiceover_plus import VoiceoverScene
-from flaming_horse_voice import get_speech_service
-from narration_script import SCRIPT
+title = Text("The Pythagorean Theorem", font_size=48, weight=BOLD)
+title.move_to(UP * 3.8)
+self.play(Write(title))
 
-# LOCKED CONFIGURATION
-config.frame_height = 10
-config.frame_width = 10 * 16/9
-config.pixel_height = 1440
-config.pixel_width = 2560
-
-def safe_position(mobject, max_y=3.8, min_y=-3.8, buff=0.2):
-    top = mobject.get_top()[1]
-    bottom = mobject.get_bottom()[1]
-    if top > max_y - buff:
-        mobject.shift(DOWN * (top - (max_y - buff)))
-    if bottom < min_y + buff:
-        mobject.shift(UP * ((min_y + buff) - bottom))
-    return mobject
-
-class Scene01Introduction(VoiceoverScene):
-    def construct(self):
-        self.set_speech_service(get_speech_service(Path(__file__).resolve().parent))
-        
-        with self.voiceover(text=SCRIPT["scene_01"]) as tracker:
-            title = Text("The Pythagorean Theorem", font_size=48, weight=BOLD)
-            title.move_to(UP * 3.8)
-            
-            subtitle = Text("a² + b² = c²", font_size=36)
-            subtitle.next_to(title, DOWN, buff=0.4)
-            safe_position(subtitle)
-            
-            self.play(Write(title), run_time=tracker.duration * 0.3)
-            self.play(FadeIn(subtitle), run_time=tracker.duration * 0.3)
-            
-            triangle = Polygon(
-                [-2, -1, 0], [2, -1, 0], [2, 2, 0],
-                color=BLUE, fill_opacity=0.3
-            )
-            triangle.move_to(ORIGIN)
-            
-            self.play(Create(triangle), run_time=tracker.duration * 0.3)
-            self.wait(tracker.duration * 0.1)
+with self.voiceover(text=SCRIPT["scene_01"]) as tracker:
+    subtitle = Text("a² + b² = c²", font_size=36)
+    subtitle.next_to(title, DOWN, buff=0.4)
+    safe_position(subtitle)
+    self.play(FadeIn(subtitle))
 ```
 """
 
@@ -209,9 +150,9 @@ def test_build_scenes_phase():
     code = parse_build_scenes_response(response)
 
     assert code is not None, "Failed to parse scene"
-    assert "from manim import" in code, "Scene missing manim import"
-    assert "VoiceoverScene" in code, "Scene missing VoiceoverScene"
-    assert "from narration_script import SCRIPT" in code, "Scene missing SCRIPT import"
+    assert "with self.voiceover" in code, "Scene missing voiceover block"
+    assert 'SCRIPT["scene_01"]' in code, "Scene missing SCRIPT key"
+    assert "self.play(" in code, "Scene missing animation call"
 
     # Verify it's valid Python
     try:
@@ -288,7 +229,7 @@ def test_build_scenes_prompt_uses_current_scene_narration_only():
 
         assert "NARRATION_TWO_UNIQUE" in user_prompt
         assert "NARRATION_ONE_UNIQUE" not in user_prompt
-        assert "Forbidden placeholder strings" in user_prompt
+        assert "unresolved placeholders like `{{...}}`" in user_prompt
 
     print("✅ Build scenes prompt uses current scene narration only")
 

@@ -143,8 +143,10 @@ PROJECT_DIR="$($PYTHON_BIN -c 'import os,sys; print(os.path.abspath(sys.argv[1])
 STATE_FILE="${PROJECT_DIR}/project_state.json"
 STATE_BACKUP="${PROJECT_DIR}/.state_backup.json"
 LOCK_FILE="${PROJECT_DIR}/.build.lock"
-LOG_FILE="${PROJECT_DIR}/build.log"
-ERROR_LOG="${PROJECT_DIR}/errors.log"
+LOG_DIR="${PROJECT_DIR}/log"
+LOG_FILE="${LOG_DIR}/build.log"
+ERROR_LOG="${LOG_DIR}/error.log"
+mkdir -p "$LOG_DIR"
 
 
 # ─── Lock File Management ────────────────────────────────────────────
@@ -225,6 +227,36 @@ backup_state() {
     cp "$STATE_FILE" "$STATE_BACKUP"
     echo "💾 State backed up" | tee -a "$LOG_FILE"
   fi
+}
+
+log_error_event() {
+  local phase_name="${1:-unknown}"
+  local summary="${2:-unspecified failure}"
+  local attempt="${3:-n/a}"
+  local retry_limit="${4:-n/a}"
+
+  local latest_state_error
+  latest_state_error=$($PYTHON_BIN - <<PY 2>/dev/null || true
+import json
+from pathlib import Path
+state_path = Path("${STATE_FILE}")
+if not state_path.exists():
+    print("")
+    raise SystemExit(0)
+state = json.loads(state_path.read_text(encoding="utf-8"))
+errors = state.get("errors", [])
+print(errors[-1] if errors else "")
+PY
+)
+
+  {
+    echo "[$(date -u +"%Y-%m-%dT%H:%M:%SZ")] phase=${phase_name} attempt=${attempt}/${retry_limit}"
+    echo "summary: ${summary}"
+    if [[ -n "${latest_state_error}" ]]; then
+      echo "state_error: ${latest_state_error}"
+    fi
+    echo "---"
+  } >> "$ERROR_LOG"
 }
 
 validate_state() {
@@ -463,14 +495,21 @@ validate_scene_template_structure() {
     fi
   done
 
-  if ! grep -Eq "with self\\.voiceover\\(text=SCRIPT\\[['\"][^'\"]+['\"]\\]\\) as tracker:" "$scene_file"; then
+  local voiceover_count
+  voiceover_count=$(grep -Ec "with self\\.voiceover\\(text=SCRIPT\\[[^]]+\\]\\) as tracker:" "$scene_file" || true)
+  if [[ "${voiceover_count}" -lt 1 ]]; then
     echo "✗ ERROR: Scene missing required voiceover wrapper using SCRIPT key" | tee -a "$LOG_FILE"
+    return 1
+  fi
+  if [[ "${voiceover_count}" -gt 1 ]]; then
+    echo "✗ ERROR: Scene has nested/duplicate voiceover wrappers (${voiceover_count} found)" | tee -a "$LOG_FILE"
+    echo "  Scene body must not include 'with self.voiceover(...)'; scaffold owns the wrapper." | tee -a "$LOG_FILE"
     return 1
   fi
 
   $PYTHON_BIN - <<PY \
     > >(tee -a "$LOG_FILE") \
-    2> >(tee -a "$ERROR_LOG" | tee -a "$LOG_FILE" >&2)
+    2> >(tee -a "$LOG_FILE" >&2)
 from pathlib import Path
 
 path = Path("${scene_file}")
@@ -566,7 +605,7 @@ except SyntaxError as e:
     sys.exit(1)
 " \
     > >(tee -a "$LOG_FILE") \
-    2> >(tee -a "$ERROR_LOG" | tee -a "$LOG_FILE" >&2)
+    2> >(tee -a "$LOG_FILE" >&2)
   
   local syntax_result=${PIPESTATUS[0]}
   if [[ $syntax_result -ne 0 ]]; then
@@ -664,8 +703,13 @@ validate_scene_runtime() {
   echo "→ Runtime validating ${scene_file} (${scene_class})..." | tee -a "$LOG_FILE"
   if ! "$manim_bin" render "$scene_file" "$scene_class" --dry_run \
     > >(tee -a "$LOG_FILE") \
-    2> >(tee -a "$ERROR_LOG" | tee -a "$LOG_FILE" >&2); then
+    2> >(tee -a "$LOG_FILE" >&2); then
     echo "✗ Runtime validation failed for ${scene_file}" | tee -a "$LOG_FILE"
+    {
+      echo "[$(date '+%Y-%m-%dT%H:%M:%S%z')] Runtime validation failed: ${scene_file} (${scene_class})"
+      extract_recent_error_stacktrace "$scene_file"
+      echo
+    } >> "$ERROR_LOG"
     return 1
   fi
 
@@ -682,7 +726,7 @@ ensure_qwen_cache_index() {
   echo "→ Voice cache index missing; generating cache before runtime validation..." | tee -a "$LOG_FILE"
   if ! $PYTHON_BIN "${SCRIPT_DIR}/precache_voiceovers_qwen.py" "$PROJECT_DIR" \
     > >(tee -a "$LOG_FILE") \
-    2> >(tee -a "$ERROR_LOG" | tee -a "$LOG_FILE" >&2); then
+    2> >(tee -a "$LOG_FILE" >&2); then
     echo "✗ ERROR: Failed to generate voice cache index for runtime validation" | tee -a "$LOG_FILE"
     return 1
   fi
@@ -1011,7 +1055,7 @@ PY
   return 0
 }
 
-extract_recent_error_excerpt() {
+extract_recent_error_stacktrace() {
   local scene_file="$1"
   $PYTHON_BIN - <<PY
 from pathlib import Path
@@ -1023,37 +1067,48 @@ if not log_path.exists():
     raise SystemExit(0)
 
 lines = log_path.read_text(encoding="utf-8", errors="replace").splitlines()
-window = lines[-420:]
 
 # Return the most recent traceback block if available.
 starts = [
-  i for i, ln in enumerate(window)
+  i for i, ln in enumerate(lines)
   if "Traceback (most recent call last)" in ln or "╭───────────────────── Traceback" in ln
 ]
 
 if starts:
   start = starts[-1]
-  hard_limit = min(len(window), start + 300)
-  end = hard_limit - 1
-  for j in range(start + 1, hard_limit):
-    stripped = window[j].strip()
-    if window[j].startswith("╰"):
+  end = len(lines) - 1
+  for j in range(start + 1, len(lines)):
+    stripped = lines[j].strip()
+    if lines[j].startswith("╰"):
       end = j
-      if j + 1 < len(window) and window[j + 1].strip():
+      # Rich traceback often has exception line immediately after the box.
+      if j + 1 < len(lines) and lines[j + 1].strip():
         end = j + 1
       break
+    # Plain Python traceback exception terminator
     if re.match(r"^(SyntaxError|TypeError|NameError|ImportError|ModuleNotFoundError|FileNotFoundError|ValueError|RuntimeError|Exception):", stripped):
       end = j
       break
-  snippet = window[start:end + 1]
-  print("\n".join(snippet))
+    # If a new phase boundary begins before exception line, stop there.
+    if re.match(r"^Iteration:\s+\d+", stripped) or stripped.startswith("Current phase:"):
+      end = j - 1
+      break
+  stack = lines[start:end + 1]
+  print("\n".join(stack))
   raise SystemExit(0)
 
-keywords = ["Traceback", "Error", "Exception", "failed", "Syntax", "Indentation"]
-filtered = [ln for ln in window if ("${scene_file}" in ln) or any(k in ln for k in keywords)]
-snippet = filtered[-180:] if filtered else window[-80:]
+# Fallback if traceback markers are absent: include relevant error lines from the full log.
+keywords = ["Error", "Exception", "failed", "Syntax", "Indentation"]
+filtered = [ln for ln in lines if ("${scene_file}" in ln) or any(k in ln for k in keywords)]
+snippet = filtered if filtered else lines[-200:]
 print("\n".join(snippet))
 PY
+}
+
+# Backward-compatible alias: all callers now receive the full stack trace.
+extract_recent_error_excerpt() {
+  local scene_file="$1"
+  extract_recent_error_stacktrace "$scene_file"
 }
 
 invoke_scene_fix_agent() {
@@ -1067,12 +1122,12 @@ invoke_scene_fix_agent() {
 
   echo "Using Python harness for scene repair" | tee -a "$LOG_FILE"
 
-  local error_excerpt
-  error_excerpt="$(extract_recent_error_excerpt "$scene_file")"
+  local error_stacktrace
+  error_stacktrace="$(extract_recent_error_stacktrace "$scene_file")"
   local retry_context="${failure_reason}
 
 Error details:
-${error_excerpt}"
+${error_stacktrace}"
 
   $PYTHON_BIN -m harness \
     --phase scene_repair \
@@ -1172,17 +1227,18 @@ handle_plan() {
   # If plan.json is missing, recover the latest plan object from build.log.
   cd "$PROJECT_DIR"
   if [[ ! -f "plan.json" ]]; then
-    $PYTHON_BIN - <<'PY' \
+    LOG_FILE_FOR_PY="$LOG_FILE" $PYTHON_BIN - <<'PY' \
       > >(tee -a "$LOG_FILE") \
-      2> >(tee -a "$ERROR_LOG" | tee -a "$LOG_FILE" >&2)
+      2> >(tee -a "$LOG_FILE" >&2)
 import json
 import re
+import os
 from pathlib import Path
 import re
 
-log_path = Path('build.log')
+log_path = Path(os.environ['LOG_FILE_FOR_PY'])
 if not log_path.exists():
-    raise SystemExit('plan.json missing and build.log not found')
+    raise SystemExit(f'plan.json missing and {log_path} not found')
 
 raw = log_path.read_text(encoding='utf-8', errors='replace')
 decoder = json.JSONDecoder()
@@ -1228,7 +1284,7 @@ for block in json_blocks:
         break
 
 if not best:
-    raise SystemExit('plan.json missing and no valid plan JSON object found in build.log')
+    raise SystemExit(f'plan.json missing and no valid plan JSON object found in {log_path}')
 
 Path('plan.json').write_text(json.dumps(best, indent=2) + '\n', encoding='utf-8')
 print('✓ Recovered and normalized plan.json from build.log')
@@ -1267,7 +1323,7 @@ PY
   # Minimal structural validation of plan.json.
   $PYTHON_BIN - <<'PY' \
     > >(tee -a "$LOG_FILE") \
-    2> >(tee -a "$ERROR_LOG" | tee -a "$LOG_FILE" >&2)
+    2> >(tee -a "$LOG_FILE" >&2)
 import json
 import re
 from pathlib import Path
@@ -1308,18 +1364,18 @@ handle_narration() {
   if [[ ! -f "narration_script.py" ]]; then
     $PYTHON_BIN - <<'PY' \
       > >(tee -a "$LOG_FILE") \
-      2> >(tee -a "$ERROR_LOG" | tee -a "$LOG_FILE" >&2)
+      2> >(tee -a "$LOG_FILE" >&2)
 import re
 from pathlib import Path
 
-log_path = Path('build.log')
+log_path = Path("${LOG_FILE}")
 if not log_path.exists():
-    raise SystemExit('narration_script.py missing and build.log not found')
+    raise SystemExit(f'narration_script.py missing and {log_path} not found')
 
 raw = log_path.read_text(encoding='utf-8', errors='replace')
 idx = raw.rfind('SCRIPT = {')
 if idx < 0:
-    raise SystemExit('narration_script.py missing and SCRIPT block not found in build.log')
+    raise SystemExit(f'narration_script.py missing and SCRIPT block not found in {log_path}')
 
 tail = raw[idx:]
 lines = tail.splitlines()
@@ -1338,7 +1394,7 @@ for ln in lines:
 
 script_text = "\n".join(out_lines).strip() + "\n"
 if not script_text.endswith('}\n'):
-    raise SystemExit('Failed to recover full SCRIPT dict from build.log')
+    raise SystemExit(f'Failed to recover full SCRIPT dict from {log_path}')
 
 content = (
     '"""\n'
@@ -1419,7 +1475,7 @@ handle_precache_voiceovers() {
   echo "→ Running precache script" | tee -a "$LOG_FILE"
   $PYTHON_BIN "${SCRIPT_DIR}/precache_voiceovers_qwen.py" "$PROJECT_DIR" \
     > >(tee -a "$LOG_FILE") \
-    2> >(tee -a "$ERROR_LOG" | tee -a "$LOG_FILE" >&2)
+    2> >(tee -a "$LOG_FILE" >&2)
 
   # Deterministically advance if cache index exists.
   normalize_state_json || true
@@ -1503,7 +1559,7 @@ PY
       --narration-key "$narration_key" \
       --force \
       > >(tee -a "$LOG_FILE") \
-      2> >(tee -a "$ERROR_LOG" | tee -a "$LOG_FILE" >&2); then
+      2> >(tee -a "$LOG_FILE" >&2); then
       echo "✗ ERROR: Failed to scaffold ${scene_file}" | tee -a "$LOG_FILE" >&2
       return 1
     fi
@@ -1533,7 +1589,7 @@ PY
   # Syntax validation (Python) with self-heal on failure.
   if ! $PYTHON_BIN -m py_compile "$new_scene" \
     > >(tee -a "$LOG_FILE") \
-    2> >(tee -a "$ERROR_LOG" | tee -a "$LOG_FILE" >&2); then
+    2> >(tee -a "$LOG_FILE" >&2); then
     echo "✗ Syntax check failed for $new_scene. Attempting self-heal..." | tee -a "$LOG_FILE"
     local syntax_reason
     syntax_reason=$(scene_python_syntax_error_excerpt "$new_scene")
@@ -1600,64 +1656,108 @@ handle_scene_qc() {
   echo "🧪 Running scene QC pass..." | tee -a "$LOG_FILE"
   cd "$PROJECT_DIR"
 
-  local qc_scene_files
-  qc_scene_files=$($PYTHON_BIN - <<PY
+  local scene_entries
+  scene_entries=$($PYTHON_BIN - <<PY
 import json
 from pathlib import Path
 
 state = json.load(open("${STATE_FILE}", "r"))
 scenes = state.get("scenes") or []
-files = []
+rows = []
 for s in scenes:
     if not isinstance(s, dict):
         continue
+    scene_id = s.get("id")
     f = s.get("file")
-    if isinstance(f, str) and f:
-        files.append(f)
+    c = s.get("class_name") or ""
+    if isinstance(scene_id, str) and scene_id and isinstance(f, str) and f:
+        rows.append((scene_id, f, c if isinstance(c, str) else ""))
 
-if not files:
+if not rows:
     print("")
     raise SystemExit(0)
 
-missing = [f for f in files if not Path(f).exists()]
-if missing:
-    print("MISSING:" + ",".join(missing))
-else:
-    print("\n".join(files))
+for row in rows:
+    print("|".join(row))
 PY
 )
 
-  if [[ -z "$qc_scene_files" ]]; then
+  if [[ -z "$scene_entries" ]]; then
     echo "❌ No scene files listed in project_state.json for QC" | tee -a "$LOG_FILE" >&2
     return 1
   fi
 
-  if [[ "$qc_scene_files" == MISSING:* ]]; then
-    echo "❌ QC cannot run; missing scene files: ${qc_scene_files#MISSING:}" | tee -a "$LOG_FILE" >&2
+  local qc_report="${PROJECT_DIR}/scene_qc_report.md"
+  local checked_count=0
+  local rewrite_required_count=0
+  local blocking_count=0
+  local unresolved_failures=0
+
+  cat > "$qc_report" <<'EOF'
+# Scene QC Report
+
+## Mode
+- Deterministic runtime gate only (`manim render --dry_run`)
+- Rewrite trigger: runtime render-blocking errors only
+
+## Results
+EOF
+
+  while IFS='|' read -r scene_id scene_file scene_class; do
+    [[ -z "${scene_id}" ]] && continue
+    checked_count=$((checked_count + 1))
+
+    local candidate_file="$scene_file"
+    if [[ ! -f "$candidate_file" && -f "scenes/$candidate_file" ]]; then
+      candidate_file="scenes/$candidate_file"
+    fi
+
+    if [[ ! -f "$candidate_file" ]]; then
+      blocking_count=$((blocking_count + 1))
+      rewrite_required_count=$((rewrite_required_count + 1))
+      unresolved_failures=$((unresolved_failures + 1))
+      echo "- ${scene_id}: rewrite_required=true, blocking_error=missing scene file (${scene_file}), resolved=false" >> "$qc_report"
+      echo "❌ scene_qc: missing scene file for ${scene_id}: ${scene_file}" | tee -a "$LOG_FILE"
+      continue
+    fi
+
+    if runtime_validate_scene_with_preconditions "$candidate_file" "$scene_class"; then
+      echo "- ${scene_id}: rewrite_required=false, blocking_error=none" >> "$qc_report"
+      continue
+    fi
+
+    blocking_count=$((blocking_count + 1))
+    rewrite_required_count=$((rewrite_required_count + 1))
+    echo "⚠ scene_qc: runtime error in ${scene_id}; invoking rewrite flow" | tee -a "$LOG_FILE"
+    local reason="Runtime validation failed for ${candidate_file} during deterministic scene_qc."
+    if repair_scene_until_valid "$scene_id" "$candidate_file" "$scene_class" "$reason"; then
+      if runtime_validate_scene_with_preconditions "$candidate_file" "$scene_class"; then
+        echo "- ${scene_id}: rewrite_required=true, blocking_error=runtime_exception, resolved=true" >> "$qc_report"
+      else
+        unresolved_failures=$((unresolved_failures + 1))
+        echo "- ${scene_id}: rewrite_required=true, blocking_error=runtime_exception, resolved=false" >> "$qc_report"
+      fi
+    else
+      unresolved_failures=$((unresolved_failures + 1))
+      echo "- ${scene_id}: rewrite_required=true, blocking_error=runtime_exception, resolved=false" >> "$qc_report"
+    fi
+  done <<< "$scene_entries"
+
+  {
+    echo ""
+    echo "## Summary"
+    echo "- Total scenes checked: ${checked_count}"
+    echo "- Rewrite required scenes: ${rewrite_required_count}"
+    echo "- Render-blocking issues found: ${blocking_count}"
+    echo "- Unresolved blocking failures: ${unresolved_failures}"
+  } >> "$qc_report"
+
+  if [[ $unresolved_failures -gt 0 ]]; then
+    echo "❌ Scene QC found unresolved render-blocking failures. See scene_qc_report.md" | tee -a "$LOG_FILE" >&2
     return 1
   fi
 
-  echo "Using Python harness for scene QC" | tee -a "$LOG_FILE"
-
-  $PYTHON_BIN -m harness \
-    --phase scene_qc \
-    --project-dir "$PROJECT_DIR" \
-    > >(tee -a "$LOG_FILE") \
-    2> >(tee -a "$LOG_FILE" >&2)
-
-  local exit_code=$?
-
-  if [[ $exit_code -ne 0 ]]; then
-    echo "❌ Scene QC harness failed with exit code: $exit_code" | tee -a "$LOG_FILE"
-    return 1
-  fi
-
-  if [[ ! -s "scene_qc_report.md" ]]; then
-    echo "❌ scene_qc_report.md missing or empty after scene QC" | tee -a "$LOG_FILE" >&2
-    return 1
-  fi
-
-  echo "✓ Scene QC complete: scene_qc_report.md" | tee -a "$LOG_FILE"
+  echo "✓ Scene QC complete (deterministic runtime gate): scene_qc_report.md" | tee -a "$LOG_FILE"
   apply_state_phase "scene_qc" || true
   return 0
 }
@@ -2029,7 +2129,7 @@ PY
 
         if "$manim_bin" render "$scene_file" "$scene_class" -qh \
           > >(tee -a "$LOG_FILE" | tee "$render_log") \
-          2> >(tee -a "$ERROR_LOG" | tee -a "$LOG_FILE" | tee -a "$render_log" >&2); then
+          2> >(tee -a "$LOG_FILE" | tee -a "$render_log" >&2); then
           render_ok=1
           break
         fi
@@ -2152,7 +2252,7 @@ handle_assemble() {
   # Generate scenes.txt from state (script is in repo root)
   $PYTHON_BIN "${SCRIPT_DIR}/generate_scenes_txt.py" "$PROJECT_DIR" \
     > >(tee -a "$LOG_FILE") \
-    2> >(tee -a "$ERROR_LOG" | tee -a "$LOG_FILE" >&2)
+    2> >(tee -a "$LOG_FILE" >&2)
 
   if [[ ! -f "${PROJECT_DIR}/scenes.txt" ]]; then
     echo "❌ scenes.txt not created" | tee -a "$LOG_FILE" >&2
@@ -2458,11 +2558,13 @@ while true; do
       echo "❌ State file could not be normalized." | tee -a "$LOG_FILE" >&2
       echo "   See: $STATE_FILE" | tee -a "$LOG_FILE" >&2
       [[ -f "$STATE_BACKUP" ]] && echo "   Backup: $STATE_BACKUP" | tee -a "$LOG_FILE" >&2
+      log_error_event "startup" "state file could not be normalized before phase execution" "n/a" "$PHASE_RETRY_LIMIT"
       exit 1
     fi
 
     if ! validate_state; then
       echo "❌ State validation failed. Restoring backup..." >&2
+      log_error_event "startup" "state validation failed before phase execution" "n/a" "$PHASE_RETRY_LIMIT"
       [[ -f "$STATE_BACKUP" ]] && cp "$STATE_BACKUP" "$STATE_FILE"
       exit 1
     fi
@@ -2518,9 +2620,11 @@ while true; do
     if [[ $phase_ok -ne 1 ]]; then
       if is_retryable_phase "$current_phase"; then
         echo "❌ Phase $current_phase failed after ${PHASE_RETRY_LIMIT} attempts. Marking for human review." | tee -a "$LOG_FILE"
+        log_error_event "$current_phase" "phase failed after retry budget exhausted" "$attempt" "$PHASE_RETRY_LIMIT"
         mark_retry_exhausted "$current_phase"
       else
         echo "❌ Phase $current_phase failed (non-agent phase)." | tee -a "$LOG_FILE"
+        log_error_event "$current_phase" "non-agent phase failure" "$attempt" "$PHASE_RETRY_LIMIT"
       fi
 
       normalize_state_json || true
@@ -2532,12 +2636,14 @@ while true; do
         exit 0
       fi
 
+      log_error_event "$current_phase" "phase failed without human-review flag; exiting with failure" "$attempt" "$PHASE_RETRY_LIMIT"
       exit 1
     fi
 
     # Post-phase: normalize state and deterministically apply phase transition.
     if ! normalize_state_json; then
       echo "❌ Phase produced an invalid/un-normalizable state file; restoring last backup." | tee -a "$LOG_FILE" >&2
+      log_error_event "$current_phase" "state normalization failed after phase execution" "$attempt" "$PHASE_RETRY_LIMIT"
       [[ -f "$STATE_BACKUP" ]] && cp "$STATE_BACKUP" "$STATE_FILE"
       exit 1
     fi

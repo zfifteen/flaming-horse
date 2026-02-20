@@ -5,6 +5,23 @@ This file is designed for system-prompt injection and contains concrete examples
 
 ---
 
+## Build Scenes Output Contract (SAFE_FOR_BUILD_SCENES)
+
+When this reference is injected into the `build_scenes` phase, follow this contract first.
+
+- `SAFE_FOR_BUILD_SCENES`: `self.play(...)`, `self.wait(...)`, documented Manim mobjects/animations, and repo helpers that are explicitly listed in the user prompt scaffold section.
+- `SAFE_FOR_BUILD_SCENES`: Title/header placement via `.move_to(UP * 3.8)` (or nearby explicit coordinates), not `.to_edge(UP)`.
+- `SAFE_FOR_BUILD_SCENES`: Narration sync via `with self.voiceover(text=SCRIPT["key"]) as tracker:` when `VoiceoverScene` is available in scaffold.
+- `SAFE_FOR_BUILD_SCENES`: Use `MathTex(r"... \times ...")` for multiplication in raw strings.
+
+- `FORBIDDEN_FOR_BUILD_SCENES`: `play_next(...)`, `play_text_next(...)`, or any helper that is not explicitly present in scaffold.
+- `FORBIDDEN_FOR_BUILD_SCENES`: `self.add(...)` for first-time visible reveals in generated scene body; use `self.play(...)` animations instead.
+- `FORBIDDEN_FOR_BUILD_SCENES`: `.to_edge(UP)` for titles/labels in generated scene body.
+
+All examples below are reference patterns; if any example conflicts with this section, this section wins for `build_scenes` output.
+
+---
+
 ## Source Policy (Official Manim CE Docs Only)
 
 Use only these official Manim Community Edition docs:
@@ -158,7 +175,7 @@ class TextHierarchyAndCallouts(Scene):
     def construct(self):
         # Title/subtitle structure
         title = Text("Main Concept", font_size=48, weight=BOLD)
-        title.to_edge(UP, buff=0.5)
+        title.move_to(UP * 3.8)
         
         subtitle = Text("Supporting Details", font_size=32, color=GRAY)
         subtitle.next_to(title, DOWN, buff=0.3)
@@ -375,14 +392,14 @@ class DataNarrativeGraphing(Scene):
         
         # Progressive data/curve reveal - first dataset
         graph1 = axes.plot(lambda x: x, color=BLUE)
-        label1 = Text("Linear", font_size=28, color=BLUE).to_edge(UP).shift(LEFT * 3)
+        label1 = Text("Linear", font_size=28, color=BLUE).move_to(UP * 3.0 + LEFT * 3)
         
         self.play(Create(graph1), Write(label1))
         self.wait(0.5)
         
         # Second dataset for visual comparison pattern
         graph2 = axes.plot(lambda x: x**1.5, color=RED)
-        label2 = Text("Power", font_size=28, color=RED).to_edge(UP).shift(RIGHT * 3)
+        label2 = Text("Power", font_size=28, color=RED).move_to(UP * 3.0 + RIGHT * 3)
         
         self.play(Create(graph2), Write(label2))
         self.wait(0.8)
@@ -505,8 +522,8 @@ class ValueTrackerDrivenMotion(Scene):
         
         circle.add_updater(update_circle)
         number.add_updater(update_number)
-        
-        self.add(circle, number)
+
+        self.play(FadeIn(circle), FadeIn(number))
         
         # Controlled motion window with clear start/stop behavior
         self.play(tracker.animate.set_value(3), run_time=2)
