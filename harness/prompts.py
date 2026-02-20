@@ -287,7 +287,9 @@ def compose_build_scenes_prompt(
     narration_key = resolved_key
     narration_word_count = count_words(scene_narration)
     speech_wpm = DEFAULT_SPEECH_WPM
-    estimated_duration_seconds = estimate_duration_seconds(narration_word_count, speech_wpm)
+    estimated_duration_seconds = estimate_duration_seconds(
+        narration_word_count, speech_wpm
+    )
     estimated_duration_text = format_duration(estimated_duration_seconds)
 
     reference_section = ""

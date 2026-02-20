@@ -21,11 +21,11 @@ from pathlib import Path
 
 
 def camel_from_scene_id(scene_id: str) -> str:
-    m_simple = re.match(r"^scene_(\d{2})$", scene_id)
+    m_simple = re.match(r"^scene_(\d+)$", scene_id)
     if m_simple:
         return f"Scene{m_simple.group(1)}"
 
-    m = re.match(r"^scene_(\d{2})_([a-z0-9_]+)$", scene_id)
+    m = re.match(r"^scene_(\d+)_([a-z0-9_]+)$", scene_id)
     if m:
         number = m.group(1)
         slug = m.group(2)
