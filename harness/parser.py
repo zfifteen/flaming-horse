@@ -365,7 +365,7 @@ def has_kitchen_sink_boilerplate(code: str) -> bool:
         if re.search(rf"\bclass\s+{class_name}\b", code):
             return True
 
-    if '"""' in code and "Pattern Family" in code:
+    if re.search(r'"""[^"]*Pattern Family [A-H]:', code):
         return True
     if "Source: https://docs.manim.community" in code:
         return True

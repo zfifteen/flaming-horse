@@ -266,6 +266,11 @@ class TestKitchenSinkBoilerplateDetection:
         code = '"""\nPattern Family A: Scene Lifecycle\n"""\ntitle = Text("Test")'
         assert has_kitchen_sink_boilerplate(code)
 
+    def test_no_false_positive_pattern_family(self):
+        """Should not flag incidental 'Pattern Family' in non-docstring context."""
+        code = 'title = Text("Pattern Family illustration")\nself.play(Write(title))'
+        assert not has_kitchen_sink_boilerplate(code)
+
     def test_detect_source_url_marker(self):
         """Should detect Kitchen Sink source URL markers."""
         code = 'title = Text("Test")\n# Source: https://docs.manim.community/en/stable/ref.html'
