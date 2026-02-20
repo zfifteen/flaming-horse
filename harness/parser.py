@@ -12,6 +12,10 @@ from pathlib import Path
 from typing import Dict, Any, Optional, List, Tuple
 
 
+class SchemaValidationError(ValueError):
+    """Raised when a phase response fails strict JSON schema validation."""
+
+
 def class_name_to_scene_filename(class_name: str) -> str:
     """Convert a scene class name to canonical scene_XX_slug.py filename."""
     m = re.match(r"^Scene(\d{2})([A-Za-z0-9_]*)$", class_name)
@@ -167,83 +171,21 @@ def validate_scene_body_syntax(body_code: str) -> bool:
 
 def extract_json_block(text: str) -> Optional[str]:
     """
-    Extract JSON from model response.
-
-    Handles both:
-    - Raw JSON starting with {
-    - JSON in markdown code blocks
-    - JSON with common issues (parentheses, trailing commas)
+    Extract the first top-level JSON object from model response text.
 
     Returns:
-        JSON string or None if not found
+        Canonical JSON string or None if no valid top-level JSON object exists
     """
-    # Pre-process: handle common issues before extraction
-    # 1. Remove parentheses around string values
-    text = re.sub(r':\s*\(\s*(".*?")\s*\)', r": \1", text, flags=re.DOTALL)
-    # 2. Remove single-line parentheses
-    text = re.sub(r":\s*\(([^)]+)\)", r': "\1"', text)
-    # 3. Remove trailing commas
-    text = re.sub(r",(\s*[\]\}])", r"\1", text)
-
     decoder = json.JSONDecoder()
-
-    # First, try to find JSON in fenced code blocks.
-    # Allow optional language and tolerate extra prose around JSON.
-    code_block_pattern = r"```(?:json)?\s*(.*?)```"
-    matches = re.findall(code_block_pattern, text, re.DOTALL)
-
-    if matches:
-        for match in matches:
-            # Try to parse it to verify it's valid JSON
-            cleaned = match.strip()
-            try:
-                json.loads(cleaned)
-                return cleaned
-            except json.JSONDecodeError:
-                # Try extracting first valid JSON value if extra text exists.
-                try:
-                    obj, _ = decoder.raw_decode(cleaned)
-                    return json.dumps(obj)
-                except json.JSONDecodeError:
-                    continue
-
-    # Try to decode from the very beginning first (outermost object).
-    # This ensures we get the full container object rather than nested fragments.
-    try:
-        obj, _ = decoder.raw_decode(text.strip())
-        if isinstance(obj, (dict, list)):
-            return json.dumps(obj)
-    except json.JSONDecodeError:
-        pass
-
-    # If no code block, try regex-based raw JSON slices.
-    json_pattern = r"\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}"
-    matches = re.findall(json_pattern, text, re.DOTALL)
-
-    for match in matches:
-        try:
-            json.loads(match)
-            return match
-        except json.JSONDecodeError:
-            continue
-
-    # Last resort: scan for first decodable object from any '{'.
     for idx, ch in enumerate(text):
         if ch != "{":
             continue
         try:
             obj, _ = decoder.raw_decode(text[idx:])
-            if isinstance(obj, (dict, list)):
+            if isinstance(obj, dict):
                 return json.dumps(obj)
         except json.JSONDecodeError:
             continue
-
-    # Final fallback: try to parse the whole text
-    try:
-        json.loads(text.strip())
-        return text.strip()
-    except json.JSONDecodeError:
-        pass
 
     return None
 
@@ -417,42 +359,35 @@ def parse_plan_response(response_text: str) -> Optional[Dict[str, Any]]:
     Returns:
         Plan dict or None if parsing failed
     """
-    json_text = extract_json_block(response_text)
+    cleaned_response = strip_harness_preamble(response_text)
+    json_text = extract_json_block(cleaned_response)
     if not json_text:
-        return None
+        raise SchemaValidationError("no valid top-level JSON object found")
 
     try:
-        try:
-            plan = json.loads(json_text)
-        except json.JSONDecodeError:
-            # Fallback for near-JSON payloads with single quotes/trailing commas.
-            plan = ast.literal_eval(json_text)
+        plan = json.loads(json_text)
+    except json.JSONDecodeError as exc:
+        raise SchemaValidationError(f"invalid JSON object: {exc}") from exc
 
-        # Basic validation, with support for wrapped payloads.
-        if "title" not in plan or "scenes" not in plan:
-            for wrapper_key in ("plan", "video_plan", "result"):
-                wrapped = plan.get(wrapper_key)
-                if (
-                    isinstance(wrapped, dict)
-                    and "title" in wrapped
-                    and "scenes" in wrapped
-                ):
-                    plan = wrapped
-                    break
-            else:
-                return None
+    title = plan.get("title")
+    if not isinstance(title, str) or not title.strip():
+        raise SchemaValidationError("plan.title is required and must be a non-empty string")
 
-        if not isinstance(plan.get("scenes"), list):
-            return None
+    scenes = plan.get("scenes")
+    if not isinstance(scenes, list) or not scenes:
+        raise SchemaValidationError("plan.scenes is required and must be a non-empty array")
 
-        # Normalize narration_key: some models output "narrative_key" instead
-        for scene in plan.get("scenes", []):
-            if "narrative_key" in scene and "narration_key" not in scene:
-                scene["narration_key"] = scene.pop("narrative_key")
+    for idx, scene in enumerate(scenes):
+        if not isinstance(scene, dict):
+            raise SchemaValidationError(f"plan.scenes[{idx}] must be an object")
+        for key in ("id", "title", "narration_key"):
+            value = scene.get(key)
+            if not isinstance(value, str) or not value.strip():
+                raise SchemaValidationError(
+                    f"plan.scenes[{idx}].{key} is required and must be a non-empty string"
+                )
 
-        return plan
-    except (json.JSONDecodeError, SyntaxError, ValueError):
-        return None
+    return plan
 
 
 def parse_narration_response(response_text: str) -> Optional[str]:
@@ -467,23 +402,28 @@ def parse_narration_response(response_text: str) -> Optional[str]:
     Returns:
         Python code string or None if parsing failed
     """
-    # Extract JSON from response (includes preprocessing for parentheses/trailing commas)
-    json_data = extract_json_block(response_text)
+    cleaned_response = strip_harness_preamble(response_text)
+    json_data = extract_json_block(cleaned_response)
     if not json_data:
-        return None
+        raise SchemaValidationError("no valid top-level JSON object found")
 
-    # Parse JSON
     try:
-        script_dict = json.loads(json_data)
-    except json.JSONDecodeError:
-        return None
+        payload = json.loads(json_data)
+    except json.JSONDecodeError as exc:
+        raise SchemaValidationError(f"invalid JSON object: {exc}") from exc
 
-    # Verify it's a dict with string values
-    if not isinstance(script_dict, dict):
-        return None
+    script_dict = payload.get("script")
+    if not isinstance(script_dict, dict) or not script_dict:
+        raise SchemaValidationError(
+            "narration.script is required and must be a non-empty object"
+        )
     for key, value in script_dict.items():
-        if not isinstance(key, str) or not isinstance(value, str):
-            return None
+        if not isinstance(key, str) or not key.strip():
+            raise SchemaValidationError("narration.script keys must be non-empty strings")
+        if not isinstance(value, str) or not value.strip():
+            raise SchemaValidationError(
+                f"narration.script[{key!r}] must be a non-empty string"
+            )
 
     # Convert to Python code
     code = """# Voiceover script
@@ -561,6 +501,83 @@ def extract_scene_body_from_full_file(code: str) -> Optional[str]:
     return "\n".join(dedented_lines).strip()
 
 
+def _extract_scene_body_from_json_response(
+    response_text: str, phase: str
+) -> str:
+    """Extract and validate `scene_body` from strict JSON phase payload."""
+    cleaned_response = strip_harness_preamble(response_text)
+    json_text = extract_json_block(cleaned_response)
+    if not json_text:
+        raise SchemaValidationError("no valid top-level JSON object found")
+
+    try:
+        payload = json.loads(json_text)
+    except json.JSONDecodeError as exc:
+        raise SchemaValidationError(f"invalid JSON object: {exc}") from exc
+
+    scene_body = payload.get("scene_body")
+    if not isinstance(scene_body, str) or not scene_body.strip():
+        raise SchemaValidationError(
+            f"{phase}.scene_body is required and must be a non-empty string"
+        )
+
+    candidate = sanitize_code(scene_body)
+    if not candidate:
+        raise SchemaValidationError(f"{phase}.scene_body cannot be empty after sanitization")
+    if not verify_python_syntax(candidate):
+        raise SchemaValidationError(f"{phase}.scene_body must be valid Python")
+
+    forbidden_tokens = [
+        "from manim import",
+        "from pathlib import",
+        "import numpy",
+        "config.frame",
+        "class Scene",
+        "def construct",
+        "SLOT_START:scene_body",
+        "SLOT_END:scene_body",
+    ]
+    if any(token in candidate for token in forbidden_tokens):
+        raise SchemaValidationError(
+            f"{phase}.scene_body must contain scene-body statements only (no imports/class/config/scaffold markers)"
+        )
+    if re.search(r"with\s+self\.voiceover\(", candidate):
+        raise SchemaValidationError(
+            f"{phase}.scene_body must not include nested self.voiceover wrapper"
+        )
+    if candidate.strip().startswith(("class ", "def ", "import ", "from ")):
+        raise SchemaValidationError(
+            f"{phase}.scene_body must not start with class/def/import statements"
+        )
+    if has_scaffold_artifacts(candidate):
+        raise SchemaValidationError(
+            f"{phase}.scene_body contains unresolved scaffold placeholders"
+        )
+
+    return candidate
+
+
+def _has_executable_self_play_call(body_code: str) -> bool:
+    """Return True when body has at least one executable self.play(...) with >=1 arg."""
+    try:
+        tree = ast.parse(body_code)
+    except SyntaxError:
+        return False
+
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        func = node.func
+        if not isinstance(func, ast.Attribute) or func.attr != "play":
+            continue
+        owner = func.value
+        if not isinstance(owner, ast.Name) or owner.id != "self":
+            continue
+        if len(node.args) >= 1:
+            return True
+    return False
+
+
 def parse_build_scenes_response(response_text: str) -> Optional[str]:
     """
     Parse build_scenes phase response to extract scene body code.
@@ -575,44 +592,11 @@ def parse_build_scenes_response(response_text: str) -> Optional[str]:
     Returns:
         Python body code string or None if parsing failed
     """
-    cleaned_response = strip_harness_preamble(response_text)
-    blocks = extract_python_code_blocks(cleaned_response)
-    if len(blocks) != 1:
-        return None
-
-    _filename_hint, block_code = blocks[0]
-    # Reject legacy XML wrappers under strict fenced-only contract.
-    if "<scene_body>" in block_code or "</scene_body>" in block_code:
-        return None
-    candidate = sanitize_code(block_code)
-    if not candidate:
-        return None
-    if not verify_python_syntax(candidate):
-        return None
-
-    forbidden_tokens = [
-        "from manim import",
-        "from pathlib import",
-        "import numpy",
-        "config.frame",
-        "class Scene",
-        "def construct",
-        "SLOT_START:scene_body",
-        "SLOT_END:scene_body",
-    ]
-
-    # Reject if contains forbidden header tokens
-    if any(token in candidate for token in forbidden_tokens):
-        return None
-    # Scene body must not contain a nested voiceover wrapper; scaffold owns it.
-    if re.search(r"with\s+self\.voiceover\(", candidate):
-        return None
-    # Should be body code: indented statements, no class/def/import at top level
-    if candidate.strip().startswith(("class ", "def ", "import ", "from ")):
-        return None
-    # Reject if has scaffold placeholders
-    if has_scaffold_artifacts(candidate):
-        return None
+    candidate = _extract_scene_body_from_json_response(response_text, "build_scenes")
+    if not _has_executable_self_play_call(candidate):
+        raise SchemaValidationError(
+            "build_scenes.scene_body must contain at least one executable self.play(...) call with >=1 argument"
+        )
     return candidate
 
 
@@ -628,19 +612,22 @@ def parse_scene_qc_response(
     Returns:
         (list of (filename, code) tuples, report markdown or None)
     """
-    # Scene QC is report-only by policy. Ignore any returned code blocks so
-    # QC cannot rewrite scene files.
-    scene_files: List[Tuple[str, str]] = []
-    report = None
+    cleaned_response = strip_harness_preamble(response_text)
+    json_text = extract_json_block(cleaned_response)
+    if not json_text:
+        raise SchemaValidationError("no valid top-level JSON object found")
+    try:
+        payload = json.loads(json_text)
+    except json.JSONDecodeError as exc:
+        raise SchemaValidationError(f"invalid JSON object: {exc}") from exc
 
-    # Extract markdown report
-    # Look for "# Scene QC Report" or similar
-    report_pattern = r"(?:```markdown\s*)?(#\s*Scene\s*QC\s*Report.*?)(?:```|\Z)"
-    match = re.search(report_pattern, response_text, re.DOTALL | re.IGNORECASE)
-    if match:
-        report = match.group(1).strip()
+    report = payload.get("report_markdown")
+    if not isinstance(report, str) or not report.strip():
+        raise SchemaValidationError(
+            "scene_qc.report_markdown is required and must be a non-empty string"
+        )
 
-    return scene_files, report
+    return [], report.strip()
 
 
 def parse_scene_repair_response(response_text: str) -> Optional[str]:
@@ -653,67 +640,12 @@ def parse_scene_repair_response(response_text: str) -> Optional[str]:
     Returns:
         Python body code string or None if parsing failed
     """
-    cleaned_response = strip_harness_preamble(response_text)
-
-    # First, try to extract from <scene_body> XML tags (legacy/compatible path)
-    xml_body = extract_scene_body_xml(cleaned_response)
-    if xml_body:
-        # Validate it's not empty
-        body_lines = [
-            line.strip()
-            for line in xml_body.split("\n")
-            if line.strip() and not line.strip().startswith("#")
-        ]
-        if body_lines:
-            return xml_body
-
-    # Fall back to checking for ```python code blocks (legacy format)
-    forbidden_tokens = [
-        "from manim import",
-        "from pathlib import",
-        "import numpy",
-        "config.frame",
-        "class Scene",
-        "def construct",
-        "SLOT_START:scene_body",
-        "SLOT_END:scene_body",
-    ]
-
-    for _filename_hint, block_code in extract_python_code_blocks(cleaned_response):
-        candidate = sanitize_code(block_code)
-        if not verify_python_syntax(candidate):
-            continue
-        # Should be body code: no class/def/import at top level
-        if candidate.strip().startswith(("class ", "def ", "import ", "from ")):
-            continue
-        # Repaired body must not include nested voiceover wrapper.
-        if re.search(r"with\s+self\.voiceover\(", candidate):
-            continue
-        # Reject if has scaffold placeholders
-        if has_scaffold_artifacts(candidate):
-            continue
-        return candidate
-
-    # Fallback
-    code = extract_single_python_code(cleaned_response)
-    if not code:
-        return None
-    code = sanitize_code(code)
-    if not verify_python_syntax(code):
-        return None
-    # Reject forbidden
-    if any(token in code for token in forbidden_tokens):
-        return None
-    # Ensure body
-    if code.strip().startswith(("class ", "def ", "import ", "from ")):
-        return None
-    # Repaired body must not include nested voiceover wrapper.
-    if re.search(r"with\s+self\.voiceover\(", code):
-        return None
-    # Reject repaired code that still has scaffold placeholders
-    if has_scaffold_artifacts(code):
-        return None
-    return code
+    candidate = _extract_scene_body_from_json_response(response_text, "scene_repair")
+    if not _has_executable_self_play_call(candidate):
+        raise SchemaValidationError(
+            "scene_repair.scene_body must contain at least one executable self.play(...) call with >=1 argument"
+        )
+    return candidate
 
 
 def parse_and_write_artifacts(
@@ -866,6 +798,8 @@ def parse_and_write_artifacts(
             print(f"❌ Unknown phase: {phase}")
             return False
 
+    except SchemaValidationError:
+        raise
     except Exception as e:
         print(f"❌ Error writing artifacts: {e}")
         import traceback

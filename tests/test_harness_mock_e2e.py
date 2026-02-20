@@ -37,32 +37,36 @@ Here is the video plan:
   "target_duration_seconds": 180,
   "scenes": [
     {
-      "id": "scene_01",
+      "id": "scene_01_intro",
       "title": "Introduction",
+      "narration_key": "scene_01_intro",
       "description": "Introduce the Pythagorean theorem",
       "estimated_duration_seconds": 30,
       "narrative_beats": ["Welcome", "State the theorem"],
       "visual_ideas": ["Title card", "Simple right triangle"]
     },
     {
-      "id": "scene_02",
+      "id": "scene_02_formula",
       "title": "The Formula",
+      "narration_key": "scene_02_formula",
       "description": "Explain a² + b² = c²",
       "estimated_duration_seconds": 40,
       "narrative_beats": ["Show formula", "Explain each component"],
       "visual_ideas": ["MathTex formula", "Labeled triangle"]
     },
     {
-      "id": "scene_03",
+      "id": "scene_03_visual_proof",
       "title": "Visual Proof",
+      "narration_key": "scene_03_visual_proof",
       "description": "Show visual proof with squares",
       "estimated_duration_seconds": 60,
       "narrative_beats": ["Draw squares on sides", "Show area relationship"],
       "visual_ideas": ["Animated squares", "Area calculations"]
     },
     {
-      "id": "scene_04",
+      "id": "scene_04_conclusion",
       "title": "Conclusion",
+      "narration_key": "scene_04_conclusion",
       "description": "Recap and applications",
       "estimated_duration_seconds": 50,
       "narrative_beats": ["Recap key points", "Real-world uses"],
@@ -79,10 +83,12 @@ def create_mock_narration_response():
     return """
 ```json
 {
-  "scene_01": "Welcome! Today we're going to explore one of the most famous theorems in mathematics: the Pythagorean theorem.",
-  "scene_02": "The Pythagorean theorem states that in a right triangle, the square of the hypotenuse equals the sum of the squares of the other two sides.",
-  "scene_03": "A visual proof shows that the areas of the two smaller squares exactly equal the area of the largest square.",
-  "scene_04": "The theorem is used in construction, navigation, computer graphics, and many other fields."
+  "script": {
+    "scene_01_intro": "Welcome! Today we're going to explore one of the most famous theorems in mathematics: the Pythagorean theorem.",
+    "scene_02_formula": "The Pythagorean theorem states that in a right triangle, the square of the hypotenuse equals the sum of the squares of the other two sides.",
+    "scene_03_visual_proof": "A visual proof shows that the areas of the two smaller squares exactly equal the area of the largest square.",
+    "scene_04_conclusion": "The theorem is used in construction, navigation, computer graphics, and many other fields."
+  }
 }
 ```
 """
@@ -91,16 +97,10 @@ def create_mock_narration_response():
 def create_mock_scene_response():
     """Create a mock response for the build_scenes phase."""
     return """
-```python
-title = Text("The Pythagorean Theorem", font_size=48, weight=BOLD)
-title.move_to(UP * 3.8)
-self.play(Write(title))
-
-with self.voiceover(text=SCRIPT["scene_01"]) as tracker:
-    subtitle = Text("a² + b² = c²", font_size=36)
-    subtitle.next_to(title, DOWN, buff=0.4)
-    safe_position(subtitle)
-    self.play(FadeIn(subtitle))
+```json
+{
+  "scene_body": "title = Text(\\"The Pythagorean Theorem\\", font_size=48, weight=BOLD)\\ntitle.move_to(UP * 3.8)\\nself.play(Write(title))\\nsubtitle = Text(\\"a² + b² = c²\\", font_size=36)\\nsubtitle.next_to(title, DOWN, buff=0.4)\\nsafe_position(subtitle)\\nself.play(FadeIn(subtitle))"
+}
 ```
 """
 
@@ -130,7 +130,7 @@ def test_narration_phase():
 
     assert code is not None, "Failed to parse narration"
     assert "SCRIPT = {" in code, "Narration missing SCRIPT dict"
-    assert "scene_01" in code, "Narration missing scene_01"
+    assert "scene_01_intro" in code, "Narration missing scene_01_intro"
 
     # Verify it's valid Python
     try:
@@ -150,8 +150,7 @@ def test_build_scenes_phase():
     code = parse_build_scenes_response(response)
 
     assert code is not None, "Failed to parse scene"
-    assert "with self.voiceover" in code, "Scene missing voiceover block"
-    assert 'SCRIPT["scene_01"]' in code, "Scene missing SCRIPT key"
+    assert "with self.voiceover" not in code, "Scene should be body-only code"
     assert "self.play(" in code, "Scene missing animation call"
 
     # Verify it's valid Python

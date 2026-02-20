@@ -18,6 +18,7 @@ repo_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(repo_root))
 
 from harness.parser import (
+    SchemaValidationError,
     inject_body_into_scaffold,
     parse_build_scenes_response,
     parse_scene_repair_response,
@@ -59,61 +60,34 @@ class TestParserBodyExtraction:
 
     def test_parse_valid_body_code(self):
         """Parser should extract valid body code."""
-        response = """
-Here's the scene body:
-
-```python
-title = Text("Welcome", font_size=48)
-title.move_to(UP * 3.8)
-self.play(Write(title))
-```
+        response = """preface text
+{"scene_body":"title = Text(\\"Welcome\\", font_size=48)\\ntitle.move_to(UP * 3.8)\\nself.play(Write(title))"}
+suffix text
 """
         body = parse_build_scenes_response(response)
         assert body is not None
         assert "Write(title)" in body
 
     def test_reject_scene_body_wrappers_in_build_scenes(self):
-        """Build-scenes parser is strict fenced-only body and rejects XML wrappers."""
-        response = """
-```python
-<scene_body>
+        """Build-scenes parser rejects legacy non-JSON wrappers."""
+        response = """```python
 title = Text("Welcome", font_size=48)
 self.play(Write(title))
-</scene_body>
-```
-"""
-        body = parse_build_scenes_response(response)
-        assert body is None
-
-    def test_require_exactly_one_fenced_block(self):
-        """Build-scenes parser should reject responses without exactly one fenced block."""
-        raw_response = """
-title = Text("Welcome", font_size=48)
-self.play(Write(title))
-"""
-        assert parse_build_scenes_response(raw_response) is None
-
-        multi_block_response = """
-```python
-title = Text("A")
-```
-```python
-self.play(Write(title))
-```
-"""
-        assert parse_build_scenes_response(multi_block_response) is None
+```"""
+        try:
+            parse_build_scenes_response(response)
+            raise AssertionError("Expected SchemaValidationError for non-JSON response")
+        except SchemaValidationError:
+            pass
 
     def test_strip_harness_preamble_for_build_scenes(self):
-        """Build-scenes parser should ignore harness logging lines before fenced code."""
+        """Build-scenes parser should ignore harness logging lines before JSON."""
         response = """
 🤖 Harness using:
 Provider: XAI
 Base URL: https://api.x.ai/v1
 Model: grok-4-1-fast-reasoning
-```python
-title = Text("Welcome", font_size=48)
-self.play(Write(title))
-```
+{"scene_body":"title = Text(\\"Welcome\\", font_size=48)\\nself.play(Write(title))"}
 """
         body = parse_build_scenes_response(response)
         assert body is not None
@@ -122,40 +96,34 @@ self.play(Write(title))
     def test_reject_scaffold_placeholders(self):
         """Parser should reject code with scaffold placeholders."""
         responses = [
-            '```python\ntitle = Text("{{TITLE}}", font_size=48)\n```',
-            "```python\nsubtitle = Text('{{SUBTITLE}}', font_size=32)\n```",
-            '```python\nbullet = Text("{{KEY_POINT_1}}")\n```',
+            '{"scene_body":"title = Text(\\"{{TITLE}}\\", font_size=48)\\nself.play(Write(title))"}',
+            '{"scene_body":"subtitle = Text(\\"{{SUBTITLE}}\\", font_size=32)\\nself.play(FadeIn(subtitle))"}',
+            '{"scene_body":"bullet = Text(\\"{{KEY_POINT_1}}\\")\\nself.play(FadeIn(bullet))"}',
         ]
         for response in responses:
-            body = parse_build_scenes_response(response)
-            assert body is None, f"Should reject: {response}"
+            try:
+                parse_build_scenes_response(response)
+                raise AssertionError(f"Should reject: {response}")
+            except SchemaValidationError:
+                pass
 
     def test_reject_header_tokens(self):
         """Parser should reject code with header/scaffold structure."""
-        response = """
-```python
-from manim import *
-config.frame_width = 10 * 16 / 9
-
-class MyScene(VoiceoverScene):
-    def construct(self):
-        pass
-```
-"""
-        body = parse_build_scenes_response(response)
-        assert body is None
+        response = '{"scene_body":"from manim import *\\nconfig.frame_width = 10 * 16 / 9\\nself.play(Write(title))"}'
+        try:
+            parse_build_scenes_response(response)
+            raise AssertionError("Expected schema failure")
+        except SchemaValidationError:
+            pass
 
     def test_reject_slot_markers(self):
         """Parser should reject code containing SLOT markers."""
-        response = """
-```python
-# SLOT_START:scene_body
-title = Text("Hello")
-# SLOT_END:scene_body
-```
-"""
-        body = parse_build_scenes_response(response)
-        assert body is None
+        response = '{"scene_body":"# SLOT_START:scene_body\\ntitle = Text(\\"Hello\\")\\n# SLOT_END:scene_body\\nself.play(Write(title))"}'
+        try:
+            parse_build_scenes_response(response)
+            raise AssertionError("Expected schema failure")
+        except SchemaValidationError:
+            pass
 
 
 class TestBodyInjection:
@@ -283,24 +251,16 @@ class TestSceneRepairParser:
 
     def test_repair_parser_checks_artifacts(self):
         """Repair parser should reject code with scaffold artifacts."""
-        response = """
-Fixed code:
-```python
-title = Text("{{TITLE}}", font_size=48)
-```
-"""
-        body = parse_scene_repair_response(response)
-        assert body is None, "Should reject repair code with placeholders"
+        response = '{"scene_body":"title = Text(\\"{{TITLE}}\\", font_size=48)\\nself.play(Write(title))"}'
+        try:
+            parse_scene_repair_response(response)
+            raise AssertionError("Expected schema failure")
+        except SchemaValidationError:
+            pass
 
     def test_repair_parser_accepts_clean_code(self):
         """Repair parser should accept clean repaired code."""
-        response = """
-Fixed:
-```python
-title = Text("Fixed Title", font_size=48)
-self.play(Write(title))
-```
-"""
+        response = '{"scene_body":"title = Text(\\"Fixed Title\\", font_size=48)\\nself.play(Write(title))"}'
         body = parse_scene_repair_response(response)
         assert body is not None
         assert "Fixed Title" in body

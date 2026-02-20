@@ -1,612 +1,325 @@
 # AGENTS.md
-## Manim Video Production Agent System Prompt
 
-## File Structure (New)
-This file references modular docs:
-- docs/reference_docs/phase_plan.md: Plan/review details
-- docs/reference_docs/phase_narration.md: Script/timing rules
-- docs/reference_docs/phase_scenes.md: Build/render guidelines
-- docs/reference_docs/visual_helpers.md: Code snippets for aesthetics
-- docs/reference_docs/topic_visual_patterns.md: Topic-to-visual mapping patterns
-- tests/README.md: Unit test instructions
+Audience: Local coding agents only.
 
-For full phase details, see the modular docs above.
+Purpose: This is the operating manual for local coding agents in this repository. It defines system behavior, artifact locations, execution boundaries, and user-preference enforcement.
 
-**Version:** 2.4  
-**Last Updated:** 2026-02-16  
-**Changes:** Root-cause-first troubleshooting policy; guardrails/validations treated as last-resort containment only; tightened scene template timing/layout contracts.  
-**Purpose:** Instructions for automated agents building Manim voiceover videos
+## 1. Hard Start Rule
 
----
+Before any code or command work, you MUST read:
 
-## 🚨 CRITICAL: VOICE POLICY - READ THIS FIRST
+1. `docs/policies/USER_PREFERENCES.md`
+2. This file
 
-### Local Qwen Voice Clone - No Fallback
+If these sources conflict, STOP and ask.
+If current user instructions conflict with stored preferences, STOP and ask.
 
-**ABSOLUTE REQUIREMENTS:**
-- ✅ **ONLY** local Qwen voice clone audio cached on disk (no network TTS).
-- ✅ **Model:** `Qwen/Qwen3-TTS-12Hz-1.7B-Base` (voice clone).
-- ✅ **Device/Dtype:** CPU `float32` for stability.
-- ✅ **Reference assets:** `assets/voice_ref/ref.wav` + `assets/voice_ref/ref.txt` per project.
-- ❌ **NEVER** use any TTS service except cached Qwen.
-- ❌ **NEVER** create fallback code patterns.
+## 2. Scope and Audience
 
-**If cached audio is missing, the build MUST fail and instruct to run the precache step.**
+This file is only for local coding agents in this repository.
 
----
+NEVER treat this file as backend model prompt content.
+NEVER merge backend LLM prompt-policy content into this file.
 
-- Create a new folder under `projects` for the video and all associated artifacts.
-- Do not create or modify any files outside the designated project folder.
+## 3. Mandatory Pre-Flight Alignment Check
 
-- If the subject is not mathematical, default to an explainer-slide style: progressive bullets, topic-specific diagrams/timelines, and continuous motion. Avoid generic geometric filler visuals unless explicitly relevant.
-- API keys are in `.env`
+At the start of every task, provide a 3-5 line alignment check before editing code.
+This is mandatory.
 
----
+Required content:
 
-## Core Responsibilities
+1. Task scope in one sentence.
+2. Constraints and preferences that govern execution.
+3. Assumptions, if any.
+4. Success criteria.
 
-You are an incremental video production agent that:
+If scope or intent is ambiguous, ask one question and wait.
+Do not proceed on assumptions.
 
-1. Reads `project_state.json` to determine current phase
-2. Executes the current phase's tasks
-3. Updates state file with results
-4. Advances to next phase on success
-5. Logs all decisions to `history` array
-6. Generates production-ready Manim code
+Example:
 
----
-
-## 🚨 ROOT-CAUSE-FIRST TROUBLESHOOTING POLICY
-
-When debugging, repairing, or responding to failures, follow this priority order:
-
-1. **Identify root cause first** (where failure originates), not just symptom location.
-2. **Fix the source mechanism** (prompt ambiguity, phase logic, state transitions, architecture, data flow).
-3. **Use guardrails/validations only as last resort**, and only when immediate containment is required.
-
-### Mandatory Debugging Behavior
-
-- ✅ **ALWAYS** trace the first bad step in the causal chain before proposing fixes.
-- ✅ **ALWAYS** explain why existing logic allowed the failure to pass through.
-- ✅ **ALWAYS** prefer simplification/clarification of core logic over layering new checks.
-- ❌ **NEVER** default to adding validation gates as the primary fix.
-- ❌ **NEVER** treat symptom checks as equivalent to a root-cause fix.
-
-### If a Guardrail Is Temporarily Needed
-
-- Allowed only when root fix cannot land immediately in the same pass.
-- Must be documented as **temporary containment**, not final resolution.
-- Must include removal condition tied to the root-cause fix.
-
-This repo's debugging standard is: **Root cause first. Guardrails last.**
-
----
-
-## 🚨 AUTONOMOUS EXECUTION REQUIREMENT
-
-**This repo uses an orchestrator (`scripts/build_video.sh`) that invokes the agent one phase at a time.**
-
-- ✅ **ALWAYS** read `project_state.json` and execute ONLY the current phase.
-- ✅ **ALWAYS** update `project_state.json` and advance to the next phase on success.
-- ❌ **NEVER** execute multiple phases in a single invocation (even if you think you can).
-- ✅ The overall pipeline is still fully automatic: the orchestrator continues phase → phase until `final_video.mp4` is produced.
-- ✅ **ONLY** stop if an error occurs and `needs_human_review` flag is set.
-
----
-
-## 🚨 CRITICAL: Execution Protocol
-
-**When the user says "proceed", "execute", "continue", or "approve":**
-
-- ❌ **NEVER** present another detailed plan
-- ❌ **NEVER** ask "Does this align with your vision?"
-- ❌ **NEVER** request confirmation again
-- ✅ **IMMEDIATELY** execute the current phase's tasks
-
-**Maximum confirmation rounds: ONE per phase.**
-
-The intent of this system is to generate videos from a single prompt without approval loops.
-
----
-
-## Reference Documentation
-
-Consult these files for technical details:
-
-- **docs/reference_docs/manim_template.py.txt** - Base scene template with locked config
-- **docs/reference_docs/manim_config_guide.md** - Positioning rules, safe zones, sizing guidelines
-- **docs/reference_docs/manim_voiceover.md** - VoiceoverScene patterns for local cached Qwen integration
-- **docs/reference_docs/manim_content_pipeline.md** - Overall workflow concepts
-- **docs/policies/DEVELOPMENT_GUIDELINES.md** - Separation of concerns (agent creativity vs deterministic scripts), one-change-per-PR policy
-- **docs/agent_improvements.md** - Plan for v2.2 updates
-- Modular phase docs in docs/reference_docs/ (e.g., phase_plan.md)
-
----
-
-## Project State Structure
-
-```json
-{
-  "project_name": "string",
-  "topic": "string|null",
-  "phase": "plan|review|narration|build_scenes|final_render|assemble|complete",
-  "created_at": "ISO8601",
-  "updated_at": "ISO8601",
-  "run_count": 0,
-  "plan_file": "plan.json",
-  "narration_file": "narration_script.py",
-  "voice_config_file": null,
-  "scenes": [
-    {
-      "id": "scene_01",
-      "title": "Intro",
-      "file": "scene_01_intro.py",
-      "class_name": "Scene01Intro",
-      "status": "pending|built|rendered"
-    }
-  ],
-  "current_scene_index": 0,
-  "errors": [],
-  "history": [],  # Include render logs: e.g., {"phase": "build_scenes", "scene": "01", "log_snippet": "No overlaps detected", "timestamp": "ISO"}
-  "flags": {
-    "needs_human_review": false,
-    "dry_run": false
-  }
-}
+```text
+Scope: Update phase transition handling in build orchestration only.
+Constraints: Follow USER_PREFERENCES.md, strict scope, no side refactors.
+Assumptions: None.
+Success criteria: Phase transition bug fixed, existing tests pass, no unrelated file changes.
 ```
 
----
+## 4. Instruction Precedence
 
-## Phase Execution Guide
+Use this exact order:
 
-### Phase: `plan` and `review`
+1. `docs/policies/USER_PREFERENCES.md`
+2. `AGENTS.md`
+3. Code and scripts as source of truth for runtime behavior
+4. Other docs
 
-See docs/reference_docs/phase_plan.md for details.
+Additional conflict rule:
 
----
+- If AGENTS guidance appears inconsistent with actual runtime code behavior and it affects execution, stop and ask before proceeding.
 
-### Phase: `narration`
+## 5. Communication Contract
 
-See docs/reference_docs/phase_narration.md for details.
+These are hard rules for agent-user communication in this repo:
 
----
+1. Be concise and direct. No fluff.
+2. Ask before proceeding when intent is ambiguous. No assumptions.
+3. Ask one question at a time for clarification.
+4. Do not run repeated confirmation loops once approved to proceed.
+5. Do not introduce side tasks unless explicitly requested.
+6. State constraints and assumptions explicitly in pre-flight checks.
 
-### Phase: `build_scenes` and `final_render`
+Required example when blocked:
 
-See docs/reference_docs/phase_scenes.md for details.
-
-## CRITICAL: Complete Scene Template
-
-**Use these structurally different examples as patterns for scene generation. Mandate unique flows per scene, incorporating ≥1 unique visual from topic_visual_patterns.md (e.g., timeline for history, string modes for acoustics). Follow layout contracts exactly.**
-
-### Example 1: Progressive Bullets + Evolving Right-Panel Diagram (for Explainer Slides)
-
-```python
-from manim import *
-import numpy as np
-
-from pathlib import Path
-from manim_voiceover_plus import VoiceoverScene
-from flaming_horse_voice import get_speech_service
-from flaming_horse.scene_helpers import safe_position, harmonious_color, polished_fade_in, adaptive_title_position, safe_layout
-from narration_script import SCRIPT
-
-# Python 3.13 compatibility patch (keep in generated scenes)
-try:
-    from typing import override as _typing_override
-except Exception:
-    try:
-        from typing_extensions import override as _typing_override
-    except Exception:
-        def _typing_override(func):
-            return func
-
-# For Qwen caching: Precache check
-ref_path = Path("assets/voice_ref/ref.wav")
-if not ref_path.exists():
-    raise FileNotFoundError("Run precache_voice.sh before building.")
-
-# LOCKED CONFIGURATION (DO NOT MODIFY)
-config.frame_height = 10
-config.frame_width = 10 * 16/9
-config.pixel_height = 1440
-config.pixel_width = 2560
-
-class Scene01Intro(VoiceoverScene):
-    def construct(self):
-        # Palette for cohesion
-        blues = harmonious_color(BLUE, variations=3)
-        
-        # Cached Qwen voiceover
-        self.set_speech_service(get_speech_service(Path(__file__).resolve().parent))
-        
-        with self.voiceover(text=SCRIPT["intro"]) as tracker:
-            # Title
-            title = Text("{{TITLE}}", font_size=48, weight=BOLD, color=blues[0])
-            title = adaptive_title_position(title, None)
-            self.play(Write(title))
-            
-            # Subtitle
-            subtitle = Text("{{SUBTITLE}}", font_size=32, color=blues[1])
-            subtitle.next_to(title, DOWN, buff=0.4)
-            safe_position(subtitle)
-            self.play(polished_fade_in(subtitle, lag_ratio=0.1))
-            
-            # Bullets at LEFT * 3.5 with width constraint
-            bullet_1 = Text("{{KEY_POINT_1}}", font_size=28).move_to(LEFT * 3.5 + UP * 1.6).set_max_width(6.0)
-            bullet_2 = Text("{{KEY_POINT_2}}", font_size=28).next_to(bullet_1, DOWN, aligned_edge=LEFT, buff=0.3).set_max_width(6.0)
-            safe_position(bullet_2)
-            bullet_3 = Text("{{KEY_POINT_3}}", font_size=28).next_to(bullet_2, DOWN, aligned_edge=LEFT, buff=0.3).set_max_width(6.0)
-            safe_position(bullet_3)
-
-            # Unique visual: Evolving diagram (from topic_visual_patterns.md, e.g., string modes for acoustics)
-            diagram = RoundedRectangle(width=5.2, height=3.2, corner_radius=0.2, color=blues[2]).move_to(RIGHT * 3.2 + DOWN * 0.6)
-            callout = SurroundingRectangle(bullet_2, color=YELLOW, buff=0.15)
-            panel_label = Text("{{VISUAL_ANCHOR}}", font_size=24, color=blues[1]).next_to(diagram, UP, buff=0.2).set_max_width(6.0)
-            safe_position(panel_label)
-
-            self.play(FadeIn(bullet_1), FadeIn(bullet_2), FadeIn(bullet_3))
-            self.play(FadeOut(subtitle), FadeOut(bullet_1), FadeOut(bullet_2), FadeOut(bullet_3))
-            self.play(Create(diagram, rate_func=smooth))
-            self.play(FadeIn(panel_label))
-            self.play(FadeIn(callout), run_time=0.8)
-            self.play(FadeOut(callout), run_time=0.8)
-            self.play(FadeOut(panel_label))
+```text
+Blocker: Runtime behavior and AGENTS instruction conflict on phase handling.
+Question: Should I follow current script behavior or update scripts to match AGENTS?
 ```
 
-### Example 2: Timeline/Staged Reveal (for History/Sequence Topics)
+## 6. Project Mission
 
-```python
-from manim import *
-import numpy as np
+Flaming Horse is a deterministic, script-orchestrated pipeline that converts a topic into a narrated Manim video.
 
-from pathlib import Path
-from manim_voiceover_plus import VoiceoverScene
-from flaming_horse_voice import get_speech_service
-from flaming_horse.scene_helpers import safe_position, harmonious_color, polished_fade_in, adaptive_title_position, safe_layout
-from narration_script import SCRIPT
+Canonical user entrypoint:
 
-# Python 3.13 compatibility patch
-try:
-    from typing import override as _typing_override
-except Exception:
-    try:
-        from typing_extensions import override as _typing_override
-    except Exception:
-        def _typing_override(func):
-            return func
+- `/Users/velocityworks/IdeaProjects/flaming-horse/scripts/create_video.sh`
 
-# For Qwen caching: Precache check
-ref_path = Path("assets/voice_ref/ref.wav")
-if not ref_path.exists():
-    raise FileNotFoundError("Run precache_voice.sh before building.")
+High-level flow:
 
-# LOCKED CONFIGURATION
-config.frame_height = 10
-config.frame_width = 10 * 16/9
-config.pixel_height = 1440
-config.pixel_width = 2560
+1. Create or resume a project
+2. Run deterministic phase loop
+3. Generate and validate artifacts per phase
+4. Render scenes with cached local voice
+5. Assemble `final_video.mp4`
 
-class Scene02Timeline(VoiceoverScene):
-    def construct(self):
-        # Palette
-        greens = harmonious_color(GREEN, variations=3)
-        
-        # Cached Qwen voiceover
-        self.set_speech_service(get_speech_service(Path(__file__).resolve().parent))
-        
-        with self.voiceover(text=SCRIPT["timeline"]) as tracker:
-            # Title
-            title = Text("{{TITLE}}", font_size=48, weight=BOLD, color=greens[0])
-            title = adaptive_title_position(title, None)
-            self.play(Write(title))
-            
-            # Subtitle
-            subtitle = Text("{{SUBTITLE}}", font_size=32, color=greens[1])
-            subtitle.next_to(title, DOWN, buff=0.4)
-            safe_position(subtitle)
-            self.play(polished_fade_in(subtitle, lag_ratio=0.1))
-            
-            # Unique visual: Horizontal timeline (from topic_visual_patterns.md)
-            timeline = Line(LEFT * 6, RIGHT * 6, color=greens[2]).move_to(DOWN * 0.6)
-            event1 = Dot(timeline.get_start() + RIGHT * 2, color=YELLOW)
-            event2 = Dot(timeline.get_start() + RIGHT * 4, color=YELLOW)
-            label1 = Text("{{EVENT_1}}", font_size=24).next_to(event1, UP, buff=0.2).set_max_width(6.0)
-            safe_position(label1)
-            label2 = Text("{{EVENT_2}}", font_size=24).next_to(event2, UP, buff=0.2).set_max_width(6.0)
-            safe_position(label2)
+## 7. Runtime Architecture
 
-            self.play(Create(timeline, rate_func=smooth))
-            self.play(FadeIn(label1))
-            self.play(FadeIn(event1))
-            self.play(FadeIn(label2))
-            self.play(FadeIn(event2))
-            self.play(FadeOut(subtitle), FadeOut(timeline), FadeOut(event1), FadeOut(event2), FadeIn(label1), FadeOut(label2))
+### 7.1 Main components
+
+1. Orchestrator scripts: `/Users/velocityworks/IdeaProjects/flaming-horse/scripts`
+2. Harness (LLM calls, prompt composition, parsing): `/Users/velocityworks/IdeaProjects/flaming-horse/harness`
+3. Voice services and cached voice integration: `/Users/velocityworks/IdeaProjects/flaming-horse/flaming_horse_voice`
+4. Scene helpers: `/Users/velocityworks/IdeaProjects/flaming-horse/flaming_horse/scene_helpers.py`
+5. Per-project artifacts: `/Users/velocityworks/IdeaProjects/flaming-horse/projects/<project_name>`
+
+### 7.2 Phase state machine
+
+Canonical phases in code:
+
+- `init -> plan -> review -> narration -> build_scenes -> scene_qc -> precache_voiceovers -> final_render -> assemble -> complete`
+
+Authoritative source:
+
+- `/Users/velocityworks/IdeaProjects/flaming-horse/scripts/update_project_state.py`
+- `/Users/velocityworks/IdeaProjects/flaming-horse/scripts/build_video.sh`
+- `/Users/velocityworks/IdeaProjects/flaming-horse/scripts/state_schema.json`
+
+Notes:
+
+- `create_video.sh` is the recommended user command.
+- `build_video.sh` enforces deterministic phase transitions and retries.
+- `update_project_state.py` is the authority for state normalization and phase application.
+
+### 7.3 Deterministic ownership split
+
+Script-owned:
+
+1. State transitions and normalization
+2. Scaffolding and structural validation
+3. Runtime QC gates and retry loop behavior
+4. Render and assembly control
+
+Agent-owned:
+
+1. Requested code changes within scope
+2. Creative content generation where explicitly required
+3. Root-cause analysis and targeted fixes
+
+## 8. Artifacts and Locations
+
+Per-project structure (typical):
+
+```text
+projects/<project_name>/
+  project_state.json
+  plan.json
+  narration_script.py
+  scene_*.py
+  voice_clone_config.json
+  scene_qc_report.md
+  scenes.txt
+  final_video.mp4
+  log/
+    build.log
+    error.log
+    conversation.log
 ```
 
-See flaming_horse/scene_helpers.py for centralized helpers and aesthetics.
+Voice cache location (default):
 
----
+- `projects/<project_name>/media/voiceovers/qwen/cache.json`
 
-## 🚨 CRITICAL RULES - NEVER VIOLATE
+Reference voice assets (per project):
 
-### 1. Voice Configuration
-- ❌ **NEVER** use any network TTS service
-- ❌ **NEVER** create conditional fallback patterns
-- ❌ **NEVER** import other TTS services
-- ❌ **NEVER** enable optional alignment extras or cloud features
-- ✅ **ALWAYS** use cached Qwen voice via `flaming_horse_voice.get_speech_service`
+- `projects/<project_name>/assets/voice_ref/ref.wav`
+- `projects/<project_name>/assets/voice_ref/ref.txt`
 
-### 2. Import Naming (Python Module Convention)
-- ❌ **WRONG:** `from manim-voiceover-plus import ...` (hyphens = SyntaxError)
-- ❌ **WRONG:** `import manimvoiceoverplus` (no separators = ModuleNotFoundError)
-- ✅ **CORRECT:** `from manim_voiceover_plus import VoiceoverScene` (underscores)
+## 9. Environment Variables and Purpose
 
-### 3. Narration Text
-- ❌ **NEVER** hardcode narration in scene files
-- ✅ **ALWAYS** use `SCRIPT["key"]` from `narration_script.py`
+Primary variables used by runtime scripts and harness:
 
-### 3.1 Bullet Content Rule
-- ❌ **NEVER** use `narrative_beats` or `visual_ideas` from `plan.json` as on-screen text
-- ✅ **ALWAYS** derive bullet content from `narration_script.py` narration
-- ✅ **ALWAYS** cap bullets at 30 characters or 6 words for readability (enforced by `Text.set_max_width(6.0)`)
-- ❌ **NEVER** include stage directions in on-screen text
-- **Example:** For math topics, derive 'a² + b² = c²' from narration, not 'Explain the theorem.'
+1. `LLM_PROVIDER`: selects provider (`XAI` or `MINIMAX`).
+2. `XAI_API_KEY`, `MINIMAX_API_KEY`: provider auth.
+3. `XAI_BASE_URL`, `MINIMAX_BASE_URL`: optional endpoint overrides.
+4. `XAI_MODEL`, `MINIMAX_MODEL`, `AGENT_MODEL`: model selection.
+5. `PROJECTS_BASE_DIR`: default base for project directories.
+6. `PROJECT_DEFAULT_NAME`: fallback project name for direct build entry.
+7. `PHASE_RETRY_LIMIT`: retry budget per retryable phase.
+8. `PHASE_RETRY_BACKOFF_SECONDS`: retry wait between attempts.
+9. `HF_HUB_OFFLINE`, `TRANSFORMERS_OFFLINE`, `TOKENIZERS_PARALLELISM`: local/offline inference behavior.
+10. `FLAMING_HORSE_TTS_BACKEND`: backend route (`qwen` or `mlx` where supported).
+11. `FLAMING_HORSE_MLX_PYTHON`, `FLAMING_HORSE_MLX_MODEL_ID`: MLX routing overrides.
+12. `FLAMING_HORSE_VOICE_REF_DIR`: optional override for voice reference directory.
+13. `PYTHON`, `PYTHON3`: interpreter override (pipeline enforces Python 3.13 in key entry scripts).
+14. `AGENT_TEMPERATURE`: harness sampling override.
 
-### 4. Positioning
-- ❌ **NEVER** use `.to_edge(UP)` for titles (causes clipping)
-- ✅ **ALWAYS** use `.move_to(UP * 3.8)` for titles (or adaptive_title_position)
-- ✅ **ALWAYS** call `safe_position()` after `.next_to()`
-- ❌ **NEVER** use `.to_edge(...)` for titles or labels (causes clipping/edge drift)
-- ✅ **ALWAYS** place graphs/diagrams below the subtitle (e.g., `.move_to(DOWN * 0.6)`)
-- ✅ **ALWAYS** call `safe_layout(...)` for free-positioned sibling clusters (rows/columns or mixed placements)
+Authoritative examples:
 
-#### Horizontal Bounds
-- Frame width is 10 * 16/9 ≈ 17.78 units; safe horizontal range: LEFT * 3.5 to RIGHT * 3.5
-- ✅ **ALWAYS** position bullets at `LEFT * 3.5`
-- ✅ **ALWAYS** use `Text.set_max_width(6.0)` on all positioned text elements as primary constraint
-- ✅ **ALWAYS** use horizontal-safe helpers like extended `safe_position()` for clamping
+- `/Users/velocityworks/IdeaProjects/flaming-horse/.env.example`
+- `/Users/velocityworks/IdeaProjects/flaming-horse/README.md`
 
-### Layout Contract (Mandatory)
-- Title must exist and be visible at `UP * 3.8` (or via `adaptive_title_position`).
-- Subtitle must be `.next_to(title, DOWN, buff=0.4)` and then `safe_position(subtitle)`.
-- Graphs/diagrams must be offset downward (e.g., `DOWN * 0.6` to `DOWN * 1.2`) to avoid title overlap.
-- Labels must attach to nearby elements (e.g., `label.next_to(curve.get_end(), UP, buff=0.2)`), then `safe_position(label)`.
-- After positioning, run `safe_layout(...)` for free-positioned sibling clusters; for strict `.next_to(...)` chains, call `safe_position(...)` per element.
-### Adaptive Positioning (New)
-- Use enhanced helpers for dynamic layouts:
-  ```python
-  def adaptive_title_position(title, content_group, max_shift=0.5):
-      """Shift title based on content height to avoid crowding."""
-      content_height = content_group.height if content_group else 0
-      shift_y = min(max_shift, max(0, content_height - 2.0))
-      title.move_to(UP * (3.8 + shift_y))
-      return title
-  # Call: title = adaptive_title_position(title, VGroup(subtitle, diagram))
-  ```
-- For transitions: Mandate 0.5-1s crossfades between elements using `FadeTransform` or `polished_fade_in()` (see new helpers below).
+## 10. Repository Map with Edit Policy
 
-### 5. Configuration Lock
-- ✅ **ALWAYS** use locked config block (frame size, resolution)
-- ✅ **ALWAYS** include Python 3.13 compatibility patch
-- ✅ **ALWAYS** include `safe_position()` helper
+Edit policy values:
 
-### 7. LaTeX Rendering
-- ✅ **ALWAYS** use `MathTex` for mathematical expressions: `MathTex(r"\\frac{GMm}{r^2}")`
-- ✅ **ALWAYS** use `Tex` for plain text with LaTeX formatting only
-- ❌ **NEVER** use `Tex` for equations (causes rendering failures)
-- ❌ **NEVER** pass `weight=` to `MathTex`/`Tex` (unsupported; causes runtime TypeError)
-- ✅ Use `weight=` only with `Text(...)`, or emphasize math with color/scale/animation instead
+- `allowed`: normal edits are acceptable.
+- `caution`: edit only when task requires; verify side effects.
+- `forbidden`: do not edit unless user explicitly requests.
 
-### 8. Positioning and Overlap Prevention
-- ❌ **NEVER** place multiple elements at ORIGIN without explicit offsets
-- ❌ **NEVER** use `.next_to()` without immediately calling `safe_position()`
-- ❌ **NEVER** keep `.next_to(...)` inside list comprehensions/loops without explicit per-item `safe_position(...)`
-- ✅ **ALWAYS** call `safe_layout(*elements)` for free-positioned sibling clusters (not mandatory for strict `.next_to(...)` chains)
-- ✅ **ALWAYS** use explicit coordinates: `element.move_to(UP * 2 + LEFT * 3)`
+| Path | Purpose | Edit Policy |
+| --- | --- | --- |
+| `/Users/velocityworks/IdeaProjects/flaming-horse/AGENTS.md` | Local agent operating manual | `allowed` |
+| `/Users/velocityworks/IdeaProjects/flaming-horse/docs/policies/USER_PREFERENCES.md` | User-specific hard overrides | `caution` (propose first, edit only after approval) |
+| `/Users/velocityworks/IdeaProjects/flaming-horse/scripts/create_video.sh` | Canonical user entrypoint | `caution` |
+| `/Users/velocityworks/IdeaProjects/flaming-horse/scripts/new_project.sh` | Project initialization and bootstrap | `caution` |
+| `/Users/velocityworks/IdeaProjects/flaming-horse/scripts/build_video.sh` | Main deterministic orchestrator | `caution` |
+| `/Users/velocityworks/IdeaProjects/flaming-horse/scripts/update_project_state.py` | State schema normalization and phase application authority | `caution` |
+| `/Users/velocityworks/IdeaProjects/flaming-horse/scripts/state_schema.json` | State schema and phase enum | `caution` |
+| `/Users/velocityworks/IdeaProjects/flaming-horse/scripts/scaffold_scene.py` | Deterministic scene scaffold generation | `caution` |
+| `/Users/velocityworks/IdeaProjects/flaming-horse/scripts/precache_voiceovers_qwen.py` | Voice cache generation step | `caution` |
+| `/Users/velocityworks/IdeaProjects/flaming-horse/scripts/prepare_qwen_voice.py` | Voice backend preparation/warm-up | `caution` |
+| `/Users/velocityworks/IdeaProjects/flaming-horse/scripts/voice_ref_mediator.py` | Voice reference resolution and validation | `caution` |
+| `/Users/velocityworks/IdeaProjects/flaming-horse/harness/cli.py` | Harness CLI entry for phase calls | `caution` |
+| `/Users/velocityworks/IdeaProjects/flaming-horse/harness/client.py` | Provider-agnostic API client | `caution` |
+| `/Users/velocityworks/IdeaProjects/flaming-horse/harness/prompts.py` | Prompt composition and phase mapping | `caution` |
+| `/Users/velocityworks/IdeaProjects/flaming-horse/harness/parser.py` | Model output parsing and artifact writing | `caution` |
+| `/Users/velocityworks/IdeaProjects/flaming-horse/harness/prompts/*` | Prompt assets and phase prompt bodies | `caution` |
+| `/Users/velocityworks/IdeaProjects/flaming-horse/harness/templates/*` | Reference templates used during prompt composition | `caution` |
+| `/Users/velocityworks/IdeaProjects/flaming-horse/flaming_horse/scene_helpers.py` | Shared scene layout/animation helpers | `caution` |
+| `/Users/velocityworks/IdeaProjects/flaming-horse/flaming_horse_voice/*` | Voice service factory and cached service behavior | `caution` |
+| `/Users/velocityworks/IdeaProjects/flaming-horse/tests/*` | Unit/integration/regression tests | `allowed` |
+| `/Users/velocityworks/IdeaProjects/flaming-horse/docs/reference_docs/*` | Reference docs for agent and pipeline | `allowed` |
+| `/Users/velocityworks/IdeaProjects/flaming-horse/docs/guides/*` | Setup and operational docs | `allowed` |
+| `/Users/velocityworks/IdeaProjects/flaming-horse/projects/<project_name>/*` | Generated project artifacts and logs | `caution` (treat as runtime evidence; avoid ad hoc edits unless user requests) |
+| `/Users/velocityworks/IdeaProjects/flaming-horse/.env` | Local secrets and runtime configuration | `forbidden` |
+| `/Users/velocityworks/IdeaProjects/flaming-horse/.env.example` | Example env template | `caution` |
+| `/Users/velocityworks/IdeaProjects/flaming-horse/.git/*` | VCS internals | `forbidden` |
 
-**Example - CORRECT pattern:**
-```python
-title = Text("Title", font_size=48)
-title.move_to(UP * 3.8)
+## 11. Workflow for Local Agents
 
-subtitle = Text("Subtitle", font_size=32)
-subtitle.next_to(title, DOWN, buff=0.5)
-safe_position(subtitle)  # MANDATORY after .next_to()
+1. Read `USER_PREFERENCES.md`.
+2. Run pre-flight alignment check (3-5 lines).
+3. Confirm scope and constraints.
+4. Inspect only required files.
+5. If ambiguity exists, ask one question and wait.
+6. Implement minimal change set.
+7. Run targeted verification.
+8. Report what changed, why, and residual risk.
 
-content = Circle(radius=1.5)
-content.move_to(ORIGIN)  # OK - only element at ORIGIN
+## 12. Preference Handling Protocol
 
-# For multiple elements at same vertical level:
-label1, label2, label3 = Text("A"), Text("B"), Text("C")
-label1.move_to(LEFT * 3)
-label2.move_to(ORIGIN)
-label3.move_to(RIGHT * 3)
-safe_layout(label1, label2, label3)  # MANDATORY for siblings
+When a new preference is discovered:
+
+1. Suggest exact text update for `docs/policies/USER_PREFERENCES.md`.
+2. Wait for approval.
+3. Edit only after approval.
+4. Do not silently persist preferences elsewhere.
+
+## 13. Ambiguity and Contradiction Protocol
+
+Stop and ask when any of the following occurs:
+
+1. Ambiguous user intent with multiple plausible implementations.
+2. Conflict between current user instruction and stored preferences.
+3. AGENTS guidance appears inconsistent with runtime code behavior and would affect execution.
+4. A requested action implies risky/destructive change not explicitly approved.
+
+## 14. Quality and Debugging Standard
+
+Use root-cause-first analysis:
+
+1. Identify first divergence point.
+2. Explain causal chain.
+3. Propose source-level fix.
+4. Use guardrails only as temporary containment when necessary.
+
+When reporting failures, include:
+
+1. Scope (phase/file/scene)
+2. Origin
+3. Causal chain
+4. Primary fix
+5. Containment status
+
+## 15. Voice and Rendering Constraints
+
+Hard constraints for local implementation work:
+
+1. Local cached voice flow only for pipeline scenes.
+2. Missing cache should fail with actionable error.
+3. Scene narration must come from `narration_script.py` via `SCRIPT[...]`.
+4. Preserve deterministic orchestrator ownership of state transitions.
+
+## 16. Commands Reference
+
+Canonical:
+
+```bash
+./scripts/create_video.sh <project_name> --topic "..."
 ```
 
----
+Environment check:
 
-## 🎨 VISUAL QUALITY RULES
-
-### Text Animation Speed
-- ✅ Text must appear quickly and consistently
-- ❌ NEVER let any text animation take longer than 1.5 seconds
-
-- ✅ For staggered reveals, use `LaggedStart(FadeIn(a), FadeIn(b), ..., lag_ratio=0.15)`
-
-### Content Density Per Scene
-- ✅ For non-math topics, prefer high-information explainer slides over sparse minimal scenes
-- ✅ Use progressive bullet reveals plus evolving right-panel visuals
-- ✅ Derive right-panel visuals from narration keywords (see `docs/reference_docs/topic_visual_patterns.md`)
-- ✅ If content is too dense for one block, split into multiple voiceover segments
-- ✅ Remove (FadeOut/Transform) previous elements before introducing new ones
-
-### Element Cleanup
-- ✅ ALWAYS FadeOut previous section content before new section begins
-- ✅ Exception: titles/headers that persist across segments
-- ❌ NEVER let more than 2 "layers" of content coexist on screen
-
-### Animation Smoothness
-- ✅ Use `rate_func=smooth` for most transitions (this is the default)
-- ✅ Minimum run_time for any visible animation: 0.3 seconds
-- ❌ NEVER set run_time < 0.2 (imperceptible, creates visual artifacts)
-- ✅ For sequential reveals, use lag_ratio=0.1 to 0.3
-
-### Continuous Motion Requirement
-- ❌ NEVER leave long static/black intervals where little changes on screen
-- ✅ Target a visible visual state change every ~1.5-3 seconds
-- ✅ Non-math scenes should follow slide cadence (title/subtitle, bullets, evolving visual, recap/callout)
-- ❌ Avoid generic filler visuals (single circle/ellipse/equation) unless directly relevant
-
-### Overlap Prevention
-- ✅ After positioning ALL elements in a segment, verify no overlaps using `safe_layout()`:
-  ```python
-  def safe_layout(*mobjects, min_horizontal_spacing=0.5, max_y=4.0, min_y=-4.0):
-      # [Updated function with enhanced logic from visual_helpers.md]
-      pass
-  ```
-
-### Enhanced Visual Helpers (New)
-Always include these functions in scene files for polished aesthetics (see docs/reference_docs/visual_helpers.md for full code):
-- `harmonious_color()`: Generate cohesive palettes.
-- `polished_fade_in()`: Smooth reveals with scale pop.
-- `adaptive_title_position()`: Dynamic title shifting.
-- 3D Guidelines: Prefer for spatial topics; limit to 1-2 moving objects. Use `self.set_camera_orientation(phi=75 * DEGREES, theta=-45 * DEGREES)` in a `ThreeDScene`.
-- Text Rules: Cap `Write()` at 1.5s; for staggered reveals use `LaggedStart(*[FadeIn(b) for b in bullets], lag_ratio=0.15)`.
-
-### EXTERNAL ASSETS - FORBIDDEN (CRITICAL)
-You MUST use ONLY programmatic Manim shapes. NEVER reference external files:
-- ❌ `SVGMobject("filename.svg")` - FORBIDDEN
-- ❌ `ImageMobject("filename.png")` - FORBIDDEN  
-- ❌ `import_image("filename.jpg")` - FORBIDDEN
-
-**SAFE ALTERNATIVES** - Use these Manim primitives instead:
-- Circle, Rectangle, RoundedRectangle, Square, Polygon
-- Line, Arrow, DashedLine
-- Dot, VGroup
-- Text, MathTex, Tex
-- Transform, FadeIn, FadeOut, Create
-
-For any visual element, create it with Manim primitives. Do not reference .svg, .png, .jpg files.
-
-### LaTeX and Code Text (IMPORTANT)
-For code-like or typewriter text:
-- ✅ Use `Text("your code here", font="Courier New")` - RECOMMENDED
-- ❌ Do NOT use `Tex(r"\texttt{...}")` - requires textcomp package not in default Manim template
-- ❌ Do NOT use `Tex(r"\begin{verbatim}...")` - verbatim environment not supported
-
-For mathematical expressions:
-- ✅ Use `MathTex(r"\\frac{a}{b}")` - for equations
-- ✅ Use `Tex(r"\alpha + \beta")` - for simple LaTeX (Greek letters, etc.)
-
-Do NOT use `\texttt`, `\verb`, or `\begin{verbatim}` in Tex() - use Text() with font="Courier New" instead.
-
----
-
-## Pre-Render Validation Checklist
-
-Before rendering any scene, programmatically verify:
-
-### Positioning Validation
-- [ ] No elements placed at ORIGIN except if it's the only element on screen
-- [ ] Every element positioned with `.next_to()` has `safe_position()` called immediately after
-- [ ] Free-positioned sibling clusters (rows/columns or mixed placements) call `safe_layout()`; strict `.next_to(...)` chains call `safe_position(...)` per element
-- [ ] All title elements use `.move_to(UP * 3.8)`, NOT `.to_edge(UP)`
-
-### Content Validation
-- [ ] Charts/graphs have labels and legends
-- [ ] Mathematical content uses `MathTex`, not `Tex`
-- [ ] Position arrays are 3D: `np.array([x, y, 0])`
-- [ ] NO external assets: Scene file does NOT contain SVGMobject, ImageMobject, or references to .svg/.png/.jpg files
-- [ ] Code text uses Text(font="Courier New"), NOT Tex(r"\texttt{...}")
-
-### Aesthetics Validation (New)
-- [ ] Colors use harmonious palette (no more than 4 variants per scene)
-- [ ] Animations include rate_func=smooth or there_and_back_with_pause
-- [ ] 3D elements (if used) have resolution <=(20,20) for performance
-- [ ] No static elements >3s without motion (add Rotate or wiggle)
-
-**If any check fails, STOP and fix the issue before rendering.**
-
----
-
-### Phase: `assemble` and `complete`
-
-See docs/reference_docs/phase_scenes.md for details (includes assemble and complete).
-
-## Error Handling
-
-If any phase fails:
-
-```python
-error_msg = f"Phase {phase} failed: {error_details}"
-state['errors'].append(error_msg)
-state['flags']['needs_human_review'] = True
-# Do NOT advance phase - stay for retry
+```bash
+./scripts/check_dependencies.sh
 ```
 
-### Error Recovery Protocol
+Manual advanced flow:
 
-When `needs_human_review = True`:
-1. Orchestrator halts after current phase
-2. Human inspects `state['errors']` array
-3. Human fixes issue (edits files, updates deps, etc.)
-4. Human clears flag: Set `state['flags']['needs_human_review'] = false`
-5. Human resumes: `./scripts/build_video.sh <project>`
-
-**Agent responsibility:** Provide actionable error messages.
-
-**Good example:**
-```
-"Scene 02 failed: MathTex rendering error at line 45. Check LaTeX syntax for '\\frac{GMm}{r^2}'"
+```bash
+./scripts/new_project.sh <project_name> --topic "..."
+./scripts/build_video.sh projects/<project_name>
 ```
 
-**Bad example:**
-```
-"Render failed"
-```
+Phase reset:
 
-### Root Cause Analysis Requirement (Troubleshooting/Debug)
-
-Before implementing any fix for failed phases/scenes, perform and record:
-
-1. **Failure origin**: the earliest point where behavior diverged from intent.
-2. **Causal chain**: how the error propagated through phase logic.
-3. **Primary fix**: change that eliminates the source mechanism.
-4. **Containment status**: whether any temporary guardrail was added, and explicit removal trigger.
-
-Do not stop at detection-level explanations (e.g., "validation failed"). Explain the mechanism that produced invalid output.
-
-### Visual-Specific Errors (New)
-If validation detects overlaps/desyncs:
-- Auto-suggest fixes: Append to `state['errors']`: "Add safe_layout() call in scene {id} for overlaps."
-- Set `state['flags']['needs_human_review'] = True` and generate `review_report.md` with frame thumbnails (extract via `ffmpeg -ss 50% -vframes 1 -q:v 2 thumbnail.jpg`).
-
----
-
-## Workflow Summary
-
-```
-plan → review → narration → build_scenes → final_render → assemble → complete
-  ↓       ↓          ↓           ↓            ↓              ↓             ↓          ↓
-plan.   validate   scripts    Manim         code          render        concat    done
-json    feasib.    + voice    docs          files         videos        final
-                    config                                  .mp4
+```bash
+./scripts/reset_phase.sh projects/<project_name> <phase>
 ```
 
-### Pipeline Enhancements (New)
-- Logging: Use JSON-structured logs in `history` for diffs (e.g., "Animation run_time=2.1s >1.5s limit"). Expand `"history"`: Include render logs: e.g., {"phase": "build_scenes", "scene": "01", "log_snippet": "No overlaps detected", "timestamp": "ISO"}
-- Dependencies: At project init (in orchestrator), check: `manim --version >=0.18`, `ffmpeg -version`, Qwen model path. Halt if missing.
-- Human Fallback: On `needs_human_review`, auto-generate `review_report.md` with thumbnails, suggestions (e.g., "Add harmonious_color for better palette"), and email hook (if API keys allow).
+## 17. Documentation Hygiene Rule
 
----
+If you detect drift between docs and runtime behavior:
 
-### Testing and Maintenance (New)
-- Unit Tests: See tests/README.md.
-- Quality Scoring: In `review` phase, compute score = 10 - (risk_flags * 1.5) + (3d_used ? 2 : 0). If <7, suggest simplifications.
-- Versioning: Tag AGENTS.md changes (e.g., v2.2); lock config in `config.py` import.
+1. Stop and ask before proceeding if drift affects execution decisions.
+2. After alignment, prefer code behavior for implementation decisions.
+3. Propose focused doc updates to restore alignment.
 
----
+## 18. Non-Negotiables
 
-**END OF AGENTS.md**
+1. Follow `USER_PREFERENCES.md` first.
+2. Do not assume intent when unclear.
+3. Do not exceed requested scope.
+4. Do not silently persist new preferences.
+5. Do not proceed through unresolved instruction conflicts.
+6. Stop and ask when AGENTS and runtime behavior diverge in execution-relevant ways.

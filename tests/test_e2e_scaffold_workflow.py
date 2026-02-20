@@ -18,6 +18,7 @@ repo_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(repo_root))
 
 from harness.parser import (
+    SchemaValidationError,
     inject_body_into_scaffold,
     parse_build_scenes_response,
 )
@@ -51,23 +52,9 @@ def test_e2e_scaffold_workflow():
         print("\n2. Parsing agent response...")
         agent_response = """
 Here's the scene implementation:
-
-```python
-# Title
-title = Text("Welcome to the Matrix", font_size=48, weight=BOLD, color=GREEN)
-title.move_to(UP * 3.8)
-self.play(Write(title))
-
-# Subtitle
-subtitle = Text("Reality is a choice", font_size=32, color=BLUE)
-subtitle.next_to(title, DOWN, buff=0.4)
-safe_position(subtitle)
-self.play(FadeIn(subtitle))
-
-# Visual element
-diagram = Circle(radius=2.0, color=RED).move_to(DOWN * 0.6)
-self.play(Create(diagram, rate_func=smooth))
-```
+{
+  "scene_body": "# Title\\ntitle = Text(\\"Welcome to the Matrix\\", font_size=48, weight=BOLD, color=GREEN)\\ntitle.move_to(UP * 3.8)\\nself.play(Write(title))\\n\\n# Subtitle\\nsubtitle = Text(\\"Reality is a choice\\", font_size=32, color=BLUE)\\nsubtitle.next_to(title, DOWN, buff=0.4)\\nsafe_position(subtitle)\\nself.play(FadeIn(subtitle))\\n\\n# Visual element\\ndiagram = Circle(radius=2.0, color=RED).move_to(DOWN * 0.6)\\nself.play(Create(diagram, rate_func=smooth))"
+}
 """
         body_code = parse_build_scenes_response(agent_response)
         assert body_code is not None
@@ -147,53 +134,32 @@ def test_e2e_reject_bad_agent_output():
         # Response with scaffold placeholders
         (
             "Scaffold placeholders",
-            """
-```python
-title = Text("{{TITLE}}", font_size=48)
-subtitle = Text("{{SUBTITLE}}")
-```
-""",
+            '{"scene_body":"title = Text(\\"{{TITLE}}\\", font_size=48)\\nself.play(Write(title))"}',
         ),
         # Response with full scene (not just body)
         (
             "Full scene instead of body",
-            """
-```python
-from manim import *
-
-class Scene01(VoiceoverScene):
-    def construct(self):
-        pass
-```
-""",
+            '{"scene_body":"from manim import *\\nclass Scene01(VoiceoverScene):\\n    pass\\nself.play(Write(title))"}',
         ),
         # Response with config header
         (
             "Config header",
-            """
-```python
-config.frame_width = 10 * 16 / 9
-title = Text("Test")
-```
-""",
+            '{"scene_body":"config.frame_width = 10 * 16 / 9\\ntitle = Text(\\"Test\\")\\nself.play(Write(title))"}',
         ),
         # Response with slot markers
         (
             "Slot markers",
-            """
-```python
-# SLOT_START:scene_body
-title = Text("Test")
-# SLOT_END:scene_body
-```
-""",
+            '{"scene_body":"# SLOT_START:scene_body\\ntitle = Text(\\"Test\\")\\n# SLOT_END:scene_body\\nself.play(Write(title))"}',
         ),
     ]
 
     print()
     for test_name, bad_response in bad_responses:
-        body = parse_build_scenes_response(bad_response)
-        assert body is None, f"Should reject: {test_name}"
+        try:
+            parse_build_scenes_response(bad_response)
+            raise AssertionError(f"Should reject: {test_name}")
+        except SchemaValidationError:
+            pass
         print(f"   ✓ Correctly rejected: {test_name}")
 
     print("\n" + "=" * 70)

@@ -16,7 +16,8 @@ Task requirements:
 - Make transitions between scenes feel continuous at the full-video level.
 
 Critical output constraints:
-- Output exactly one JSON object where keys are `narration_key` values and values are narration strings.
-- Include all scene keys from the plan and no extra top-level keys.
+- Output exactly one JSON object with this shape:
+  `{"script": {"<narration_key>": "<narration text>", ...}}`
+- Include all scene keys from the plan inside `script` and no extra keys outside `script`.
 - Use valid JSON with double-quoted keys and strings.
 - Output only the JSON object. No markdown, no code fences, no commentary.
