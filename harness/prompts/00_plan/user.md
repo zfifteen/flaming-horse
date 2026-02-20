@@ -8,12 +8,12 @@ Return one JSON object with:
 - scenes (array)
 
 Each scene must include:
-- id (string, pattern: scene_XX_slug)
 - title (string)
-- narration_key (string; usually same as id)
 - description (string)
 - estimated_duration_seconds (integer)
 - visual_ideas (array of strings)
+
+Do NOT include "id" or "narration_key" in the scene objects - the harness will assign these automatically.
 
 Planning constraints:
 - 8-12 scenes
@@ -28,5 +28,4 @@ For non-mathematical topics, default to explainer-slide planning:
 - no generic geometric filler unless directly relevant
 - visible progression every ~1.5-3 seconds
 
-Use the exact key name narration_key (not narrative_key).
 Output only the JSON object. No markdown, no code fences, no commentary.

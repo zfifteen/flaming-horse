@@ -2,7 +2,7 @@ phase: plan
 
 inputs:
   - topic: project_state.topic
-  - constraints: scene_count(8-12), scene_duration(20-45), total_duration(240-480), id(scene_XX_slug)
+  - constraints: scene_count(8-12), scene_duration(20-45), total_duration(240-480)
   - style: non_math => explainer slide visuals
   - exclude: pipeline_overview, voice_policy, scene_codegen_rules
 
@@ -14,15 +14,15 @@ output:
     - description
     - target_duration_seconds
     - scenes[]
-    - scenes[].id
     - scenes[].title
-    - scenes[].narration_key
     - scenes[].description
     - scenes[].estimated_duration_seconds
     - scenes[].visual_ideas
 
+# Note: id and narration_key are assigned by harness after parsing
+# The LLM should NOT include these fields in scene objects
+
 validation:
-  scene_id_pattern: "^scene_[0-9]{2}_[a-z0-9_]+$"
   scene_count: 8-12
   scene_duration_seconds: 20-45
   total_duration_seconds: 240-480

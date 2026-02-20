@@ -660,15 +660,13 @@ validate_voiceover_sync() {
 
   # Deterministic timing budget gate: fail fast when projected scene timing
   # clearly exceeds cached narration duration budget.
-  local timing_status=0
-  if ! $PYTHON_BIN "${SCRIPT_DIR}/validate_scene_timing_budget.py" \
+  $PYTHON_BIN "${SCRIPT_DIR}/validate_scene_timing_budget.py" \
     --scene-file "$scene_file" \
     --project-dir "$PROJECT_DIR" \
     --min-ratio 0.90 \
     > >(tee -a "$LOG_FILE") \
-    2> >(tee -a "$LOG_FILE" >&2); then
-    timing_status=$?
-  fi
+    2> >(tee -a "$LOG_FILE" >&2)
+  local timing_status=${PIPESTATUS[0]}
 
   if [[ $timing_status -eq 1 ]]; then
     echo "✗ ERROR: Scene failed deterministic timing budget validation" | tee -a "$LOG_FILE"
@@ -1425,9 +1423,9 @@ for i, s in enumerate(scenes):
         if not s.get(k):
             raise SystemExit(f'scene[{i}] missing {k}')
     scene_id = str(s.get('id'))
-    if not re.match(r'^scene_[0-9]{2}_[a-z0-9_]+$', scene_id):
+    if not re.match(r'^scene_[0-9]+(_[a-z0-9_]+)?$', scene_id):
         raise SystemExit(
-            f"scene[{i}] invalid id '{scene_id}'; expected pattern scene_XX_slug (e.g., scene_01_intro)"
+            f"scene[{i}] invalid id '{scene_id}'; expected pattern scene_N or scene_N_slug (e.g., scene_1_intro)"
         )
 print('✓ plan.json structure looks valid')
 PY
@@ -1581,10 +1579,10 @@ import json
 import re
 
 def camel_from_scene_id(scene_id: str) -> str:
-    m_simple = re.match(r"^scene_(\d{2})$", scene_id)
+    m_simple = re.match(r"^scene_(\d+)$", scene_id)
     if m_simple:
         return f"Scene{m_simple.group(1)}"
-    m = re.match(r"^scene_(\d{2})_([a-z0-9_]+)$", scene_id)
+    m = re.match(r"^scene_(\d+)_([a-z0-9_]+)$", scene_id)
     if not m:
         return ""
     num = m.group(1)
@@ -1624,8 +1622,8 @@ PY
     return 1
   fi
 
-  if [[ ! "$scene_id" =~ ^scene_[0-9]{2}(_[a-z0-9_]+)?$ ]]; then
-    echo "✗ ERROR: Invalid scene id format '${scene_id}'. Expected scene_XX or scene_XX_slug (e.g., scene_01 or scene_01_intro)." | tee -a "$LOG_FILE" >&2
+  if [[ ! "$scene_id" =~ ^scene_[0-9]+(_[a-z0-9_]+)?$ ]]; then
+    echo "✗ ERROR: Invalid scene id format '${scene_id}'. Expected scene_N or scene_N_slug (where N is one or more digits, e.g., scene_1 or scene_1_intro)." | tee -a "$LOG_FILE" >&2
     $PYTHON_BIN - <<PY
 import json
 from datetime import datetime, UTC
@@ -1633,7 +1631,7 @@ from datetime import datetime, UTC
 with open("${STATE_FILE}", "r") as f:
     state = json.load(f)
 
-state.setdefault("errors", []).append("build_scenes failed: scene id must match ^scene_[0-9]{2}(_[a-z0-9_]+)?$")
+state.setdefault("errors", []).append("build_scenes failed: scene id must match ^scene_[0-9]+(_[a-z0-9_]+)?$")
 state.setdefault("flags", {})["needs_human_review"] = True
 state["updated_at"] = datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')
 

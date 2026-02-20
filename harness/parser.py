@@ -16,9 +16,20 @@ class SchemaValidationError(ValueError):
     """Raised when a phase response fails strict JSON schema validation."""
 
 
+def _looks_like_placeholder_narration(text: str) -> bool:
+    """Return True when narration text is punctuation-only placeholder content."""
+    stripped = text.strip()
+    if not stripped:
+        return True
+    # Reject degenerate filler like "...", "…", or repeated punctuation/symbols.
+    if re.fullmatch(r"[\.\u2026,\-_=~`'\"*#\s]+", stripped):
+        return True
+    return False
+
+
 def class_name_to_scene_filename(class_name: str) -> str:
     """Convert a scene class name to canonical scene_XX_slug.py filename."""
-    m = re.match(r"^Scene(\d{2})([A-Za-z0-9_]*)$", class_name)
+    m = re.match(r"^Scene(\d+)([A-Za-z0-9_]*)$", class_name)
     if m:
         num = m.group(1)
         suffix = m.group(2)
@@ -169,25 +180,70 @@ def validate_scene_body_syntax(body_code: str) -> bool:
     return True
 
 
-def extract_json_block(text: str) -> Optional[str]:
+def _is_non_empty(value: Any) -> bool:
+    """Check if a value is present and non-empty."""
+    if value is None:
+        return False
+    # Treat empty strings and empty collections as empty
+    if isinstance(value, (str, list, dict, tuple, set)):
+        return len(value) > 0
+    return True
+
+
+def extract_json_block(
+    text: str, required_keys: Optional[List[str]] = None
+) -> Optional[str]:
     """
     Extract the first top-level JSON object from model response text.
+
+    Args:
+        text: Raw model response
+        required_keys: If provided, only return JSON objects containing these keys
 
     Returns:
         Canonical JSON string or None if no valid top-level JSON object exists
     """
     decoder = json.JSONDecoder()
+
+    # Collect all valid dicts
+    # Then return the one with the most keys (likely the complete one)
+    candidates = []
+
     for idx, ch in enumerate(text):
         if ch != "{":
             continue
         try:
             obj, _ = decoder.raw_decode(text[idx:])
             if isinstance(obj, dict):
-                return json.dumps(obj)
+                if required_keys:
+                    if all(k in obj for k in required_keys):
+                        candidates.append((len(obj), obj))
+                else:
+                    candidates.append((len(obj), obj))
         except json.JSONDecodeError:
             continue
 
-    return None
+    if not candidates:
+        return None
+
+    # When required_keys are provided, prefer objects where those keys
+    # have non-empty values, not just presence.
+    if required_keys:
+        valid_candidates = []
+        for size, obj in candidates:
+            if all(_is_non_empty(obj.get(k)) for k in required_keys):
+                valid_candidates.append((size, obj))
+
+        # If we have any fully valid candidates, choose among them.
+        if valid_candidates:
+            selected_obj = max(valid_candidates, key=lambda x: x[0])[1]
+        else:
+            # Fall back to the original behavior: choose largest by key count
+            selected_obj = max(candidates, key=lambda x: x[0])[1]
+    else:
+        selected_obj = max(candidates, key=lambda x: x[0])[1]
+
+    return json.dumps(selected_obj)
 
 
 def extract_python_code_blocks(text: str) -> List[Tuple[str, str]]:
@@ -286,10 +342,6 @@ def sanitize_code(code: str) -> str:
     # Remove markdown artifacts that might have slipped through
     code = re.sub(r"^```python\s*", "", code, flags=re.MULTILINE)
     code = re.sub(r"^```\s*$", "", code, flags=re.MULTILINE)
-
-    # Strip trailing closing braces/brackets that can cause syntax errors
-    # (some models output extra }, ], or > at the end)
-    code = re.sub(r"[\}\]\>]+$", "", code, flags=re.MULTILINE)
 
     return code.strip()
 
@@ -401,7 +453,7 @@ def parse_plan_response(response_text: str) -> Optional[Dict[str, Any]]:
         Plan dict or None if parsing failed
     """
     cleaned_response = strip_harness_preamble(response_text)
-    json_text = extract_json_block(cleaned_response)
+    json_text = extract_json_block(cleaned_response, required_keys=["title", "scenes"])
     if not json_text:
         raise SchemaValidationError("no valid top-level JSON object found")
 
@@ -412,21 +464,36 @@ def parse_plan_response(response_text: str) -> Optional[Dict[str, Any]]:
 
     title = plan.get("title")
     if not isinstance(title, str) or not title.strip():
-        raise SchemaValidationError("plan.title is required and must be a non-empty string")
+        raise SchemaValidationError(
+            "plan.title is required and must be a non-empty string"
+        )
 
     scenes = plan.get("scenes")
     if not isinstance(scenes, list) or not scenes:
-        raise SchemaValidationError("plan.scenes is required and must be a non-empty array")
+        raise SchemaValidationError(
+            "plan.scenes is required and must be a non-empty array"
+        )
 
     for idx, scene in enumerate(scenes):
         if not isinstance(scene, dict):
             raise SchemaValidationError(f"plan.scenes[{idx}] must be an object")
-        for key in ("id", "title", "narration_key"):
-            value = scene.get(key)
-            if not isinstance(value, str) or not value.strip():
-                raise SchemaValidationError(
-                    f"plan.scenes[{idx}].{key} is required and must be a non-empty string"
-                )
+
+        # Deterministic ID assignment by array index (harness responsibility)
+        # The LLM should NOT provide id or narration_key - harness generates these
+        scene_number = idx + 1
+        scene_id = f"scene_{scene_number:02d}"  # scene_01, scene_02, etc.
+        scene["id"] = scene_id
+        scene["narration_key"] = scene_id
+
+        # Validate required fields
+        if (
+            not scene.get("title")
+            or not isinstance(scene.get("title"), str)
+            or not scene["title"].strip()
+        ):
+            raise SchemaValidationError(
+                f"plan.scenes[{idx}].title is required and must be a non-empty string"
+            )
 
     return plan
 
@@ -444,7 +511,7 @@ def parse_narration_response(response_text: str) -> Optional[str]:
         Python code string or None if parsing failed
     """
     cleaned_response = strip_harness_preamble(response_text)
-    json_data = extract_json_block(cleaned_response)
+    json_data = extract_json_block(cleaned_response, required_keys=["script"])
     if not json_data:
         raise SchemaValidationError("no valid top-level JSON object found")
 
@@ -460,10 +527,16 @@ def parse_narration_response(response_text: str) -> Optional[str]:
         )
     for key, value in script_dict.items():
         if not isinstance(key, str) or not key.strip():
-            raise SchemaValidationError("narration.script keys must be non-empty strings")
+            raise SchemaValidationError(
+                "narration.script keys must be non-empty strings"
+            )
         if not isinstance(value, str) or not value.strip():
             raise SchemaValidationError(
                 f"narration.script[{key!r}] must be a non-empty string"
+            )
+        if _looks_like_placeholder_narration(value):
+            raise SchemaValidationError(
+                f"narration.script[{key!r}] must contain real narration text (not placeholder punctuation)"
             )
 
     # Convert to Python code
@@ -542,9 +615,7 @@ def extract_scene_body_from_full_file(code: str) -> Optional[str]:
     return "\n".join(dedented_lines).strip()
 
 
-def _extract_scene_body_from_json_response(
-    response_text: str, phase: str
-) -> str:
+def _extract_scene_body_from_json_response(response_text: str, phase: str) -> str:
     """Extract and validate `scene_body` from strict JSON phase payload."""
     cleaned_response = strip_harness_preamble(response_text)
     json_text = extract_json_block(cleaned_response)
@@ -564,7 +635,9 @@ def _extract_scene_body_from_json_response(
 
     candidate = sanitize_code(scene_body)
     if not candidate:
-        raise SchemaValidationError(f"{phase}.scene_body cannot be empty after sanitization")
+        raise SchemaValidationError(
+            f"{phase}.scene_body cannot be empty after sanitization"
+        )
     if not verify_python_syntax(candidate):
         raise SchemaValidationError(f"{phase}.scene_body must be valid Python")
 
