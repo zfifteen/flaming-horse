@@ -547,9 +547,10 @@ SCRIPT = {
 """
 
     for key, value in script_dict.items():
-        # Escape any triple quotes in the narration to avoid syntax errors
-        escaped_value = value.replace('"""', '\\"\\"\\"')
-        code += f'    "{key}": """\n{value}\n    """,\n'
+        # Use json.dumps to safely serialize both keys and values.
+        # This handles all edge cases: quotes, backslashes, unicode, newlines,
+        # and prevents injection attacks from malicious narration content.
+        code += f"    {json.dumps(key)}: {json.dumps(value)},\n"
 
     code += "}\n"
 
