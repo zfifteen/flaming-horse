@@ -356,6 +356,14 @@ def test_parser_helpers_and_phase_parsers(tmp_path):
     with pytest.raises(parser.SchemaValidationError):
         parser.parse_narration_response('{"k":1}')
 
+    # Narration containing triple-quotes must be escaped so the generated
+    # narration_script.py remains syntactically valid Python.
+    import json as _json
+    triple_quote_payload = _json.dumps({"script": {"k": 'say """hello""" now'}})
+    narr_tq = parser.parse_narration_response(triple_quote_payload)
+    assert narr_tq is not None
+    compile(narr_tq, "<test>", "exec")  # must not raise SyntaxError
+
     assert parser.extract_scene_body_xml("<scene_body>x=1</scene_body>") == "x=1"
     assert parser.extract_scene_body_xml("x=1") is None
     full = "with self.voiceover(text=SCRIPT['k']) as tracker:\n            x=1\n            y=2\n"

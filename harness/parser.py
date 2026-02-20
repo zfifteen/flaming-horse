@@ -548,8 +548,10 @@ SCRIPT = {
 
     for key, value in script_dict.items():
         # Escape any triple quotes in the narration to avoid syntax errors
+        # in the generated Python file (triple-quote inside triple-quote string
+        # would terminate the string literal prematurely).
         escaped_value = value.replace('"""', '\\"\\"\\"')
-        code += f'    "{key}": """\n{value}\n    """,\n'
+        code += f'    "{key}": """\n{escaped_value}\n    """,\n'
 
     code += "}\n"
 
