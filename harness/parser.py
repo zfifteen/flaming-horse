@@ -29,7 +29,7 @@ def _looks_like_placeholder_narration(text: str) -> bool:
 
 def class_name_to_scene_filename(class_name: str) -> str:
     """Convert a scene class name to canonical scene_XX_slug.py filename."""
-    m = re.match(r"^Scene(\d{2})([A-Za-z0-9_]*)$", class_name)
+    m = re.match(r"^Scene(\d+)([A-Za-z0-9_]*)$", class_name)
     if m:
         num = m.group(1)
         suffix = m.group(2)
