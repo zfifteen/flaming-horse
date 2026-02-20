@@ -547,11 +547,10 @@ SCRIPT = {
 """
 
     for key, value in script_dict.items():
-        # Escape any triple quotes in the narration to avoid syntax errors
-        # in the generated Python file (triple-quote inside triple-quote string
-        # would terminate the string literal prematurely).
-        escaped_value = value.replace('"""', '\\"\\"\\"')
-        code += f'    "{key}": """\n{escaped_value}\n    """,\n'
+        # Use json.dumps to safely serialize both keys and values.
+        # This handles all edge cases: quotes, backslashes, unicode, newlines,
+        # and prevents injection attacks from malicious narration content.
+        code += f"    {json.dumps(key)}: {json.dumps(value)},\n"
 
     code += "}\n"
 
