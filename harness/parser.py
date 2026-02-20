@@ -332,6 +332,47 @@ def has_scaffold_artifacts(code: str) -> bool:
     return False
 
 
+def has_kitchen_sink_boilerplate(code: str) -> bool:
+    """
+    Check if code contains Kitchen Sink example class definitions.
+
+    These should never appear in scene body output.
+
+    Args:
+        code: Python code string
+
+    Returns:
+        True if boilerplate is found
+    """
+    forbidden_classes = [
+        "SceneLifecycleBaseline",
+        "GeometryGallery2D",
+        "LayoutAndLabelAnchoring2D",
+        "TextHierarchyAndCallouts",
+        "MathTexDerivationPattern",
+        "TransitionPatternsCore",
+        "GroupedTimingPatterns",
+        "AxesAndFunctionPlot",
+        "DataNarrativeGraphing",
+        "ThreeDOrientationBaseline",
+        "CameraMotionAndFocus3D",
+        "ValueTrackerDrivenMotion",
+        "ColorSemanticPalette",
+        "FillStrokeStyleTransitions",
+    ]
+
+    for class_name in forbidden_classes:
+        if re.search(rf"\bclass\s+{class_name}\b", code):
+            return True
+
+    if '"""' in code and "Pattern Family" in code:
+        return True
+    if "Source: https://docs.manim.community" in code:
+        return True
+
+    return False
+
+
 def verify_python_syntax(code: str) -> bool:
     """
     Verify that code is syntactically valid Python.
@@ -552,6 +593,10 @@ def _extract_scene_body_from_json_response(
     if has_scaffold_artifacts(candidate):
         raise SchemaValidationError(
             f"{phase}.scene_body contains unresolved scaffold placeholders"
+        )
+    if has_kitchen_sink_boilerplate(candidate):
+        raise SchemaValidationError(
+            f"{phase}.scene_body contains Kitchen Sink boilerplate class definitions"
         )
 
     return candidate

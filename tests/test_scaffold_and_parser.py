@@ -23,6 +23,7 @@ from harness.parser import (
     parse_build_scenes_response,
     parse_scene_repair_response,
     has_scaffold_artifacts,
+    has_kitchen_sink_boilerplate,
 )
 from scripts.scaffold_scene import TEMPLATE
 
@@ -246,6 +247,60 @@ class TestHarmoniousColorContract:
             raise AssertionError(f"harmonious_color should handle strings: {e}")
 
 
+class TestKitchenSinkBoilerplateDetection:
+    """Test detection of Kitchen Sink boilerplate in scene body output."""
+
+    def test_detect_kitchen_sink_class_definitions(self):
+        """Should detect Kitchen Sink example class names."""
+        bad_codes = [
+            'class GeometryGallery2D(Scene):\n    def construct(self):\n        pass',
+            'class SceneLifecycleBaseline(Scene):\n    pass',
+            'class ValueTrackerDrivenMotion(Scene):\n    pass',
+            'class ColorSemanticPalette(Scene):\n    pass',
+        ]
+        for code in bad_codes:
+            assert has_kitchen_sink_boilerplate(code), f"Should detect: {code[:50]}"
+
+    def test_detect_pattern_family_docstring(self):
+        """Should detect Kitchen Sink Pattern Family markers."""
+        code = '"""\nPattern Family A: Scene Lifecycle\n"""\ntitle = Text("Test")'
+        assert has_kitchen_sink_boilerplate(code)
+
+    def test_detect_source_url_marker(self):
+        """Should detect Kitchen Sink source URL markers."""
+        code = 'title = Text("Test")\n# Source: https://docs.manim.community/en/stable/ref.html'
+        assert has_kitchen_sink_boilerplate(code)
+
+    def test_clean_scene_body_passes(self):
+        """Should not flag clean scene body code."""
+        clean_codes = [
+            'title = Text("Real Title", font_size=48)\nself.play(Write(title))',
+            'circle = Circle(radius=1.5, color=BLUE)\nself.play(Create(circle))',
+            'palette = harmonious_color(BLUE, variations=3)\ncircle.set_fill(palette[0])\nself.play(FadeIn(circle))',
+        ]
+        for code in clean_codes:
+            assert not has_kitchen_sink_boilerplate(code), f"Should pass: {code[:50]}"
+
+    def test_reject_boilerplate_in_build_scenes(self):
+        """Build-scenes parser should reject Kitchen Sink boilerplate markers."""
+        # Boilerplate docstring marker that wouldn't be caught by other checks
+        response = '{"scene_body":"title = Text(\\"Hello\\")\\n# Source: https://docs.manim.community/en/stable/ref.html\\nself.play(Write(title))"}'
+        try:
+            parse_build_scenes_response(response)
+            raise AssertionError("Expected SchemaValidationError for boilerplate")
+        except SchemaValidationError as e:
+            assert "Kitchen Sink boilerplate" in str(e)
+
+    def test_reject_boilerplate_in_scene_repair(self):
+        """Repair parser should reject Kitchen Sink boilerplate."""
+        response = '{"scene_body":"class SceneLifecycleBaseline(Scene):\\n    def construct(self):\\n        self.play(Create(Circle()))"}'
+        try:
+            parse_scene_repair_response(response)
+            raise AssertionError("Expected SchemaValidationError for boilerplate")
+        except SchemaValidationError:
+            pass
+
+
 class TestSceneRepairParser:
     """Test scene repair response parser."""
 
@@ -273,6 +328,7 @@ def run_tests():
         TestParserBodyExtraction,
         TestBodyInjection,
         TestScaffoldArtifactsDetection,
+        TestKitchenSinkBoilerplateDetection,
         TestHarmoniousColorContract,
         TestSceneRepairParser,
     ]

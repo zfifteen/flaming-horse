@@ -20,6 +20,32 @@ When this reference is injected into the `build_scenes` phase, follow this contr
 
 All examples below are reference patterns; if any example conflicts with this section, this section wins for `build_scenes` output.
 
+### Helper function signatures (flaming_horse.scene_helpers)
+
+```python
+# harmonious_color(base_color, variations=3, lightness_shift=0.1)
+# Returns a list of RGBA color arrays (e.g., [[r, g, b, 1.0], ...])
+# Example:
+palette = harmonious_color(BLUE, variations=3)
+circle.set_fill(palette[0])
+
+# safe_position(mobject, max_y=3.8, min_y=-3.8, max_x=7.5, min_x=-7.5, buff=0.2)
+# Clamps mobject to frame bounds, returns the mobject
+# Example:
+label.next_to(circle, DOWN, buff=0.3)
+safe_position(label)
+
+# polished_fade_in(mobject, lag_ratio=0.2, scale_factor=1.1, glow=False)
+# Returns an animation for smooth reveal
+# Example:
+self.play(polished_fade_in(subtitle))
+
+# safe_layout(*mobjects, alignment=ORIGIN, h_buff=0.5, v_buff=0.3, ...)
+# Arranges multiple mobjects with collision prevention, returns VGroup
+# Example:
+safe_layout(obj1, obj2, obj3, h_buff=1.0)
+```
+
 ---
 
 ## Source Policy (Official Manim CE Docs Only)
@@ -631,6 +657,21 @@ class FillStrokeStyleTransitions(Scene):
             text.animate.set_opacity(0.3)
         )
         self.wait(0.5)
+```
+
+---
+
+## Timing Synchronization Pattern
+
+When using `VoiceoverScene` with `self.voiceover()`, use `tracker.duration` to pace animations:
+
+```python
+with self.voiceover(text=SCRIPT["key"]) as tracker:
+    # Use tracker.duration to pace animations relative to narration length
+    self.play(Write(title), run_time=min(1.2, tracker.duration * 0.15))
+    self.play(FadeIn(subtitle), run_time=tracker.duration * 0.10)
+    # Always leave time at the end for narration to complete
+    self.wait(max(0.2, tracker.duration * 0.05))
 ```
 
 ---

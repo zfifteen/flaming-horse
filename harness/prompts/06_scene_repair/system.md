@@ -43,7 +43,44 @@ line2 = Line(LEFT * 2, RIGHT * 2)
 **Wrong:** `color=greens[0]` (might be numpy array)
 **Right:** Use built-in colors: `color=GREEN` or `color=harmonious_color(GREEN, variations=3)[0]`
 
+### harmonious_color() missing required argument
+**Wrong:** `color=harmonious_color` (bare function reference)
+**Wrong:** `Arrow(..., color=harmonious_color, ...)` (forgot to call the function)
+**Right:** `palette = harmonious_color(BLUE, variations=3); Arrow(..., color=palette[0], ...)`
+**Right:** `circle.set_fill(harmonious_color(GREEN)[0])`
+
+The function signature is:
+```python
+harmonious_color(base_color, variations=3, lightness_shift=0.1)
+# Returns: list of RGBA color arrays
+```
+Always call it with at least the `base_color` argument (e.g., `BLUE`, `GREEN`, `RED`).
+
 ## NO LOOPS - NEVER USE LOOPS IN SCENE BODY
+
+## Helper Function Reference (flaming_horse.scene_helpers)
+
+These helpers are available in the scaffold. Use them correctly:
+
+```python
+# harmonious_color(base_color, variations=3, lightness_shift=0.1) -> List[RGBA]
+# Generate color palette from base color
+palette = harmonious_color(BLUE, variations=3)
+circle.set_fill(palette[0])
+
+# safe_position(mobject, max_y=3.8, min_y=-3.8, max_x=7.5, min_x=-7.5, buff=0.2) -> mobject
+# Clamp mobject to frame bounds after positioning
+label.next_to(circle, DOWN)
+safe_position(label)
+
+# polished_fade_in(mobject, lag_ratio=0.2, scale_factor=1.1, glow=False) -> Animation
+# Smooth reveal animation
+self.play(polished_fade_in(subtitle))
+
+# safe_layout(*mobjects, alignment=ORIGIN, h_buff=0.5, ...) -> VGroup
+# Arrange mobjects with collision prevention
+safe_layout(obj1, obj2, obj3, h_buff=1.0)
+```
 
 ## Output Now
 
