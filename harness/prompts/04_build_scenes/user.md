@@ -28,6 +28,7 @@ SCRIPT["{{narration_key}}"] = {{scene_narration}}
 6. If the scene would overrun the estimate, simplify visuals (fewer elements, shorter transitions) instead of rushing text readability.
 7. If the scene would underrun the estimate, extend with meaningful visual evolution (diagram progression, highlight passes, or recap callouts), not dead air.
 8. Keep text reveal/readability constraints intact.
+9. Every scene-body must use `tracker.duration` in timing expressions (`run_time=` and/or `self.wait(...)`) to stay narration-synced.
 
 ### Self-Check Before Output
 
@@ -55,6 +56,7 @@ Hard requirements:
 9. Return JSON only, not fenced Python code blocks.
 10. This code runs inside `def construct(self):` - only statements valid inside a method (assignments, self.play(), etc.)
 11. Do NOT use the `random` module - use deterministic values (e.g., fixed indices or predefined sequences)
+12. Include `tracker.duration` in timing math (for example: `run_time=min(1.2, tracker.duration * 0.15)` and `self.wait(max(0.2, tracker.duration * 0.05))`).
 
 Required structural pattern (must compile exactly as Python block structure):
 ```python

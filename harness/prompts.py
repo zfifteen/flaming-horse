@@ -111,6 +111,62 @@ def extract_scene_narration(
     return None
 
 
+def _extract_script_dict(narration_content: str) -> Optional[Dict[str, str]]:
+    try:
+        tree = ast.parse(narration_content)
+    except SyntaxError:
+        return None
+
+    script_value = None
+    for node in tree.body:
+        if not isinstance(node, ast.Assign):
+            continue
+        if not any(
+            isinstance(target, ast.Name) and target.id == "SCRIPT"
+            for target in node.targets
+        ):
+            continue
+        script_value = node.value
+        break
+
+    if script_value is None:
+        return None
+
+    try:
+        script_dict = ast.literal_eval(script_value)
+    except (ValueError, SyntaxError):
+        return None
+
+    if not isinstance(script_dict, dict):
+        return None
+
+    normalized: Dict[str, str] = {}
+    for key, value in script_dict.items():
+        if not isinstance(key, str) or not isinstance(value, str):
+            continue
+        stripped = value.strip()
+        if stripped:
+            normalized[key] = stripped
+    return normalized
+
+
+def resolve_narration_binding(
+    narration_content: str, preferred_key: str, fallback_key: str
+) -> Tuple[Optional[str], Optional[str]]:
+    script_dict = _extract_script_dict(narration_content)
+    if not script_dict:
+        return None, None
+
+    preferred = preferred_key if isinstance(preferred_key, str) else ""
+    fallback = fallback_key if isinstance(fallback_key, str) else ""
+
+    if preferred and preferred in script_dict:
+        return preferred, script_dict[preferred]
+    if fallback and fallback in script_dict:
+        return fallback, script_dict[fallback]
+    return None, None
+
+
 def count_words(text: str) -> int:
     """Count words using a stable token pattern for narration pacing estimates."""
     if not text:
@@ -221,11 +277,14 @@ def compose_build_scenes_prompt(
         scene_class_name = scene_id_to_class_name(scene_id)
         scene_details = "N/A"
 
-    scene_narration = extract_scene_narration(narration_content, narration_key)
-    if not scene_narration:
+    resolved_key, scene_narration = resolve_narration_binding(
+        narration_content, narration_key, scene_id
+    )
+    if not scene_narration or not resolved_key:
         raise ValueError(
-            f"Could not extract SCRIPT[{narration_key!r}] from {narration_file.name}"
+            f"Could not extract SCRIPT[{narration_key!r}] or SCRIPT[{scene_id!r}] from {narration_file.name}"
         )
+    narration_key = resolved_key
     narration_word_count = count_words(scene_narration)
     speech_wpm = DEFAULT_SPEECH_WPM
     estimated_duration_seconds = estimate_duration_seconds(narration_word_count, speech_wpm)
@@ -353,7 +412,12 @@ def compose_scene_repair_prompt(
             break
 
     scene_details = json.dumps(plan_scene, indent=2) if plan_scene else "N/A"
-    scene_narration = extract_scene_narration(narration_content, narration_key) or "N/A"
+    resolved_key, resolved_narration = resolve_narration_binding(
+        narration_content, narration_key, scene_id
+    )
+    if resolved_key:
+        narration_key = resolved_key
+    scene_narration = resolved_narration or "N/A"
 
     system_prompt = load_prompt_template(
         "scene_repair",

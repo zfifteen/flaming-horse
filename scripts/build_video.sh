@@ -582,6 +582,19 @@ validate_scene_imports() {
     echo "  Replace with real Python operators (<, >, <=, >=)." | tee -a "$LOG_FILE"
     return 1
   fi
+
+  # Guard against invalid Manim color payloads that repeatedly cause runtime failures.
+  if grep -Eq "set_color\([[:space:]]*list\(" "$scene_file"; then
+    echo "✗ ERROR: set_color(list(...)) is invalid for Manim color parsing" | tee -a "$LOG_FILE"
+    echo "  Use named colors (e.g., RED) or helper outputs supported by set_color directly." | tee -a "$LOG_FILE"
+    return 1
+  fi
+
+  if grep -Eq "set_color\([[:space:]]*harmonious_color\(" "$scene_file"; then
+    echo "✗ ERROR: set_color(harmonious_color(...)) is invalid without selecting a concrete safe color" | tee -a "$LOG_FILE"
+    echo "  Use a built-in color constant or validated helper output converted to a Manim-compatible color." | tee -a "$LOG_FILE"
+    return 1
+  fi
   
   # Check for correct pattern
   if grep -q "from manim_voiceover_plus import" "$scene_file" || \
@@ -638,11 +651,28 @@ validate_voiceover_sync() {
     return 1
   fi
 
-  # Check for tracker.duration usage (warning only)
+  # Check for tracker.duration usage (required for deterministic sync).
   if ! grep -q 'tracker\.duration' "$scene_file"; then
-    echo "⚠ WARNING: Scene may not use tracker.duration for synchronization" | tee -a "$LOG_FILE"
-    echo "This can cause voiceover/animation desync" | tee -a "$LOG_FILE"
-    # Don't fail, just warn
+    echo "✗ ERROR: Scene must use tracker.duration for synchronization" | tee -a "$LOG_FILE"
+    echo "Missing tracker.duration causes audio/video desync in final QC" | tee -a "$LOG_FILE"
+    return 1
+  fi
+
+  # Deterministic timing budget gate: fail fast when projected scene timing
+  # clearly exceeds cached narration duration budget.
+  local timing_status=0
+  if ! $PYTHON_BIN "${SCRIPT_DIR}/validate_scene_timing_budget.py" \
+    --scene-file "$scene_file" \
+    --project-dir "$PROJECT_DIR" \
+    --min-ratio 0.90 \
+    > >(tee -a "$LOG_FILE") \
+    2> >(tee -a "$LOG_FILE" >&2); then
+    timing_status=$?
+  fi
+
+  if [[ $timing_status -eq 1 ]]; then
+    echo "✗ ERROR: Scene failed deterministic timing budget validation" | tee -a "$LOG_FILE"
+    return 1
   fi
   
   # Check: cached voice service is used
@@ -983,9 +1013,13 @@ get_scene_narration_key() {
   local scene_id="$1"
   $PYTHON_BIN - <<PY
 import json
+import ast
+from pathlib import Path
 
 scene_id = "${scene_id}"
 fallback = scene_id or "scene_01"
+project_dir = Path("${PROJECT_DIR}")
+narration_file = project_dir / "narration_script.py"
 
 try:
     state = json.load(open("${STATE_FILE}", "r"))
@@ -1000,7 +1034,30 @@ for scene in state.get("scenes", []):
             key = value
         break
 
-print(key or fallback)
+script_keys = set()
+try:
+    if narration_file.exists():
+        tree = ast.parse(narration_file.read_text(encoding="utf-8"))
+        for node in tree.body:
+            if not isinstance(node, ast.Assign):
+                continue
+            if not any(isinstance(t, ast.Name) and t.id == "SCRIPT" for t in node.targets):
+                continue
+            data = ast.literal_eval(node.value)
+            if isinstance(data, dict):
+                script_keys = {k for k, v in data.items() if isinstance(k, str) and isinstance(v, str) and v.strip()}
+            break
+except Exception:
+    script_keys = set()
+
+if key and (not script_keys or key in script_keys):
+    print(key)
+elif fallback and (not script_keys or fallback in script_keys):
+    print(fallback)
+elif key:
+    print(key)
+else:
+    print(fallback)
 PY
 }
 
@@ -1030,7 +1087,7 @@ reset_scene_from_scaffold() {
 
   if ! $PYTHON_BIN "${SCRIPT_DIR}/scaffold_scene.py" \
     --project "$PROJECT_DIR" \
-    --scene-id "$scene_file" \
+    --scene-id "$scene_id" \
     --class-name "$scene_class" \
     --narration-key "$narration_key" \
     --force \
@@ -1556,6 +1613,11 @@ PY
 
   local scene_id scene_file scene_class narration_key
   IFS='|' read -r scene_id scene_file scene_class narration_key <<< "$scene_meta"
+
+  narration_key="$(get_scene_narration_key "$scene_id")"
+  if [[ -z "$narration_key" ]]; then
+    narration_key="$scene_id"
+  fi
 
   if [[ -z "$scene_id" || -z "$scene_file" || -z "$scene_class" ]]; then
     echo "✗ ERROR: Could not determine current scene metadata from project_state.json" | tee -a "$LOG_FILE" >&2
@@ -2124,8 +2186,18 @@ PY
       fi
     fi
 
-    # If the output already exists and verifies, don't re-render.
+    local out_video="media/videos/${scene_id}/1440p60/${scene_class}.mp4"
+    local scene_audio="media/voiceovers/qwen/${scene_id}.mp3"
+    local needs_rerender=1
+    # Reuse rendered scene only if output verifies and is newer than both source scene code and voice audio.
     if verify_scene_video "$scene_id" "$scene_class"; then
+      if [[ -f "$out_video" && -f "$scene_file" && "$out_video" -nt "$scene_file" ]]; then
+        if [[ ! -f "$scene_audio" || "$out_video" -nt "$scene_audio" ]]; then
+          needs_rerender=0
+        fi
+      fi
+    fi
+    if [[ $needs_rerender -eq 0 ]]; then
       update_state_rendered "$scene_id" "$scene_class" "$est_duration"
       echo "✓ Already rendered + verified: $scene_id" | tee -a "$LOG_FILE"
       continue
@@ -2134,7 +2206,6 @@ PY
     # Clean stale/corrupted partials from interrupted renders.
     # These files are intermediate and safe to delete.
     local partial_dir="media/videos/${scene_id}/1440p60/partial_movie_files/${scene_class}"
-    local out_video="media/videos/${scene_id}/1440p60/${scene_class}.mp4"
     if [[ -d "$partial_dir" ]]; then
       echo "→ Removing stale partials: $partial_dir" | tee -a "$LOG_FILE"
       rm -rf "$partial_dir"
@@ -2391,7 +2462,9 @@ PY
   echo "═══════════════════════════════════════════" | tee -a "$LOG_FILE"
   
   if [[ -x "${SCRIPT_DIR}/qc_final_video.sh" ]]; then
-    if ! "${SCRIPT_DIR}/qc_final_video.sh" "${PROJECT_DIR}/final_video.mp4" "$PROJECT_DIR"; then
+    if ! "${SCRIPT_DIR}/qc_final_video.sh" "${PROJECT_DIR}/final_video.mp4" "$PROJECT_DIR" \
+      > >(tee -a "$LOG_FILE") \
+      2> >(tee -a "$LOG_FILE" >&2); then
       echo "✗ QC FAILED! Video has quality issues." | tee -a "$LOG_FILE"
       $PYTHON_BIN <<PYEOF
 import json
@@ -2654,8 +2727,13 @@ while true; do
 
     if [[ $phase_ok -ne 1 ]]; then
       if is_retryable_phase "$current_phase"; then
-        echo "❌ Phase $current_phase failed after ${PHASE_RETRY_LIMIT} attempts. Marking for human review." | tee -a "$LOG_FILE"
-        log_error_event "$current_phase" "phase failed after retry budget exhausted" "$attempt" "$PHASE_RETRY_LIMIT"
+        if [[ $attempt -ge $PHASE_RETRY_LIMIT ]]; then
+          echo "❌ Phase $current_phase failed after ${PHASE_RETRY_LIMIT} attempts. Marking for human review." | tee -a "$LOG_FILE"
+          log_error_event "$current_phase" "phase failed after retry budget exhausted" "$attempt" "$PHASE_RETRY_LIMIT"
+        else
+          echo "❌ Phase $current_phase failed at attempt ${attempt}/${PHASE_RETRY_LIMIT}. Marking for human review." | tee -a "$LOG_FILE"
+          log_error_event "$current_phase" "phase failed and requested human review" "$attempt" "$PHASE_RETRY_LIMIT"
+        fi
         mark_retry_exhausted "$current_phase"
       else
         echo "❌ Phase $current_phase failed (non-agent phase)." | tee -a "$LOG_FILE"
@@ -2713,3 +2791,7 @@ while true; do
 }
 
 main "$@"
+  narration_key="$(get_scene_narration_key "$scene_id")"
+  if [[ -z "$narration_key" ]]; then
+    narration_key="$scene_id"
+  fi

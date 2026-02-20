@@ -28,6 +28,9 @@ Please repair this scene file that failed to render.
 {{retry_context}}
 ```
 
+If this is a retry, the current content above reflects the previous repair attempt.
+Build on what was previously tried rather than starting from scratch.
+
 Repair intent is strict:
 1. Patch only what is needed to fix the reported failure.
 2. Preserve this scene's topic and planned meaning.
@@ -35,6 +38,7 @@ Repair intent is strict:
 4. Keep SCRIPT key exactly `SCRIPT["{{narration_key}}"]`.
 5. Do not inject unrelated branding/topics/project names.
 6. Do NOT include `with self.voiceover(...)` in repaired body output. The scaffold already owns that wrapper.
+7. Use `tracker.duration` in timing expressions (`run_time=` and/or `self.wait(...)`) so animation timing stays synced with narration.
 
 Output exactly one JSON object with required field `scene_body`.
 No explanations, no markdown/code fences, no XML.
