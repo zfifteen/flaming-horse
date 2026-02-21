@@ -190,6 +190,26 @@ def _is_non_empty(value: Any) -> bool:
     return True
 
 
+def _fix_invalid_json_escapes(text: str) -> str:
+    """
+    Fix common invalid escape sequences in JSON-like text from LLM output.
+
+    Handles:
+    - \\' (backslash-escaped single quote) -> valid escaped quote or just '
+    - \\" (backslash-escaped double quote) -> valid escaped quote or just "
+    - Normalizes other common issues
+    """
+    # LLM may output \' inside strings - convert to valid '
+    # Also handle \\"  and other common escape issues
+    result = text
+    # Replace \' with ' (valid in Python strings, needs to be valid JSON)
+    result = result.replace("\\'", "'")
+    result = result.replace('\\"', '"')
+    # Handle any remaining backslash issues at end of strings
+    result = re.sub(r'\\+$', lambda m: m.group(0).replace('\\', ''), result)
+    return result
+
+
 def extract_json_block(
     text: str, required_keys: Optional[List[str]] = None
 ) -> Optional[str]:
@@ -223,6 +243,22 @@ def extract_json_block(
         except json.JSONDecodeError:
             continue
 
+    # If no candidates found and we have required_keys, try fixing common
+    # escape issues in the text and retry (handles LLM output with \' etc.)
+    if not candidates and required_keys:
+        fixed_text = _fix_invalid_json_escapes(text)
+        if fixed_text != text:  # Only retry if we actually fixed something
+            for idx, ch in enumerate(fixed_text):
+                if ch != "{":
+                    continue
+                try:
+                    obj, _ = decoder.raw_decode(fixed_text[idx:])
+                    if isinstance(obj, dict):
+                        if all(k in obj for k in required_keys):
+                            candidates.append((len(obj), obj))
+                except json.JSONDecodeError:
+                    continue
+
     if not candidates:
         return None
 
@@ -238,8 +274,13 @@ def extract_json_block(
         if valid_candidates:
             selected_obj = max(valid_candidates, key=lambda x: x[0])[1]
         else:
-            # Fall back to the original behavior: choose largest by key count
-            selected_obj = max(candidates, key=lambda x: x[0])[1]
+            # Fall back to the largest candidate by key count, even if it lacks
+            # required keys. This handles cases where model output has JSON errors
+            # (e.g., invalid escapes) that prevent full parsing.
+            if candidates:
+                selected_obj = max(candidates, key=lambda x: x[0])[1]
+            else:
+                return None
     else:
         selected_obj = max(candidates, key=lambda x: x[0])[1]
 
@@ -619,7 +660,7 @@ def extract_scene_body_from_full_file(code: str) -> Optional[str]:
 def _extract_scene_body_from_json_response(response_text: str, phase: str) -> str:
     """Extract and validate `scene_body` from strict JSON phase payload."""
     cleaned_response = strip_harness_preamble(response_text)
-    json_text = extract_json_block(cleaned_response)
+    json_text = extract_json_block(cleaned_response, required_keys=["scene_body"])
     if not json_text:
         raise SchemaValidationError("no valid top-level JSON object found")
 
@@ -732,7 +773,7 @@ def parse_scene_qc_response(
         (list of (filename, code) tuples, report markdown or None)
     """
     cleaned_response = strip_harness_preamble(response_text)
-    json_text = extract_json_block(cleaned_response)
+    json_text = extract_json_block(cleaned_response, required_keys=["report_markdown"])
     if not json_text:
         raise SchemaValidationError("no valid top-level JSON object found")
     try:

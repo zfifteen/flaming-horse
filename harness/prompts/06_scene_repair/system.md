@@ -39,22 +39,16 @@ line1 = Line(LEFT * 3, RIGHT * 3)
 line2 = Line(LEFT * 2, RIGHT * 2)
 ```
 
-### ManimColor error with numpy
-**Wrong:** `color=greens[0]` (might be numpy array)
-**Right:** Use built-in colors: `color=GREEN` or `color=harmonious_color(GREEN, variations=3)[0]`
+### Color Rule (MANDATORY)
+**Always use hex strings for all colors.** Manim accepts hex directly.
 
-### harmonious_color() missing required argument
-**Wrong:** `color=harmonious_color` (bare function reference)
-**Wrong:** `Arrow(..., color=harmonious_color, ...)` (forgot to call the function)
-**Right:** `palette = harmonious_color(BLUE, variations=3); Arrow(..., color=palette[0], ...)`
-**Right:** `circle.set_fill(harmonious_color(GREEN)[0])`
+**Wrong:** `color=BLUE`, `color=GREEN`, `color=BROWN`
+**Right:** `color="#0000FF"`, `color="#00FF00"`, `color="#8B4513"`
 
-The function signature is:
-```python
-harmonious_color(base_color, variations=3, lightness_shift=0.1)
-# Returns: list of RGBA color arrays
-```
-Always call it with at least the `base_color` argument (e.g., `BLUE`, `GREEN`, `RED`).
+**Wrong:** `harmonious_color(BLUE, variations=3)` (returns float arrays, causes TypeError)
+**Right:** Use hex strings directly: `color="#1A5F7A"` for variations, manually specify each
+
+For color variations, hardcode specific hex values rather than using helper functions.
 
 ## NO LOOPS - NEVER USE LOOPS IN SCENE BODY
 
@@ -63,11 +57,6 @@ Always call it with at least the `base_color` argument (e.g., `BLUE`, `GREEN`, `
 These helpers are available in the scaffold. Use them correctly:
 
 ```python
-# harmonious_color(base_color, variations=3, lightness_shift=0.1) -> List[RGBA]
-# Generate color palette from base color
-palette = harmonious_color(BLUE, variations=3)
-circle.set_fill(palette[0])
-
 # safe_position(mobject, max_y=3.8, min_y=-3.8, max_x=7.5, min_x=-7.5, buff=0.2) -> mobject
 # Clamp mobject to frame bounds after positioning
 label.next_to(circle, DOWN)

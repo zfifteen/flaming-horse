@@ -2,40 +2,39 @@
 
 ## Phase: `plan`
 
-**Goal:** Generate comprehensive video plan from project requirements
+**Goal:** Generate video plan from project requirements using the active harness contract.
 
 **Actions:**
 1. Read `topic` from `project_state.json` and analyze project topic + target audience
-2. Break content into logical scenes (typically 3-8 scenes). If the user did not provide one, ALWAYS generate a final, 
-   recap scene that summarizes and re-states the content of the video.
-3. Estimate narration word count (150 words/minute speaking pace)
-4. Flag animation complexity and risks
-5. For non-math topics, plan scenes as explainer slides with progressive bullet structure and evolving diagrams/timelines
+2. Break content into logical scenes (default 12-24 scenes, 20-45 seconds per scene, total 480-960 seconds unless user topic overrides)
+3. ALWAYS generate a final recap scene that summarizes and re-states the content of the video
+4. For non-math topics, plan scenes as explainer slides with progressive bullet structure and evolving diagrams/timelines
+5. Ensure scene visuals are concrete and reference Manim CE mobject classes without assuming external image/SVG assets
 
 **Output:** `plan.json`
 
 ```json
 {
   "title": "Video Title",
-  "topic_summary": "Brief description",
-  "target_audience": "Target viewers",
-  "estimated_duration_seconds": 180,
-  "total_estimated_words": 450,
+  "description": "Brief description",
+  "target_duration_seconds": 600,
   "scenes": [
     {
-      "id": "scene_01_intro",
       "title": "Introduction",
-      "narration_key": "intro",
-      "narration_summary": "Hook and topic introduction",
-      "estimated_words": 75,
-      "estimated_duration": "30s",
-      "animations": ["Write title", "FadeIn graphic"],
-      "complexity": "low",
-      "risk_flags": []
+      "description": "What this scene teaches and shows",
+      "estimated_duration_seconds": 30,
+      "visual_ideas": [
+        "Create a Text mobject for the title and center it near the top of the frame.",
+        "Use a NumberLine mobject below the title to introduce progression through the topic."
+      ]
     }
   ]
 }
 ```
+
+Notes:
+- The harness assigns `id` and `narration_key` deterministically by scene order.
+- `plan.title` and `plan.scenes` are the required parse keys; additional fields are allowed but optional.
 
 **State Update:**
 ```python
@@ -48,25 +47,11 @@ state['phase'] = 'review'
 
 ## Phase: `review`
 
-**Goal:** Validate plan for technical feasibility
+**Goal:** Deterministic structural gate before narration (currently stubbed in harness prompt layer).
 
-**Actions:**
-1. Check narrative flow and coherence
-2. Verify animation feasibility (avoid unsupported Manim features)
-3. Estimate accurate timing per scene
-4. Flag high-risk scenes
-
-**Validation Checks:**
-- ✅ Scene progression is logical
-- ✅ 3D is allowed and often preferred when it improves clarity/engagement; flag only if unusually complex (camera rotations, heavy surfaces, many moving objects)
-- ✅ No custom mobject definitions without clear implementation
-- ✅ Timing allows for both narration + animation
-- ⚠️ Flag scenes with >5 simultaneous objects
-- ⚠️ Flag scenes requiring bookmark synchronization
-- ✅ For non-math topics, each scene plan should imply continuous motion (new visual state every ~1.5-3s) and avoid sparse placeholder visuals
-
-**Quality Scoring (New):**
-Compute score = 10 - (risk_flags * 1.5) + (3d_used ? 2 : 0). If <7, suggest simplifications (e.g., "Reduce to 2D for scene X").
+**Current behavior notes:**
+- Review phase is currently a stub and should not be invoked by the harness CLI prompt.
+- Build orchestration still performs deterministic structural checks (e.g., `plan.json` object shape and non-empty `scenes`) before advancing.
 
 **State Update:**
 - If approved: `state['phase'] = 'narration'`
