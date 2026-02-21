@@ -16,6 +16,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 
 import harness_responses.cli as hr_cli
 import harness_responses.parser as hr_parser
@@ -65,7 +66,7 @@ class TestPlanSchema:
         assert len(plan.scenes) == 9
 
     def test_schema_requires_title(self):
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             PlanResponse(
                 title="",
                 description="desc",
@@ -74,7 +75,7 @@ class TestPlanSchema:
             )
 
     def test_scene_requires_visual_ideas(self):
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             SceneItem(
                 title="Scene",
                 description="desc",

@@ -60,8 +60,8 @@ def _write_failure_diagnostic(
     }
     try:
         diag_path.write_text(json.dumps(diagnostic, indent=2, default=str), encoding="utf-8")
-    except Exception:
-        pass  # Best-effort; don't mask the original error
+    except Exception as write_exc:
+        print(f"⚠️  Could not write failure diagnostic to {diag_path}: {write_exc}")
 
 
 def validate_and_write_plan(
