@@ -632,6 +632,28 @@ def test_build_scenes_parser_accepts_comments_and_dict_literals():
     assert 'style["run_time"]' in parsed_dict
 
 
+def test_build_scenes_parser_preserves_hex_color_literals():
+    response_with_hex_colors = (
+        '{"scene_body":"title = Text(\\"Intro\\", color=\\"#FFFFFF\\")\\n'
+        'accent = Text(\\"Signal\\", color=\\"#00FFFF\\")\\n'
+        'self.play(Write(title), Write(accent))"}'
+    )
+    parsed = parser.parse_build_scenes_response(response_with_hex_colors)
+    assert '#FFFFFF' in parsed
+    assert '#00FFFF' in parsed
+
+
+def test_scene_repair_parser_preserves_latex_text_command():
+    response = (
+        '{"scene_body":"theorem = MathTex(r\\"\\\\text{Conformal maps in } n \\\\geq 3 '
+        '\\\\text{ are M\\\\\\"{o}bius transformations.}\\")\\n'
+        'self.play(Write(theorem))"}'
+    )
+    parsed = parser.parse_scene_repair_response(response)
+    assert "\\text{Conformal maps in }" in parsed
+    assert '\\"{o}' in parsed
+
+
 def test_narration_parser_rejects_placeholder_punctuation():
     bad = '{"script":{"scene_01_intro":"...","scene_02":"Legit narration"}}'
     with pytest.raises(parser.SchemaValidationError):

@@ -43,16 +43,10 @@ SCRIPT["{{narration_key}}"] = {{scene_narration}}
 {{retry_section}}
 
 Output format (mandatory):
-- Output exactly one JSON object.
-- Required field: `scene_body` (non-empty string containing valid Python scene-body code).
+- Output exactly one JSON object with required field `scene_body`
+- The scene_body value is a string containing Python statements separated by \n (backslash-n, NOT double-backslash)
+- Example scene_body value: "title = Text(\"Hello\")\ntitle.move_to(UP * 3)"
 - No Markdown, no code fences, no XML wrappers.
-
-JSON OUTPUT EXAMPLE (copy this format exactly):
-```json
-{"scene_body": "title = Text(\"The Title\", font_size=48)\\ntitle.move_to(UP * 3.8)\\nself.play(Write(title), run_time=min(1.0, tracker.duration * 0.10))"}
-```
-
-Note: Use \\n for newlines inside the JSON string value. Escape quotes with \\".
 
 IMPORTANT: The scene_body string must contain ONLY:
 - Variable assignments (e.g., `title = Text(...)`)
@@ -64,7 +58,7 @@ NEVER include in scene_body:
 - import statements
 - class definitions
 - function definitions
-- comments (# ...)
+- comments (# ...) - THESE BREAK JSON PARSING. DO NOT USE # FOR ANY PURPOSE.
 - config assignments
 - The scaffold already provides everything else.
 

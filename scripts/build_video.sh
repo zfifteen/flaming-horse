@@ -33,6 +33,7 @@ PROJECT_DEFAULT_NAME="${PROJECT_DEFAULT_NAME:-default_video}"
 PHASE_RETRY_LIMIT="${PHASE_RETRY_LIMIT:-3}"
 PHASE_RETRY_BACKOFF_SECONDS="${PHASE_RETRY_BACKOFF_SECONDS:-2}"
 TARGET_PHASE=""
+RERENDER_FINAL=""
 
 PHASE_SEQUENCE=(
   "init"
@@ -57,8 +58,10 @@ export TOKENIZERS_PARALLELISM
 
 usage() {
   cat <<EOF
-Usage: $0 [project_dir] [--topic "<video topic>"] [--phase <target_phase>]
+Usage: $0 [project_dir] [--topic "<video topic>"] [--phase <target_phase>] [--skip-precache] [--rerender-final]
   --phase stops after the specified phase has completed.
+  --skip-precache skips voice precaching, using existing cache (for re-rendering without API calls).
+  --rerender-final resets to precache_voiceovers and forces fresh voice cache generation (no scene regeneration).
 
 Recommended user entrypoint:
   ./scripts/create_video.sh <project_name> --topic "<video topic>" [--phase <target_phase>]
@@ -82,6 +85,7 @@ shift || true
 
 # Optional topic injection (primarily for plan phase)
 TOPIC_OVERRIDE=""
+SKIP_PRECACHE=""
 while [[ ${#} -gt 0 ]]; do
   case "${1}" in
     --topic)
@@ -99,6 +103,14 @@ while [[ ${#} -gt 0 ]]; do
         exit 1
       fi
       shift 2
+      ;;
+    --skip-precache)
+      SKIP_PRECACHE="1"
+      shift
+      ;;
+    --rerender-final)
+      RERENDER_FINAL="1"
+      shift
       ;;
     -h|--help)
       usage >&2
@@ -424,6 +436,77 @@ apply_state_phase() {
     --mode apply \
     --phase "${phase}" \
     >/dev/null
+}
+
+prepare_rerender_final() {
+  [[ -n "${RERENDER_FINAL}" ]] || return 0
+
+  echo "→ --rerender-final enabled; forcing fresh voice cache and restarting from precache_voiceovers." | tee -a "$LOG_FILE"
+
+  local voice_output_dir
+  voice_output_dir=$($PYTHON_BIN - <<PY
+import json
+from pathlib import Path
+
+project_dir = Path("${PROJECT_DIR}")
+output_dir = "media/voiceovers/qwen"
+cfg_path = project_dir / "voice_clone_config.json"
+if cfg_path.exists():
+    try:
+        cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
+    except Exception:
+        cfg = {}
+    candidate = cfg.get("output_dir")
+    if isinstance(candidate, str) and candidate.strip():
+        output_dir = candidate.strip()
+print(str((project_dir / output_dir).resolve()))
+PY
+)
+
+  if [[ -n "${voice_output_dir}" && -d "${voice_output_dir}" ]]; then
+    if [[ "${voice_output_dir}" == "${PROJECT_DIR}"/* ]]; then
+      echo "→ Removing existing voice cache/audio: ${voice_output_dir}" | tee -a "$LOG_FILE"
+      rm -rf "${voice_output_dir}"
+    else
+      echo "❌ Refusing to remove voice cache outside project directory: ${voice_output_dir}" | tee -a "$LOG_FILE" >&2
+      return 1
+    fi
+  fi
+
+  $PYTHON_BIN - <<PY
+import json
+from datetime import datetime, UTC
+
+with open("${STATE_FILE}", "r") as f:
+    state = json.load(f)
+
+state["phase"] = "precache_voiceovers"
+state.setdefault("flags", {})["needs_human_review"] = False
+state["updated_at"] = datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')
+
+errors = state.get("errors", [])
+state["errors"] = [
+    e for e in errors
+    if not (
+        isinstance(e, str)
+        and (
+            e.startswith("precache_voiceovers ")
+            or e.startswith("final_render ")
+            or e.startswith("assemble ")
+            or e.startswith("Assemble ")
+        )
+    )
+]
+
+state.setdefault("history", []).append({
+    "timestamp": state["updated_at"],
+    "phase": "manual_reset",
+    "action": "rerender_final_with_fresh_voice_cache",
+})
+
+with open("${STATE_FILE}", "w") as f:
+    json.dump(state, f, indent=2)
+PY
 }
 
 is_retryable_phase() {
@@ -979,6 +1062,9 @@ PY
 
   export XAI_API_KEY="$XAI_API_KEY"
   export MINIMAX_API_KEY="$MINIMAX_API_KEY"
+  export OLLAMA_API_KEY="${OLLAMA_API_KEY:-}"
+  export OLLAMA_BASE_URL="${OLLAMA_BASE_URL:-http://127.0.0.1:11434/v1}"
+  export OLLAMA_MODEL="${OLLAMA_MODEL:-qwen2.5-coder:7b}"
   export LLM_PROVIDER="$LLM_PROVIDER"
   $PYTHON_BIN -m harness "${harness_args[@]}" \
     > >(tee -a "$LOG_FILE") \
@@ -1630,6 +1716,18 @@ PY
 }
 
 handle_precache_voiceovers() {
+  # Skip entirely if --skip-precache flag is set
+  if [[ -n "${SKIP_PRECACHE}" ]]; then
+    echo "→ --skip-precache enabled; skipping voice precaching phase." | tee -a "$LOG_FILE"
+    if [[ -f "media/voiceovers/qwen/cache.json" ]]; then
+      echo "→ Using existing voice cache." | tee -a "$LOG_FILE"
+      apply_state_phase "precache_voiceovers" || true
+      return 0
+    else
+      echo "⚠ WARNING: No existing voice cache found. Rendering may fail without voice." | tee -a "$LOG_FILE"
+      return 0
+    fi
+  fi
   echo "🎙️  Precaching voiceovers (backend: ${FLAMING_HORSE_TTS_BACKEND:-qwen})..." | tee -a "$LOG_FILE"
   cd "$PROJECT_DIR"
   if [[ ! -f "voice_clone_config.json" ]]; then
@@ -1990,7 +2088,8 @@ PY
   cd "$PROJECT_DIR"
 
   # Ensure voice cache exists (precache step). If missing, generate it now.
-  if [[ ! -f "media/voiceovers/qwen/cache.json" ]]; then
+  # Skip this check if --skip-precache flag is set.
+  if [[ -z "${SKIP_PRECACHE}" && ! -f "media/voiceovers/qwen/cache.json" ]]; then
     echo "→ Missing voice cache index; running precache step..." | tee -a "$LOG_FILE"
     if ! handle_precache_voiceovers; then
       echo "❌ Precaching voiceovers failed; cannot render." | tee -a "$LOG_FILE" >&2
@@ -2002,12 +2101,14 @@ with open("${STATE_FILE}", "r") as f:
     state = json.load(f)
 state.setdefault("errors", []).append("final_render failed: precache_voiceovers failed")
 state.setdefault("flags", {})["needs_human_review"] = True
-state["updated_at"] = datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')
+state["updated_at"] = datetime.now(UTC).strftime('%Y-%m-%dT%SZ')
 with open("${STATE_FILE}", "w") as f:
     json.dump(state, f, indent=2)
 PY
       exit 1
     fi
+  elif [[ -n "${SKIP_PRECACHE}" ]]; then
+    echo "→ --skip-precache enabled; using existing voice cache if available." | tee -a "$LOG_FILE"
   fi
 
   # Best-effort repair: ensure scene metadata needed for rendering exists.
@@ -2838,6 +2939,10 @@ main() {
   echo "📁 Project: $PROJECT_DIR" | tee -a "$LOG_FILE"
   echo "⏰ Started: $(date)" | tee -a "$LOG_FILE"
   echo "════════════════════════════════════════════════════════════════" | tee -a "$LOG_FILE"
+
+  if ! prepare_rerender_final; then
+    exit 1
+  fi
   
   if [[ -n "${TARGET_PHASE}" ]]; then
     local start_phase

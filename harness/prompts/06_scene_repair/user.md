@@ -59,3 +59,5 @@ REJECTION RULE:
 
 Output exactly one JSON object with required field `scene_body`.
 No explanations, no markdown/code fences, no XML.
+
+🚫 CRITICAL: Never use `#` comments in scene_body - they break JSON parsing.
