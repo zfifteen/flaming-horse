@@ -148,6 +148,14 @@ def test_apply_plan_reads_plan_json() -> None:
         require(state["phase"] == "review", "plan should advance to review")
         require(len(state["scenes"]) == 1, "scenes not populated")
         require(
+            state["scenes"][0]["id"] == "scene_01",
+            "scene id should be script-generated, not LLM-provided",
+        )
+        require(
+            state["scenes"][0]["narration_key"] == "scene_01",
+            "narration key should be script-generated, not LLM-provided",
+        )
+        require(
             state["scenes"][0]["status"] == "pending", "scene status should be pending"
         )
 
@@ -222,13 +230,142 @@ def test_apply_build_scenes_marks_built() -> None:
             "class_name not inferred",
         )
         require(
-            state["phase"] == "final_render",
-            "single scene should advance to final_render",
+            state["phase"] == "scene_qc",
+            "single scene should advance to scene_qc",
         )
         require(
             "build_scenes incomplete: expected scene_01_intro.py not found"
             not in state["errors"],
             "stale build_scenes incomplete error not cleared",
+        )
+
+
+def test_apply_narration_stays_when_script_missing_scene_keys() -> None:
+    with tempfile.TemporaryDirectory() as d:
+        tmp = Path(d)
+        project_dir = make_project_dir(tmp)
+
+        write_state_raw(
+            project_dir,
+            json.dumps(
+                {
+                    "project_name": "x",
+                    "topic": "t",
+                    "phase": "narration",
+                    "created_at": "t",
+                    "updated_at": "t",
+                    "run_count": 0,
+                    "plan_file": "plan.json",
+                    "narration_file": None,
+                    "voice_config_file": None,
+                    "scenes": [
+                        {"id": "scene_01", "title": "One", "narration_key": "scene_01"},
+                        {"id": "scene_02", "title": "Two", "narration_key": "scene_02"},
+                    ],
+                    "current_scene_index": 0,
+                    "errors": [],
+                    "history": [],
+                    "flags": {
+                        "needs_human_review": False,
+                        "dry_run": False,
+                        "force_replan": False,
+                    },
+                },
+                indent=2,
+            ),
+        )
+        (project_dir / "narration_script.py").write_text(
+            'SCRIPT = {"scene_01": "hello"}\n', encoding="utf-8"
+        )
+
+        cp = run(
+            "--project-dir",
+            str(project_dir),
+            "--mode",
+            "apply",
+            "--phase",
+            "narration",
+        )
+        require(cp.returncode == 0, f"apply narration failed: {cp.stderr}")
+        state = read_state(project_dir)
+        require(state["phase"] == "narration", "phase should remain narration")
+        require(
+            state["flags"]["needs_human_review"] is False,
+            "missing narration keys should be retryable",
+        )
+        require(
+            any(
+                isinstance(err, str)
+                and err.startswith("narration failed: missing SCRIPT entries")
+                for err in state["errors"]
+            ),
+            "missing key error should be recorded",
+        )
+
+
+def test_apply_narration_advances_when_script_has_all_scene_keys() -> None:
+    with tempfile.TemporaryDirectory() as d:
+        tmp = Path(d)
+        project_dir = make_project_dir(tmp)
+
+        write_state_raw(
+            project_dir,
+            json.dumps(
+                {
+                    "project_name": "x",
+                    "topic": "t",
+                    "phase": "narration",
+                    "created_at": "t",
+                    "updated_at": "t",
+                    "run_count": 0,
+                    "plan_file": "plan.json",
+                    "narration_file": None,
+                    "voice_config_file": None,
+                    "scenes": [
+                        {"id": "scene_01", "title": "One", "narration_key": "scene_01"},
+                        {"id": "scene_02", "title": "Two", "narration_key": "scene_02"},
+                    ],
+                    "current_scene_index": 0,
+                    "errors": ["narration failed: missing SCRIPT entries for keys: scene_02"],
+                    "history": [],
+                    "flags": {
+                        "needs_human_review": True,
+                        "dry_run": False,
+                        "force_replan": False,
+                    },
+                },
+                indent=2,
+            ),
+        )
+        (project_dir / "narration_script.py").write_text(
+            'SCRIPT = {"scene_01": "hello", "scene_02": "world"}\n', encoding="utf-8"
+        )
+
+        cp = run(
+            "--project-dir",
+            str(project_dir),
+            "--mode",
+            "apply",
+            "--phase",
+            "narration",
+        )
+        require(cp.returncode == 0, f"apply narration failed: {cp.stderr}")
+        state = read_state(project_dir)
+        require(state["phase"] == "build_scenes", "narration should advance to build_scenes")
+        require(
+            state["narration_file"] == "narration_script.py",
+            "narration_file should be set",
+        )
+        require(
+            state["flags"]["needs_human_review"] is False,
+            "successful narration should clear human review flag",
+        )
+        require(
+            not any(
+                isinstance(err, str) and err.startswith("narration failed:")
+                for err in state["errors"]
+            ),
+            "narration failure errors should be cleared after success",
         )
 
 
@@ -240,6 +377,8 @@ def main() -> int:
         test_normalize_restores_missing_flags,
         test_apply_plan_reads_plan_json,
         test_apply_build_scenes_marks_built,
+        test_apply_narration_stays_when_script_missing_scene_keys,
+        test_apply_narration_advances_when_script_has_all_scene_keys,
     ]
 
     for t in tests:

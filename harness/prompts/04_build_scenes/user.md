@@ -1,10 +1,11 @@
 Task: Generate exactly ONE scene body for this run.
 
 Scene ID: {{scene_id}}
-Scene file: {{scene_file_name}}
 Scene class: {{scene_class_name}}
 Narration key: {{narration_key}}
 Title (exact text): {{scene_title}}
+
+File naming/path selection is orchestrator-owned; do not produce or reason about filenames.
 
 Scene details:
 {{scene_details}}
@@ -143,6 +144,69 @@ Hard rule:
 - Maintain visible spacing between stacked text blocks (`buff >= 0.25` with `next_to`).
 - Never place two text objects at the same coordinates.
 - Keep one focal text element in the center band at a time.
+
+## Mandatory Readability Self-Check (Return JSON only if all are TRUE)
+
+Before finalizing `scene_body`, verify all checks:
+
+- [ ] Every `.next_to(...)` call is immediately followed by `safe_position(...)` for that mobject.
+- [ ] Every visible sibling group (2+ elements) is passed through `safe_layout(...)`.
+- [ ] Every long `Text(...)` has `.set_max_width(...)` or `clamp_text_width(...)`.
+- [ ] No `.arrange(...)` is called on `Text` or `MathTex`.
+- [ ] No two text blocks share the same center band region.
+- [ ] No text/diagram is outside the visible frame.
+- [ ] Left, center, and right content bands do not overlap.
+- [ ] Scene remains readable at normal playback speed.
+
+REJECTION RULE:
+- If any checkbox is false, do not output the current draft.
+- Revise scene_body until all checks are true, then output final JSON.
+
+### Known Failure Patterns (Do Not Repeat)
+
+Pattern A: Center equation collides with right bullets
+Wrong:
+```python
+main_eq = MathTex(r"S=\\frac{Q}{T}").move_to(UP*1.5)
+bullet1 = Text("Entropy increases...", font_size=20).move_to(RIGHT*3.2 + UP*1.0)
+```
+Right:
+```python
+main_eq = MathTex(r"S=\\frac{Q}{T}", font_size=64).move_to(UP*1.9)
+bullet1 = Text("Entropy increases with heat transfer", font_size=18)
+bullet1.set_max_width(4.4)
+bullet1.move_to(RIGHT*5.0 + UP*1.1)
+safe_position(main_eq)
+safe_position(bullet1)
+```
+
+Pattern B: Left bullets and right diagram collide in same vertical band
+Wrong:
+```python
+bullet1.move_to(LEFT*4.5 + UP*1.0)
+hot_object.move_to(RIGHT*3.5 + DOWN*0.5)
+equation.move_to(UP*1.2)
+```
+Right:
+```python
+equation.move_to(UP*2.0); safe_position(equation)
+bullet1.move_to(LEFT*5.0 + UP*0.8); bullet1.set_max_width(4.6); safe_position(bullet1)
+hot_object.move_to(RIGHT*4.9 + DOWN*0.4); safe_position(hot_object)
+```
+
+Pattern C: Vertical character stacking from Text.arrange
+Wrong:
+```python
+bullet_tail = Text("likelihood of higher entropy states", font_size=20)
+bullet_tail.arrange(DOWN, aligned_edge=LEFT)
+```
+Right:
+```python
+bullet_a = Text("Irreversible processes are driven by", font_size=20).set_max_width(6.0)
+bullet_b = Text("statistical likelihood of higher entropy states", font_size=20).set_max_width(6.0)
+bullet_pair = VGroup(bullet_a, bullet_b).arrange(DOWN, aligned_edge=LEFT, buff=0.12)
+safe_layout(bullet_pair)
+```
 
 Required structural pattern (must compile exactly as Python block structure):
 ```python

@@ -1681,7 +1681,7 @@ state = json.load(open("${STATE_FILE}", "r"))
 idx = int(state.get("current_scene_index") or 0)
 scenes = state.get("scenes") or []
 if not isinstance(scenes, list) or idx >= len(scenes):
-    print("||||")
+    print("__NO_SCENE__||||")
     raise SystemExit(0)
 
 scene = scenes[idx] if isinstance(scenes[idx], dict) else {}
@@ -1697,6 +1697,13 @@ PY
 
   local scene_id scene_file scene_class narration_key
   IFS='|' read -r scene_id scene_file scene_class narration_key <<< "$scene_meta"
+
+  if [[ "$scene_id" == "__NO_SCENE__" ]]; then
+    echo "ℹ No remaining scenes to build; advancing state deterministically." | tee -a "$LOG_FILE"
+    normalize_state_json || true
+    apply_state_phase "build_scenes" || true
+    return 0
+  fi
 
   narration_key="$(get_scene_narration_key "$scene_id")"
   if [[ -z "$narration_key" ]]; then
@@ -2556,8 +2563,92 @@ PY
       > >(tee -a "$LOG_FILE") \
       2> >(tee -a "$LOG_FILE" >&2); then
       echo "✗ QC FAILED! Video has quality issues." | tee -a "$LOG_FILE"
-      $PYTHON_BIN <<PYEOF
+      if $PYTHON_BIN <<PYEOF
 import json
+import subprocess
+from datetime import datetime, UTC
+from pathlib import Path
+
+state_path = Path('${STATE_FILE}')
+project_dir = Path('${PROJECT_DIR}')
+ratio_threshold = 0.90
+
+with state_path.open('r', encoding='utf-8') as f:
+    state = json.load(f)
+
+def ffprobe_duration(path: Path, audio_only: bool = False):
+    cmd = [
+        'ffprobe',
+        '-v', 'error',
+        '-show_entries', 'format=duration',
+        '-of', 'default=noprint_wrappers=1:nokey=1',
+    ]
+    if audio_only:
+        cmd.extend(['-select_streams', 'a:0', '-show_entries', 'stream=duration'])
+    cmd.append(str(path))
+    try:
+        out = subprocess.run(cmd, capture_output=True, text=True, check=True).stdout.strip()
+    except Exception:
+        return None
+    if not out:
+        return None
+    for line in out.splitlines():
+        line = line.strip()
+        if not line or line == 'N/A':
+            continue
+        try:
+            value = float(line)
+            if value > 0:
+                return value
+        except Exception:
+            continue
+    return None
+
+scenes = state.get('scenes') if isinstance(state.get('scenes'), list) else []
+failing_index = None
+failing_scene_id = None
+failing_ratio = None
+
+for i, scene in enumerate(scenes):
+    if not isinstance(scene, dict):
+        continue
+    scene_id = str(scene.get('id') or '').strip()
+    scene_class = str(scene.get('class_name') or '').strip()
+    if not scene_id or not scene_class:
+        continue
+    video_path = project_dir / 'media' / 'videos' / scene_id / '1440p60' / f'{scene_class}.mp4'
+    if not video_path.exists():
+        continue
+    v = ffprobe_duration(video_path, audio_only=False)
+    a = ffprobe_duration(video_path, audio_only=True)
+    if not v or not a:
+        continue
+    ratio = a / v
+    if ratio < ratio_threshold:
+        failing_index = i
+        failing_scene_id = scene_id
+        failing_ratio = ratio
+        break
+
+if failing_index is not None:
+    state['phase'] = 'build_scenes'
+    state['current_scene_index'] = failing_index
+    state.setdefault('flags', {})['needs_human_review'] = False
+    state.setdefault('history', []).append({
+        'timestamp': datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ'),
+        'phase': 'assemble',
+        'action': 'qc_sync_failure_routed_to_build_scenes',
+        'scene_id': failing_scene_id,
+        'ratio': round(float(failing_ratio), 3),
+    })
+    state.setdefault('errors', []).append(
+        f'Assemble QC detected audio/video sync issue in {failing_scene_id}; rerouting to build_scenes index {failing_index}'
+    )
+    with state_path.open('w', encoding='utf-8') as f:
+        json.dump(state, f, indent=2)
+    print(f'↻ Routed QC failure to build_scenes at {failing_scene_id} (index {failing_index})')
+    raise SystemExit(0)
+
 with open('${STATE_FILE}', 'r') as f:
     state = json.load(f)
 state['phase'] = 'error'
@@ -2566,7 +2657,11 @@ state['flags']['needs_human_review'] = True
 with open('${STATE_FILE}', 'w') as f:
     json.dump(state, f, indent=2)
 PYEOF
-      return 1
+      then
+        return 0
+      else
+        return 1
+      fi
     fi
     echo "✓ QC passed!" | tee -a "$LOG_FILE"
   else
@@ -2613,7 +2708,11 @@ run_phase_once() {
     final_render) handle_final_render ;;
     assemble) handle_assemble ;;
     complete) handle_complete ;;
-    *) echo "❌ Unknown phase: $phase" >&2; rc=1 ;;
+    *)
+      echo "❌ Unknown phase: $phase" >&2
+      set -e
+      return 1
+      ;;
   esac
   rc=$?
   set -e
@@ -2825,11 +2924,11 @@ while true; do
         if [[ $attempt -ge $PHASE_RETRY_LIMIT ]]; then
           echo "❌ Phase $current_phase failed after ${PHASE_RETRY_LIMIT} attempts. Marking for human review." | tee -a "$LOG_FILE"
           log_error_event "$current_phase" "phase failed after retry budget exhausted" "$attempt" "$PHASE_RETRY_LIMIT"
+          mark_retry_exhausted "$current_phase"
         else
           echo "❌ Phase $current_phase failed at attempt ${attempt}/${PHASE_RETRY_LIMIT}. Marking for human review." | tee -a "$LOG_FILE"
           log_error_event "$current_phase" "phase failed and requested human review" "$attempt" "$PHASE_RETRY_LIMIT"
         fi
-        mark_retry_exhausted "$current_phase"
       else
         echo "❌ Phase $current_phase failed (non-agent phase)." | tee -a "$LOG_FILE"
         log_error_event "$current_phase" "non-agent phase failure" "$attempt" "$PHASE_RETRY_LIMIT"

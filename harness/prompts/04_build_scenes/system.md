@@ -40,5 +40,18 @@ If any Kitchen Sink example conflicts with this color rule, this color rule wins
 **Wrong:** `x_label = axes.get_x_axis_label("x", font_size=24)` - font_size is NOT a valid parameter
 **Right:** `x_label = axes.get_x_axis_label("x")` then position with `.set(font_size=24)`
 
+## Hard Layout Contract (Non-Negotiable)
+
+Your output is invalid unless it satisfies ALL of the following:
+
+1. After every `.next_to(...)`, immediately call `safe_position(...)` on that same mobject.
+2. For any `VGroup` containing 2+ visible sibling elements, call `safe_layout(...)` on those siblings.
+3. Every long `Text(...)` line must be width-bounded via `.set_max_width(...)` or `clamp_text_width(...)`.
+4. Never call `.arrange(...)` on `Text` or `MathTex` objects (this causes character-level stacking). Use `VGroup(...).arrange(...)` only.
+5. Keep left-column text, center equation band, and right-column visuals in non-overlapping regions.
+6. If space is tight, reduce element count; never trade readability for density.
+
+If any rule above cannot be satisfied, simplify the scene and still satisfy all rules.
+
 Authoritative guidance (kitchen sink):
 {{kitchen_sink}}
