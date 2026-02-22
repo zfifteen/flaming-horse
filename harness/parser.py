@@ -195,18 +195,15 @@ def _fix_invalid_json_escapes(text: str) -> str:
     Fix common invalid escape sequences in JSON-like text from LLM output.
 
     Handles:
-    - \\' (backslash-escaped single quote) -> valid escaped quote or just '
-    - \\" (backslash-escaped double quote) -> valid escaped quote or just "
-    - Normalizes other common issues
+    - \\' (backslash-escaped single quote) -> plain '
+    - Trailing backslashes at end of the text that often break JSON decoding
     """
-    # LLM may output \' inside strings - convert to valid '
-    # Also handle \\"  and other common escape issues
+    # LLM may output \' inside strings - convert to valid JSON by using a plain '
     result = text
-    # Replace \' with ' (valid in Python strings, needs to be valid JSON)
+    # Replace \' with ' (\' is not a standard JSON escape)
     result = result.replace("\\'", "'")
-    result = result.replace('\\"', '"')
-    # Handle any remaining backslash issues at end of strings
-    result = re.sub(r'\\+$', lambda m: m.group(0).replace('\\', ''), result)
+    # Handle any remaining backslash issues at end of strings by stripping them
+    result = re.sub(r'\\+$', "", result)
     return result
 
 
