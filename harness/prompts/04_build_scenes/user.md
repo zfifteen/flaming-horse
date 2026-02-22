@@ -1,256 +1,114 @@
-Task: Generate exactly ONE scene body for this run.
+## Purpose
+Generate exactly ONE scene body for the specified scene.
 
-Scene ID: {{scene_id}}
-Scene class: {{scene_class_name}}
-Narration key: {{narration_key}}
-Title (exact text): {{scene_title}}
+## Inputs
+- Scene ID: {{scene_id}}
+- Scene class: {{scene_class_name}}
+- Narration key: {{narration_key}}
+- Title (exact text): {{scene_title}}
+- Scene details: {{scene_details}}
+- Narration (use via SCRIPT key): `SCRIPT["{{narration_key}}"] = {{scene_narration}}`
 
 File naming/path selection is orchestrator-owned; do not produce or reason about filenames.
 
-Scene details:
-{{scene_details}}
+## Narration Timing Budget
 
-Narration text (must be used via SCRIPT key):
-SCRIPT["{{narration_key}}"] = {{scene_narration}}
----
-## Narration Timing Estimate (Use This To Pace The Scene)
+- Word count: `{{narration_word_count}}`
+- Speech rate: `{{speech_wpm}} WPM`
+- Estimated duration: `{{estimated_duration_text}}` (`{{estimated_duration_seconds}}s`)
 
-- Narration word count: `{{narration_word_count}}`
-- Speech-rate baseline: `{{speech_wpm}} WPM` (normal speech)
-- Estimated narration duration: `{{estimated_duration_text}}` (`{{estimated_duration_seconds}}s`)
+**Timing rules:**
+1. Treat `{{estimated_duration_seconds}}s` as the narration timing budget.
+2. Total projected time (all run_time + all wait) MUST NOT exceed `tracker.duration * 0.95`.
+3. Use `tracker.duration` in ALL timing expressions — example: `run_time=min(1.0, tracker.duration * 0.10)`, `self.wait(max(0.2, tracker.duration * 0.03))`.
+4. NEVER use standalone literal timing values unscaled by `tracker.duration` (e.g., `run_time=2` is forbidden; `run_time=min(1.0, tracker.duration * 0.10)` is required).
+5. Keep a consistent cadence: introduce or evolve visual state every ~1.5–3 seconds.
+6. Do not clear all non-title elements before narration ends.
+7. Use transitions (Transform, FadeTransform) instead of full-frame clears.
+8. If scene overruns, simplify visuals; if it underruns, extend with visual evolution.
 
-### Timing Requirements
+## Required Output Format
+- Return exactly one JSON object with required field `scene_body`
+- `scene_body` is a string of Python statements separated by `\n`
+- Example: `"title = Text(\"Hello\")\ntitle.move_to(UP * 3)"`
+- No Markdown, no code fences, no XML wrappers
 
-1. Treat `{{estimated_duration_seconds}}s` as the scene timing budget for narration-synced visuals.
-2. **MAX TIMING CONSTRAINT**: Sum of all `run_time=` values must be <= `tracker.duration * 0.85`. Total wait time must be <= `tracker.duration * 0.15`. Total projected time MUST NOT exceed `tracker.duration * 0.95`.
-3. Pace animation sequence so visible content remains meaningful from start to end of narration.
-4. Do not clear all non-title elements before narration ends.
-5. Use transitions (`Transform`, `FadeTransform`, anchored crossfades) instead of full-frame clears.
-6. Keep a consistent cadence: introduce or evolve visual state every ~1.5-3 seconds.
-7. If the scene overruns the estimate, simplify visuals (fewer elements, shorter transitions) instead of rushing text readability.
-8. If the scene underruns the estimate, extend with meaningful visual evolution (diagram progression, highlight passes, or recap callouts), not dead air.
-9. Keep text reveal/readability constraints intact.
-10. Every scene-body must use `tracker.duration` in timing expressions (`run_time=` and/or `self.wait(...)`) to stay narration-synced.
+## What scene_body MUST contain
+- Variable assignments
+- `self.play(...)` calls
+- `self.wait(...)` calls
+- Method calls on mobjects
 
-### Self-Check Before Output
+## What scene_body MUST NOT contain
+- `import` statements (scaffold provides these)
+- `class` or `def` definitions
+- `# comments` — THESE BREAK JSON PARSING
+- `config` assignments
+- `with self.voiceover(...)` — scaffold already owns this wrapper
+- `self.add(...)` for first-time visible reveals (use `self.play(...)` instead)
+- `.to_edge(UP)` for titles/labels
+- `random` module usage — use deterministic hardcoded values only
+- `play_next(...)` or `play_text_next(...)`
 
-- [ ] Planned visual timeline approximately matches `{{estimated_duration_seconds}}s`
-- [ ] No long black/near-empty tail while narration is still speaking
-- [ ] At least one meaningful visual cluster remains visible until the narration ends
-- [ ] Read the Manim MObjects reference carefully and ensure only valid MObjects syntax is used: https://docs.manim.community/en/stable/reference_index/mobjects.html 
+## Hard Rules
+
+**Voice (CRITICAL):**
+- Use ONLY `SCRIPT["{{narration_key}}"]` for narration — DO NOT hardcode narration text
+- The scaffold provides `flaming_horse_voice` — do NOT import or configure TTS
+
+**Timing:**
+- NEVER use standalone literal timing values unscaled by `tracker.duration` (e.g., `run_time=2` is forbidden)
+- Always scale to `tracker.duration`: `run_time=min(1.2, tracker.duration * 0.15)`
+- Every scene body MUST reference `tracker.duration` in timing expressions
+
+**Positioning (CRITICAL):**
+- Title MUST use: `title = Text("{{scene_title}}", font_size=48, weight=BOLD)` then `.move_to(UP * 3.8)`
+- After every `.next_to(...)` call, immediately call `safe_position(...)` on the same mobject
+- For every VGroup with 2+ visible siblings, call `safe_layout(...)` on those siblings
+- Every long `Text(...)` must use `.set_max_width(...)` or `clamp_text_width(...)`
+- NEVER call `.arrange(...)` on `Text` or `MathTex` objects
+
+**Colors:**
+- ALWAYS use hex color strings: `color="#0000FF"` not `color=BLUE`
+- If Kitchen Sink examples use named colors, this hex rule wins
+
+**Geometry:**
+- For Polygon: pass vertices as individual args — `Polygon(v1, v2, v3)` or `Polygon(*verts)`
+- NEVER: `Polygon([v1, v2, v3])` (list form causes errors)
+
+**Content:**
+- Keep content inside the visible frame boundaries (x: ±7, y: ±4)
+- Maintain visible spacing between stacked text (buff >= 0.25 with next_to)
+- NEVER overlap text at the same coordinates
+
+**LaTeX:**
+- Use `MathTex(r"... \times ...")` (single backslash in raw string)
+- Use `MathTex` for equations, `Tex` for formatted text only
+
+**Axis Labels:**
+- CORRECT: `x_label = axes.get_x_axis_label("x")` then `.set(font_size=24)`
+- WRONG: `axes.get_x_axis_label("x", font_size=24)` — font_size is not a valid parameter
 
 {{reference_section}}
 {{retry_section}}
 
-Output format (mandatory):
-- Output exactly one JSON object with required field `scene_body`
-- The scene_body value is a string containing Python statements separated by \n (backslash-n, NOT double-backslash)
-- Example scene_body value: "title = Text(\"Hello\")\ntitle.move_to(UP * 3)"
-- No Markdown, no code fences, no XML wrappers.
+## Self-Check Before Returning JSON
 
-IMPORTANT: The scene_body string must contain ONLY:
-- Variable assignments (e.g., `title = Text(...)`)
-- self.play() calls
-- self.wait() calls
-- Method calls on mobjects
+- [ ] All `.next_to(...)` calls immediately followed by `safe_position(...)`
+- [ ] All visible sibling groups (2+) passed through `safe_layout(...)`
+- [ ] All long `Text(...)` width-bounded with `.set_max_width(...)` or `clamp_text_width(...)`
+- [ ] No `.arrange(...)` on `Text` or `MathTex`
+- [ ] No two text blocks at the same center coordinates
+- [ ] No text or diagram outside visible frame
+- [ ] Left, center, and right content bands do not overlap
+- [ ] All timing expressions use `tracker.duration` — no literal values
+- [ ] No `#` comments in scene_body (they break JSON parsing)
+- [ ] Narration accessed via `SCRIPT["{{narration_key}}"]` only
+- [ ] Planned visual timeline ~matches `{{estimated_duration_seconds}}s`
+- [ ] At least one meaningful visual remains visible until narration ends
+- [ ] scene_body is valid Python (no imports, classes, or functions)
 
-NEVER include in scene_body:
-- import statements
-- class definitions
-- function definitions
-- comments (# ...) - THESE BREAK JSON PARSING. DO NOT USE # FOR ANY PURPOSE.
-- config assignments
-- The scaffold already provides everything else.
+**REJECTION RULE:** If any check is false, revise scene_body until all checks pass, then return JSON.
 
-Hard requirements:
-1. Output must be valid Python and compile as a scene-body block.
-2. Use this exact narration key: `SCRIPT["{{narration_key}}"]`.
-3. Do NOT add `with self.voiceover(...)` in your output. The scaffold already provides it.
-4. Use `self.play(...)` for visual reveals/transitions.
-5. Title text must exactly match: `{{scene_title}}`.
-6. Keep content specific to this scene only.
-7. Return only statements intended to run inside the existing voiceover block.
-8. Do not use tabs; use spaces only.
-9. Return JSON only, not fenced Python code blocks.
-10. This code runs inside `def construct(self):` - only statements valid inside a method (assignments, self.play(), etc.)
-11. Do NOT use the `random` module - use deterministic values (e.g., fixed indices or predefined sequences)
-12. Include `tracker.duration` in timing math. CRITICAL: Total projected time = sum(all run_time=) + sum(all wait values). This MUST be <= tracker.duration * 0.95. Example: `run_time=min(1.0, tracker.duration * 0.10)` and `self.wait(max(0.2, tracker.duration * 0.03))`.
-13. **GEOMETRY RULE (CRITICAL)**: For Polygon, Line, and similar shapes with vertices, you MUST unpack the list or pass individual args. Manim expects: `Polygon(v1, v2, v3)` or `Polygon(*[v1, v2, v3])`. NEVER: `Polygon([v1, v2, v3])`. Use simple shapes like Circle, Rectangle, Square instead of complex Polygon when possible.
-14. CAREFULLY consider the placement of text and objects inside the boundaries of the video frame.
-15. ENSURE no text or objects are drawn outside the video frame.
-16. DO NOT overlap text or objects in the same place, as they will render unreadable.
-
-### Layout and Overlap Examples (MANDATORY)
-
-Example 1: Center-stack text collision
-- Wrong:
-```python
-title = Text("Entropy", font_size=48).move_to(UP * 1.0)
-subtitle = Text("A measure of disorder", font_size=30).move_to(UP * 1.0)
-self.play(Write(title), Write(subtitle))
-```
-- Right:
-```python
-title = Text("Entropy", font_size=48).move_to(UP * 2.8)
-subtitle = Text("A measure of disorder", font_size=30).next_to(title, DOWN, buff=0.35)
-self.play(Write(title))
-self.play(Write(subtitle))
-```
-
-Example 2: Label colliding with diagram
-- Wrong:
-```python
-box = Rectangle(width=4.5, height=2.5).move_to(DOWN * 0.5)
-label = Text("Low Entropy", font_size=30).move_to(box.get_center())
-self.play(Create(box), Write(label))
-```
-- Right:
-```python
-box = Rectangle(width=4.5, height=2.5).move_to(DOWN * 0.5)
-label = Text("Low Entropy", font_size=30).next_to(box, UP, buff=0.25)
-self.play(Create(box))
-self.play(Write(label))
-```
-
-Example 3: Left/right panels intruding into center text band
-- Wrong:
-```python
-left_text = Text("Low Entropy: Ordered", font_size=28).move_to(LEFT * 2.0 + DOWN * 0.3)
-right_text = Text("High Entropy: Disordered", font_size=28).move_to(RIGHT * 2.0 + DOWN * 0.3)
-center_text = Text("Time flow = entropy increase", font_size=28).move_to(DOWN * 0.3)
-self.play(Write(left_text), Write(right_text), Write(center_text))
-```
-- Right:
-```python
-left_text = Text("Low Entropy: Ordered", font_size=22).move_to(LEFT * 3.8 + DOWN * 1.5)
-right_text = Text("High Entropy: Disordered", font_size=22).move_to(RIGHT * 3.8 + DOWN * 1.5)
-center_text = Text("Time flow = entropy increase", font_size=24).move_to(DOWN * 0.2)
-
-left_text.set_max_width(4.2)
-right_text.set_max_width(4.2)
-center_text.set_max_width(6.0)
-
-self.play(Write(left_text), Write(right_text))
-self.play(Write(center_text))
-```
-
-Hard rule:
-- Maintain visible spacing between stacked text blocks (`buff >= 0.25` with `next_to`).
-- Never place two text objects at the same coordinates.
-- Keep one focal text element in the center band at a time.
-
-## Mandatory Readability Self-Check (Return JSON only if all are TRUE)
-
-Before finalizing `scene_body`, verify all checks:
-
-- [ ] Every `.next_to(...)` call is immediately followed by `safe_position(...)` for that mobject.
-- [ ] Every visible sibling group (2+ elements) is passed through `safe_layout(...)`.
-- [ ] Every long `Text(...)` has `.set_max_width(...)` or `clamp_text_width(...)`.
-- [ ] No `.arrange(...)` is called on `Text` or `MathTex`.
-- [ ] No two text blocks share the same center band region.
-- [ ] No text/diagram is outside the visible frame.
-- [ ] Left, center, and right content bands do not overlap.
-- [ ] Scene remains readable at normal playback speed.
-
-REJECTION RULE:
-- If any checkbox is false, do not output the current draft.
-- Revise scene_body until all checks are true, then output final JSON.
-
-### Known Failure Patterns (Do Not Repeat)
-
-Pattern A: Center equation collides with right bullets
-Wrong:
-```python
-main_eq = MathTex(r"S=\\frac{Q}{T}").move_to(UP*1.5)
-bullet1 = Text("Entropy increases...", font_size=20).move_to(RIGHT*3.2 + UP*1.0)
-```
-Right:
-```python
-main_eq = MathTex(r"S=\\frac{Q}{T}", font_size=64).move_to(UP*1.9)
-bullet1 = Text("Entropy increases with heat transfer", font_size=18)
-bullet1.set_max_width(4.4)
-bullet1.move_to(RIGHT*5.0 + UP*1.1)
-safe_position(main_eq)
-safe_position(bullet1)
-```
-
-Pattern B: Left bullets and right diagram collide in same vertical band
-Wrong:
-```python
-bullet1.move_to(LEFT*4.5 + UP*1.0)
-hot_object.move_to(RIGHT*3.5 + DOWN*0.5)
-equation.move_to(UP*1.2)
-```
-Right:
-```python
-equation.move_to(UP*2.0); safe_position(equation)
-bullet1.move_to(LEFT*5.0 + UP*0.8); bullet1.set_max_width(4.6); safe_position(bullet1)
-hot_object.move_to(RIGHT*4.9 + DOWN*0.4); safe_position(hot_object)
-```
-
-Pattern C: Vertical character stacking from Text.arrange
-Wrong:
-```python
-bullet_tail = Text("likelihood of higher entropy states", font_size=20)
-bullet_tail.arrange(DOWN, aligned_edge=LEFT)
-```
-Right:
-```python
-bullet_a = Text("Irreversible processes are driven by", font_size=20).set_max_width(6.0)
-bullet_b = Text("statistical likelihood of higher entropy states", font_size=20).set_max_width(6.0)
-bullet_pair = VGroup(bullet_a, bullet_b).arrange(DOWN, aligned_edge=LEFT, buff=0.12)
-safe_layout(bullet_pair)
-```
-
-Required structural pattern (must compile exactly as Python block structure):
-```python
-title = Text("{{scene_title}}", font_size=48, weight=BOLD)
-title.move_to(UP * 3.8)
-self.play(Write(title))
-self.play(...)
-self.play(...)
-self.wait(...)
-```
-
-Allowed API subset:
-- `self.play(...)`, `self.wait(...)`
-- `Text`, `MathTex`, `Tex`, `VGroup`, standard Manim primitives
-- `safe_position`, `safe_layout`, `polished_fade_in`
-- `FadeIn`, `FadeOut`, `Create`, `Transform`, `LaggedStart`, `Write`
-
-### Color Rule (MANDATORY)
-**Always use hex strings for all colors.** Manim accepts hex directly.
-
-**Wrong:** `color=BLUE`, `color=GREEN`, `color=BROWN`
-**Right:** `color="#0000FF"`, `color="#00FF00"`, `color="#8B4513"`
-
-For color variations, hardcode specific hex values rather than using helper functions.
-
-Geometry construction rule (CRITICAL):
-- For Polygon and similar shapes, pass vertices as INDIVIDUAL arguments, NOT as a list:
-  - CORRECT: `Polygon(RIGHT * 3 + DOWN, LEFT * 3 + DOWN, UP * 2)`
-  - CORRECT: `Polygon(*[RIGHT * 3 + DOWN, LEFT * 3 + DOWN, UP * 2])`
-  - WRONG: `Polygon([RIGHT * 3 + DOWN, LEFT * 3 + DOWN, UP * 2])`
-- For complex positions, use explicit tuple coordinates: `Polygon((3, -1, 0), (3.8, -1, 0), (3.4, 0.5, 0))`
-
-Forbidden:
-- `play_next(...)`, `play_text_next(...)`
-- `self.add(...)` for first-time visible content
-- `from ... import` or `import ...` statements - do NOT include imports in scene_body
-- `random` module usage (`random.choice`, `random.randint`, `random.random`, etc.) - use deterministic values only
-- class definitions, config blocks, helper function definitions
-- unresolved placeholders like `{{...}}`
-- `.to_edge(UP)` for titles/labels
-- `self.set_background_color(...)` - DOES NOT EXIST in Manim. Use `config.background_color = BLACK` in a config section instead (NOT in scene_body).
-- `self.camera.set_background(...)` - NOT needed, background is handled by config
-
-MathTex rule:
-- Use `MathTex(r"... \times ...")` (single backslash command in raw string), not `\\times`.
-
-Final output rule:
-- Return only one JSON object containing `scene_body` and no extra text.
-
-+ HARD CONSTRAINT: scene_body must contain ONLY statements valid inside
-+ a `construct(self)` method body. NEVER include: import statements,
-+ class definitions, function definitions (def), or config/scaffold
-+ markers. The scaffold already provides these. Violation = instant rejection.
+## Failure Behavior
+If the scene plan is too complex to satisfy all rules, simplify the visual content (fewer elements, simpler geometry) rather than violating any hard rule. Return working minimal scene body rather than a complex broken one.

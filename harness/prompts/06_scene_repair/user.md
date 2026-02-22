@@ -1,63 +1,83 @@
-Please repair this scene file that failed to render.
+## Purpose
+Repair a broken Manim scene that failed to render.
 
-**Current Scene ID**: {{scene_id}}
-**Expected Class Name**: {{scene_class_name}}
-**Expected Narration Key**: {{narration_key}}
-**Expected Title (Exact Match Required)**: {{scene_title}}
-
-File naming/path selection is orchestrator-owned; do not produce or reason about filenames.
-
-**Scene Details from Plan**:
+## Inputs
+- Scene ID: {{scene_id}}
+- Class name: {{scene_class_name}}
+- Narration key: {{narration_key}}
+- Title (exact match required): {{scene_title}}
+- Scene details:
 ```json
 {{scene_details}}
 ```
-
-**Current Scene Narration** (`SCRIPT["{{narration_key}}"]`):
+- Narration (`SCRIPT["{{narration_key}}"]`):
 ```text
 {{scene_narration}}
 ```
-
-**File**: {{broken_file_name}}
-
-**Current Content**:
+- Broken file: {{broken_file_name}}
+- Current content:
 ```python
 {{broken_file_content}}
 ```
-
-**Error**:
+- Error:
 ```
 {{retry_context}}
 ```
 
-If this is a retry, the current content above reflects the previous repair attempt.
-Build on what was previously tried rather than starting from scratch.
+File naming/path selection is orchestrator-owned; do not produce or reason about filenames.
 
-Repair intent is strict:
-1. Patch only what is needed to fix the reported failure.
-2. Preserve this scene's topic and planned meaning.
-3. Keep title text exactly `{{scene_title}}`.
-4. Keep SCRIPT key exactly `SCRIPT["{{narration_key}}"]`.
-5. Do not inject unrelated branding/topics/project names.
-6. Do NOT include `with self.voiceover(...)` in repaired body output. The scaffold already owns that wrapper.
-7. Use `tracker.duration` in timing expressions (`run_time=` and/or `self.wait(...)`) so animation timing stays synced with narration.
+If this is a retry, build on the previous repair attempt rather than starting from scratch.
 
-## Mandatory Repair Validation Checklist
+## Required Output
+Return exactly one JSON object with required field `scene_body`.
+- `scene_body`: non-empty string of Python scene-body statements only
+- No imports, no class, no config — only statements valid inside `construct(self)`
+- No `#` comments — they break JSON parsing
+- No markdown, no code fences, no XML
+- Do NOT include `with self.voiceover(...)` — scaffold owns that wrapper
 
-Your repaired `scene_body` must satisfy ALL:
+## Hard Rules
 
-- [ ] All `.next_to(...)` usages are followed by `safe_position(...)`.
-- [ ] All 2+ sibling visible groups use `safe_layout(...)`.
-- [ ] Long text is width-bounded (`.set_max_width(...)` or `clamp_text_width(...)`).
-- [ ] No `.arrange(...)` called on `Text` or `MathTex`.
-- [ ] No text-text or text-diagram overlap in the same region.
-- [ ] No off-frame content.
-- [ ] Scene remains semantically faithful to narration.
+**Repair scope:**
+1. Patch ONLY what is needed to fix the reported failure
+2. Preserve this scene's topic and planned meaning
+3. Keep title text exactly: `{{scene_title}}`
+4. Keep narration key exactly: `SCRIPT["{{narration_key}}"]`
+5. Do NOT inject unrelated branding, topics, or project names
 
-REJECTION RULE:
-- Do not output repaired JSON until every check is true.
-- If conflicts remain, reduce scene complexity and retry.
+**Voice (CRITICAL):**
+- Narration MUST use `SCRIPT["{{narration_key}}"]` — no hardcoded text
+- NEVER import or configure any TTS service (Qwen TTS is scaffold-owned)
 
-Output exactly one JSON object with required field `scene_body`.
-No explanations, no markdown/code fences, no XML.
+**Timing:**
+- Use `tracker.duration` in timing expressions: `run_time=min(1.0, tracker.duration * 0.10)`
+- NEVER use standalone literal timing values unscaled by `tracker.duration` (e.g., `run_time=2` is forbidden)
 
-🚫 CRITICAL: Never use `#` comments in scene_body - they break JSON parsing.
+**Positioning:**
+- After every `.next_to(...)`: immediately call `safe_position(...)`
+- For every 2+ visible sibling group: call `safe_layout(...)`
+- Long text: `.set_max_width(...)` or `clamp_text_width(...)`
+- NEVER call `.arrange(...)` on `Text` or `MathTex`
+- No text-text or text-diagram overlap in same region
+- No off-frame content
+
+**No loops in scene body** — write elements explicitly.
+
+## Repair Validation Checklist
+
+- [ ] All `.next_to(...)` usages followed by `safe_position(...)`
+- [ ] All 2+ sibling visible groups use `safe_layout(...)`
+- [ ] Long text is width-bounded
+- [ ] No `.arrange(...)` on `Text` or `MathTex`
+- [ ] No text-text or text-diagram overlap
+- [ ] No off-frame content
+- [ ] Narration accessed via `SCRIPT["{{narration_key}}"]` only
+- [ ] All timing uses `tracker.duration` — no literals
+- [ ] No `#` comments in scene_body
+- [ ] Scene semantically faithful to narration
+- [ ] Original error addressed
+
+**REJECTION RULE:** Do not output repaired JSON until every check is true. If conflicts remain, reduce scene complexity and retry.
+
+## Failure Behavior
+If the original error cannot be fixed while preserving the scene plan, simplify the visual content to its minimal semantically-faithful form that renders without errors.

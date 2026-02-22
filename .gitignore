@@ -32,3 +32,4 @@ __pycache__/
 
 # Generated harness E2E artifacts
 projects/e2e_test_harness_*/
+projects/testvideo/
