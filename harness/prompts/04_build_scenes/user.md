@@ -85,6 +85,65 @@ Hard requirements:
 15. ENSURE no text or objects are drawn outside the video frame.
 16. DO NOT overlap text or objects in the same place, as they will render unreadable.
 
+### Layout and Overlap Examples (MANDATORY)
+
+Example 1: Center-stack text collision
+- Wrong:
+```python
+title = Text("Entropy", font_size=48).move_to(UP * 1.0)
+subtitle = Text("A measure of disorder", font_size=30).move_to(UP * 1.0)
+self.play(Write(title), Write(subtitle))
+```
+- Right:
+```python
+title = Text("Entropy", font_size=48).move_to(UP * 2.8)
+subtitle = Text("A measure of disorder", font_size=30).next_to(title, DOWN, buff=0.35)
+self.play(Write(title))
+self.play(Write(subtitle))
+```
+
+Example 2: Label colliding with diagram
+- Wrong:
+```python
+box = Rectangle(width=4.5, height=2.5).move_to(DOWN * 0.5)
+label = Text("Low Entropy", font_size=30).move_to(box.get_center())
+self.play(Create(box), Write(label))
+```
+- Right:
+```python
+box = Rectangle(width=4.5, height=2.5).move_to(DOWN * 0.5)
+label = Text("Low Entropy", font_size=30).next_to(box, UP, buff=0.25)
+self.play(Create(box))
+self.play(Write(label))
+```
+
+Example 3: Left/right panels intruding into center text band
+- Wrong:
+```python
+left_text = Text("Low Entropy: Ordered", font_size=28).move_to(LEFT * 2.0 + DOWN * 0.3)
+right_text = Text("High Entropy: Disordered", font_size=28).move_to(RIGHT * 2.0 + DOWN * 0.3)
+center_text = Text("Time flow = entropy increase", font_size=28).move_to(DOWN * 0.3)
+self.play(Write(left_text), Write(right_text), Write(center_text))
+```
+- Right:
+```python
+left_text = Text("Low Entropy: Ordered", font_size=22).move_to(LEFT * 3.8 + DOWN * 1.5)
+right_text = Text("High Entropy: Disordered", font_size=22).move_to(RIGHT * 3.8 + DOWN * 1.5)
+center_text = Text("Time flow = entropy increase", font_size=24).move_to(DOWN * 0.2)
+
+left_text.set_max_width(4.2)
+right_text.set_max_width(4.2)
+center_text.set_max_width(6.0)
+
+self.play(Write(left_text), Write(right_text))
+self.play(Write(center_text))
+```
+
+Hard rule:
+- Maintain visible spacing between stacked text blocks (`buff >= 0.25` with `next_to`).
+- Never place two text objects at the same coordinates.
+- Keep one focal text element in the center band at a time.
+
 Required structural pattern (must compile exactly as Python block structure):
 ```python
 title = Text("{{scene_title}}", font_size=48, weight=BOLD)
@@ -137,4 +196,3 @@ Final output rule:
 + a `construct(self)` method body. NEVER include: import statements,
 + class definitions, function definitions (def), or config/scaffold
 + markers. The scaffold already provides these. Violation = instant rejection.
-

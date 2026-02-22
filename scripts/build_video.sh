@@ -193,7 +193,9 @@ write_heartbeat() {
   local ts
   local tmp_file
   ts="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-  tmp_file="${HEARTBEAT_FILE}.$$"
+  # Use a unique temp file per writer/process to avoid collisions
+  # between the parent shell and background heartbeat loop.
+  tmp_file="$(mktemp "${HEARTBEAT_FILE}.tmp.XXXXXX")"
   {
     echo "timestamp_utc=${ts}"
     echo "pid=$$"
@@ -458,6 +460,7 @@ attempt = int("${attempt}")
 limit = int("${PHASE_RETRY_LIMIT}")
 state_path = Path("${STATE_FILE}")
 log_path = Path("${LOG_FILE}")
+debug_response_path = Path("${PROJECT_DIR}") / "log" / f"debug_response_{phase}.txt"
 
 state_error = "(none)"
 if state_path.exists():
@@ -523,6 +526,12 @@ print()
 print("Most recent state error:")
 print(state_error)
 print()
+if "Schema validation failed" in state_error:
+    print("Schema-failure guidance:")
+    print("- The previous response violated strict output/schema or Python-syntax requirements.")
+    print("- Return exactly the required top-level JSON payload and no extra text.")
+    print(f"- Refer to raw model output at: {debug_response_path}")
+    print()
 print("Recent build.log excerpt:")
 for ln in log_excerpt[-220:]:
     print(ln)
@@ -980,23 +989,7 @@ PY
   if [[ $exit_code -ne 0 ]]; then
     echo "❌ Harness invocation failed with exit code: $exit_code" | tee -a "$LOG_FILE"
     if [[ $exit_code -eq 3 ]]; then
-      echo "❌ Schema validation failure detected; stopping phase without retries." | tee -a "$LOG_FILE"
-      $PYTHON_BIN - <<PY
-import json
-from datetime import datetime, UTC
-
-with open("${STATE_FILE}", "r") as f:
-    state = json.load(f)
-
-state.setdefault("errors", []).append(
-    "Schema validation failed in phase ${phase}. See log/debug_response_${phase}.txt for raw model output."
-)
-state.setdefault("flags", {})["needs_human_review"] = True
-state["updated_at"] = datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')
-
-with open("${STATE_FILE}", "w") as f:
-    json.dump(state, f, indent=2)
-PY
+      echo "❌ Schema validation failure detected; phase remains retryable with retry context." | tee -a "$LOG_FILE"
     fi
     return $exit_code
   fi

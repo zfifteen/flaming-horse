@@ -50,6 +50,8 @@ line2 = Line(LEFT * 2, RIGHT * 2)
 
 For color variations, hardcode specific hex values rather than using helper functions.
 
+If any Kitchen Sink example conflicts with this color rule, this color rule wins for scene_repair output.
+
 ## NO LOOPS - NEVER USE LOOPS IN SCENE BODY
 
 ## Helper Function Reference (flaming_horse.scene_helpers)

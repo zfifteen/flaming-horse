@@ -34,6 +34,8 @@ line2 = Line(LEFT * 2, RIGHT * 2)
 **Wrong:** `color=BLUE`, `color=GREEN`, `color=BROWN`
 **Right:** Use hex color values for all colors, not named colors like BLUE.
 
+If any Kitchen Sink example conflicts with this color rule, this color rule wins for build_scenes output.
+
 ### Axis Labels
 **Wrong:** `x_label = axes.get_x_axis_label("x", font_size=24)` - font_size is NOT a valid parameter
 **Right:** `x_label = axes.get_x_axis_label("x")` then position with `.set(font_size=24)`
