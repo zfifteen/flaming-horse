@@ -1,16 +1,16 @@
 phase: review
 
+# This phase is currently a stub and is not LLM-driven in the harness.
+# Structural validation is performed deterministically by the orchestrator before advancing to narration.
+
 inputs:
   - plan_json: project_dir/plan.json
-  - constraints: scene_id(scene_XX_slug), required_fields_present
+  - constraints: required_fields_present, scene_count(12-24)
 
 output:
-  format: markdown_or_text
-  file: review_notes.md
-  required_fields:
-    - plan_valid
-    - issues[]
-    - recommendations[]
+  format: n/a
+  file: n/a
+  required_fields: []
 
 validation:
   requires_plan_json: true

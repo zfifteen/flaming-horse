@@ -4,6 +4,10 @@
 
 **Goal:** Generate Manim scene files one at a time
 
+> **Ownership note:** Steps 1, 2, 5, 6, and 7 below are script-owned (orchestrator handles them
+> deterministically). The agent's sole responsibility is **step 3**: filling in the animation
+> statements inside the scaffolded voiceover block.
+
 **Process:**
 1. Get current scene: `scene = state['scenes'][state['current_scene_index']]`
 2. Scaffold the scene file first using (run from repo root, or use an absolute path):
@@ -21,12 +25,17 @@
    - `scene['file'] = '<scene_id>.py'`
    - `scene['class_name'] = '<SceneClassName>'`
 
-### Pre-Render Validation (New)
-After filling animations, perform a dry-run simulation:
-1. Run `manim -s <scene_file> <SceneClass>` (still render) to generate a frame.
-2. Parse the Manim log for warnings (e.g., grep for "LaTeX" or "collision"). If warnings >0, add to `scene['pre_render_warnings'] = [...]` and flag `needs_human_review`.
-3. For visual overlap check: Use a helper script (e.g., `scripts/validate_layout.py`) to load the scene, position mobjects, and assert no bounding box intersections (e.g., via `mobject.get_bounding_box()` comparisons).
-Update state: `scene['validation_passed'] = True` only if all checks pass.
+### Pre-Render Validation (Script-Owned – Not an Agent Task)
+
+> The following validation steps are performed deterministically by the orchestrator scripts,
+> not by the LLM agent. This section is reference material only; do not instruct agents to run
+> these commands or manage this validation logic.
+
+After scene body is filled, the orchestrator performs a dry-run simulation:
+1. The orchestrator runs `manim -s <scene_file> <SceneClass>` to generate a preview frame.
+2. The Manim log is parsed for warnings (e.g., "LaTeX" or "collision"). Warnings are recorded in `scene['pre_render_warnings']` and trigger a `needs_human_review` flag.
+3. A layout-validation helper (e.g., `scripts/validate_layout.py`) loads the scene, positions mobjects, and asserts no bounding box intersections via `mobject.get_bounding_box()` comparisons.
+`scene['validation_passed']` is set to `True` only if all checks pass.
 
 6. Increment `current_scene_index`
 7. If all scenes built: advance to `final_render`

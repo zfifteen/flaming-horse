@@ -2,6 +2,11 @@
 
 ## Enhanced Visual Helpers
 
+> **Deprecation note – `harmonious_color`:** This function is available in the scaffold but
+> **must not be used in `scene_body` output** (build_scenes or scene_repair phases). It returns
+> RGBA float arrays that cause a `TypeError` when passed directly to Manim color parameters.
+> Use hex color strings instead (e.g., `color="#1A5F7A"`).
+
 Always include these functions in scene files for polished aesthetics:
 
 ```python

@@ -1,10 +1,11 @@
 # Prompt Index
 
-| Phase | Directory | System | User | Notes |
+| phase | Directory | System | User | Notes |
 |---|---|---|---|---|
 | plan | `00_plan` | `system.md` | `user.md` | active |
 | review | `01_review` | `system.md` | `user.md` | stub |
 | narration | `02_narration` | `system.md` | `user.md` | active |
+| training | `03_training` | `system.md` | `user.md` | active (readiness handshake) |
 | build_scenes | `04_build_scenes` | `system.md` | `user.md` | active |
 | scene_qc | `05_scene_qc` | `system.md` | `user.md` | active |
 | scene_repair | `06_scene_repair` | `system.md` | `user.md` | active |

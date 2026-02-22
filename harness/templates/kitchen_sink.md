@@ -29,7 +29,9 @@ All examples below are reference patterns; if any example conflicts with this se
 ```python
 # harmonious_color(base_color, variations=3, lightness_shift=0.1)
 # Returns a list of RGBA color arrays (e.g., [[r, g, b, 1.0], ...])
-# Example:
+# DEPRECATED FOR SCENE_BODY OUTPUT: causes TypeError when passed to Manim color parameters.
+# Use hex color strings instead (e.g., color="#1A5F7A").
+# Example (reference only – do NOT use in build_scenes or scene_repair output):
 palette = harmonious_color(BLUE, variations=3)
 circle.set_fill(palette[0])
 

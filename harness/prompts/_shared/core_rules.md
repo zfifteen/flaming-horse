@@ -79,6 +79,12 @@ The intent of this system is to generate videos from a single prompt without app
 - ✅ **ALWAYS** call `safe_layout(*elements)` on any VGroup with 2+ sibling elements
 - ✅ **ALWAYS** use explicit coordinates: `element.move_to(UP * 2 + LEFT * 3)`
 
+### 8. Timing Ownership (scene_body only)
+- ✅ **ALWAYS** derive timing from `tracker.duration` using proportional fractions (e.g., `run_time=tracker.duration * 0.25`)
+- ❌ **NEVER** hardcode raw second values that are not derived from `tracker.duration` (e.g., `run_time=2.5` on its own is fragile)
+- ❌ **NEVER** compute cumulative timing sums by hand; proportional fractions naturally distribute within the budget
+- ✅ Use `min()`/`max()` guards to keep individual values above 0.2 s and below `tracker.duration` (e.g., `run_time=min(1.0, tracker.duration * 0.25)`)
+
 ---
 
 ## 🎨 VISUAL QUALITY RULES
