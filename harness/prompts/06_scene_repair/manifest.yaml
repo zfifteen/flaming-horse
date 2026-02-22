@@ -9,13 +9,11 @@ inputs:
   - exclude: unrelated_scenes, full_pipeline_doc
 
 output:
-  format: python_only
-  file: "<broken_scene_file>"
+  format: json_object
+  payload:
+    scene_body: "<repaired_python_scene_body_only>"
   required_fields:
-    - preserves_template_contract
-    - fixes_reported_error
-    - VoiceoverScene subclass
-    - SCRIPT[narration_key] usage
+    - scene_body
 
 validation:
   python_syntax_valid: true

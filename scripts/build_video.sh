@@ -33,6 +33,7 @@ PROJECT_DEFAULT_NAME="${PROJECT_DEFAULT_NAME:-default_video}"
 PHASE_RETRY_LIMIT="${PHASE_RETRY_LIMIT:-3}"
 PHASE_RETRY_BACKOFF_SECONDS="${PHASE_RETRY_BACKOFF_SECONDS:-2}"
 TARGET_PHASE=""
+RERENDER_FINAL=""
 
 PHASE_SEQUENCE=(
   "init"
@@ -57,8 +58,10 @@ export TOKENIZERS_PARALLELISM
 
 usage() {
   cat <<EOF
-Usage: $0 [project_dir] [--topic "<video topic>"] [--phase <target_phase>]
+Usage: $0 [project_dir] [--topic "<video topic>"] [--phase <target_phase>] [--skip-precache] [--rerender-final]
   --phase stops after the specified phase has completed.
+  --skip-precache skips voice precaching, using existing cache (for re-rendering without API calls).
+  --rerender-final resets to precache_voiceovers and forces fresh voice cache generation (no scene regeneration).
 
 Recommended user entrypoint:
   ./scripts/create_video.sh <project_name> --topic "<video topic>" [--phase <target_phase>]
@@ -82,6 +85,7 @@ shift || true
 
 # Optional topic injection (primarily for plan phase)
 TOPIC_OVERRIDE=""
+SKIP_PRECACHE=""
 while [[ ${#} -gt 0 ]]; do
   case "${1}" in
     --topic)
@@ -99,6 +103,14 @@ while [[ ${#} -gt 0 ]]; do
         exit 1
       fi
       shift 2
+      ;;
+    --skip-precache)
+      SKIP_PRECACHE="1"
+      shift
+      ;;
+    --rerender-final)
+      RERENDER_FINAL="1"
+      shift
       ;;
     -h|--help)
       usage >&2
@@ -424,6 +436,77 @@ apply_state_phase() {
     --mode apply \
     --phase "${phase}" \
     >/dev/null
+}
+
+prepare_rerender_final() {
+  [[ -n "${RERENDER_FINAL}" ]] || return 0
+
+  echo "→ --rerender-final enabled; forcing fresh voice cache and restarting from precache_voiceovers." | tee -a "$LOG_FILE"
+
+  local voice_output_dir
+  voice_output_dir=$($PYTHON_BIN - <<PY
+import json
+from pathlib import Path
+
+project_dir = Path("${PROJECT_DIR}")
+output_dir = "media/voiceovers/qwen"
+cfg_path = project_dir / "voice_clone_config.json"
+if cfg_path.exists():
+    try:
+        cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
+    except Exception:
+        cfg = {}
+    candidate = cfg.get("output_dir")
+    if isinstance(candidate, str) and candidate.strip():
+        output_dir = candidate.strip()
+print(str((project_dir / output_dir).resolve()))
+PY
+)
+
+  if [[ -n "${voice_output_dir}" && -d "${voice_output_dir}" ]]; then
+    if [[ "${voice_output_dir}" == "${PROJECT_DIR}"/* ]]; then
+      echo "→ Removing existing voice cache/audio: ${voice_output_dir}" | tee -a "$LOG_FILE"
+      rm -rf "${voice_output_dir}"
+    else
+      echo "❌ Refusing to remove voice cache outside project directory: ${voice_output_dir}" | tee -a "$LOG_FILE" >&2
+      return 1
+    fi
+  fi
+
+  $PYTHON_BIN - <<PY
+import json
+from datetime import datetime, UTC
+
+with open("${STATE_FILE}", "r") as f:
+    state = json.load(f)
+
+state["phase"] = "precache_voiceovers"
+state.setdefault("flags", {})["needs_human_review"] = False
+state["updated_at"] = datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')
+
+errors = state.get("errors", [])
+state["errors"] = [
+    e for e in errors
+    if not (
+        isinstance(e, str)
+        and (
+            e.startswith("precache_voiceovers ")
+            or e.startswith("final_render ")
+            or e.startswith("assemble ")
+            or e.startswith("Assemble ")
+        )
+    )
+]
+
+state.setdefault("history", []).append({
+    "timestamp": state["updated_at"],
+    "phase": "manual_reset",
+    "action": "rerender_final_with_fresh_voice_cache",
+})
+
+with open("${STATE_FILE}", "w") as f:
+    json.dump(state, f, indent=2)
+PY
 }
 
 is_retryable_phase() {
@@ -979,6 +1062,9 @@ PY
 
   export XAI_API_KEY="$XAI_API_KEY"
   export MINIMAX_API_KEY="$MINIMAX_API_KEY"
+  export OLLAMA_API_KEY="${OLLAMA_API_KEY:-}"
+  export OLLAMA_BASE_URL="${OLLAMA_BASE_URL:-http://127.0.0.1:11434/v1}"
+  export OLLAMA_MODEL="${OLLAMA_MODEL:-qwen2.5-coder:7b}"
   export LLM_PROVIDER="$LLM_PROVIDER"
   $PYTHON_BIN -m harness "${harness_args[@]}" \
     > >(tee -a "$LOG_FILE") \
@@ -1630,6 +1716,18 @@ PY
 }
 
 handle_precache_voiceovers() {
+  # Skip entirely if --skip-precache flag is set
+  if [[ -n "${SKIP_PRECACHE}" ]]; then
+    echo "→ --skip-precache enabled; skipping voice precaching phase." | tee -a "$LOG_FILE"
+    if [[ -f "media/voiceovers/qwen/cache.json" ]]; then
+      echo "→ Using existing voice cache." | tee -a "$LOG_FILE"
+      apply_state_phase "precache_voiceovers" || true
+      return 0
+    else
+      echo "⚠ WARNING: No existing voice cache found. Rendering may fail without voice." | tee -a "$LOG_FILE"
+      return 0
+    fi
+  fi
   echo "🎙️  Precaching voiceovers (backend: ${FLAMING_HORSE_TTS_BACKEND:-qwen})..." | tee -a "$LOG_FILE"
   cd "$PROJECT_DIR"
   if [[ ! -f "voice_clone_config.json" ]]; then
@@ -1681,7 +1779,7 @@ state = json.load(open("${STATE_FILE}", "r"))
 idx = int(state.get("current_scene_index") or 0)
 scenes = state.get("scenes") or []
 if not isinstance(scenes, list) or idx >= len(scenes):
-    print("||||")
+    print("__NO_SCENE__||||")
     raise SystemExit(0)
 
 scene = scenes[idx] if isinstance(scenes[idx], dict) else {}
@@ -1697,6 +1795,13 @@ PY
 
   local scene_id scene_file scene_class narration_key
   IFS='|' read -r scene_id scene_file scene_class narration_key <<< "$scene_meta"
+
+  if [[ "$scene_id" == "__NO_SCENE__" ]]; then
+    echo "ℹ No remaining scenes to build; advancing state deterministically." | tee -a "$LOG_FILE"
+    normalize_state_json || true
+    apply_state_phase "build_scenes" || true
+    return 0
+  fi
 
   narration_key="$(get_scene_narration_key "$scene_id")"
   if [[ -z "$narration_key" ]]; then
@@ -1983,7 +2088,8 @@ PY
   cd "$PROJECT_DIR"
 
   # Ensure voice cache exists (precache step). If missing, generate it now.
-  if [[ ! -f "media/voiceovers/qwen/cache.json" ]]; then
+  # Skip this check if --skip-precache flag is set.
+  if [[ -z "${SKIP_PRECACHE}" && ! -f "media/voiceovers/qwen/cache.json" ]]; then
     echo "→ Missing voice cache index; running precache step..." | tee -a "$LOG_FILE"
     if ! handle_precache_voiceovers; then
       echo "❌ Precaching voiceovers failed; cannot render." | tee -a "$LOG_FILE" >&2
@@ -1995,12 +2101,14 @@ with open("${STATE_FILE}", "r") as f:
     state = json.load(f)
 state.setdefault("errors", []).append("final_render failed: precache_voiceovers failed")
 state.setdefault("flags", {})["needs_human_review"] = True
-state["updated_at"] = datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')
+state["updated_at"] = datetime.now(UTC).strftime('%Y-%m-%dT%SZ')
 with open("${STATE_FILE}", "w") as f:
     json.dump(state, f, indent=2)
 PY
       exit 1
     fi
+  elif [[ -n "${SKIP_PRECACHE}" ]]; then
+    echo "→ --skip-precache enabled; using existing voice cache if available." | tee -a "$LOG_FILE"
   fi
 
   # Best-effort repair: ensure scene metadata needed for rendering exists.
@@ -2556,8 +2664,92 @@ PY
       > >(tee -a "$LOG_FILE") \
       2> >(tee -a "$LOG_FILE" >&2); then
       echo "✗ QC FAILED! Video has quality issues." | tee -a "$LOG_FILE"
-      $PYTHON_BIN <<PYEOF
+      if $PYTHON_BIN <<PYEOF
 import json
+import subprocess
+from datetime import datetime, UTC
+from pathlib import Path
+
+state_path = Path('${STATE_FILE}')
+project_dir = Path('${PROJECT_DIR}')
+ratio_threshold = 0.90
+
+with state_path.open('r', encoding='utf-8') as f:
+    state = json.load(f)
+
+def ffprobe_duration(path: Path, audio_only: bool = False):
+    cmd = [
+        'ffprobe',
+        '-v', 'error',
+        '-show_entries', 'format=duration',
+        '-of', 'default=noprint_wrappers=1:nokey=1',
+    ]
+    if audio_only:
+        cmd.extend(['-select_streams', 'a:0', '-show_entries', 'stream=duration'])
+    cmd.append(str(path))
+    try:
+        out = subprocess.run(cmd, capture_output=True, text=True, check=True).stdout.strip()
+    except Exception:
+        return None
+    if not out:
+        return None
+    for line in out.splitlines():
+        line = line.strip()
+        if not line or line == 'N/A':
+            continue
+        try:
+            value = float(line)
+            if value > 0:
+                return value
+        except Exception:
+            continue
+    return None
+
+scenes = state.get('scenes') if isinstance(state.get('scenes'), list) else []
+failing_index = None
+failing_scene_id = None
+failing_ratio = None
+
+for i, scene in enumerate(scenes):
+    if not isinstance(scene, dict):
+        continue
+    scene_id = str(scene.get('id') or '').strip()
+    scene_class = str(scene.get('class_name') or '').strip()
+    if not scene_id or not scene_class:
+        continue
+    video_path = project_dir / 'media' / 'videos' / scene_id / '1440p60' / f'{scene_class}.mp4'
+    if not video_path.exists():
+        continue
+    v = ffprobe_duration(video_path, audio_only=False)
+    a = ffprobe_duration(video_path, audio_only=True)
+    if not v or not a:
+        continue
+    ratio = a / v
+    if ratio < ratio_threshold:
+        failing_index = i
+        failing_scene_id = scene_id
+        failing_ratio = ratio
+        break
+
+if failing_index is not None:
+    state['phase'] = 'build_scenes'
+    state['current_scene_index'] = failing_index
+    state.setdefault('flags', {})['needs_human_review'] = False
+    state.setdefault('history', []).append({
+        'timestamp': datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ'),
+        'phase': 'assemble',
+        'action': 'qc_sync_failure_routed_to_build_scenes',
+        'scene_id': failing_scene_id,
+        'ratio': round(float(failing_ratio), 3),
+    })
+    state.setdefault('errors', []).append(
+        f'Assemble QC detected audio/video sync issue in {failing_scene_id}; rerouting to build_scenes index {failing_index}'
+    )
+    with state_path.open('w', encoding='utf-8') as f:
+        json.dump(state, f, indent=2)
+    print(f'↻ Routed QC failure to build_scenes at {failing_scene_id} (index {failing_index})')
+    raise SystemExit(0)
+
 with open('${STATE_FILE}', 'r') as f:
     state = json.load(f)
 state['phase'] = 'error'
@@ -2566,7 +2758,11 @@ state['flags']['needs_human_review'] = True
 with open('${STATE_FILE}', 'w') as f:
     json.dump(state, f, indent=2)
 PYEOF
-      return 1
+      then
+        return 0
+      else
+        return 1
+      fi
     fi
     echo "✓ QC passed!" | tee -a "$LOG_FILE"
   else
@@ -2613,7 +2809,11 @@ run_phase_once() {
     final_render) handle_final_render ;;
     assemble) handle_assemble ;;
     complete) handle_complete ;;
-    *) echo "❌ Unknown phase: $phase" >&2; rc=1 ;;
+    *)
+      echo "❌ Unknown phase: $phase" >&2
+      set -e
+      return 1
+      ;;
   esac
   rc=$?
   set -e
@@ -2739,6 +2939,10 @@ main() {
   echo "📁 Project: $PROJECT_DIR" | tee -a "$LOG_FILE"
   echo "⏰ Started: $(date)" | tee -a "$LOG_FILE"
   echo "════════════════════════════════════════════════════════════════" | tee -a "$LOG_FILE"
+
+  if ! prepare_rerender_final; then
+    exit 1
+  fi
   
   if [[ -n "${TARGET_PHASE}" ]]; then
     local start_phase
@@ -2825,11 +3029,11 @@ while true; do
         if [[ $attempt -ge $PHASE_RETRY_LIMIT ]]; then
           echo "❌ Phase $current_phase failed after ${PHASE_RETRY_LIMIT} attempts. Marking for human review." | tee -a "$LOG_FILE"
           log_error_event "$current_phase" "phase failed after retry budget exhausted" "$attempt" "$PHASE_RETRY_LIMIT"
+          mark_retry_exhausted "$current_phase"
         else
           echo "❌ Phase $current_phase failed at attempt ${attempt}/${PHASE_RETRY_LIMIT}. Marking for human review." | tee -a "$LOG_FILE"
           log_error_event "$current_phase" "phase failed and requested human review" "$attempt" "$PHASE_RETRY_LIMIT"
         fi
-        mark_retry_exhausted "$current_phase"
       else
         echo "❌ Phase $current_phase failed (non-agent phase)." | tee -a "$LOG_FILE"
         log_error_event "$current_phase" "non-agent phase failure" "$attempt" "$PHASE_RETRY_LIMIT"

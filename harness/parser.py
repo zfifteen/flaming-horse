@@ -203,7 +203,7 @@ def _fix_invalid_json_escapes(text: str) -> str:
     # Replace \' with ' (\' is not a standard JSON escape)
     result = result.replace("\\'", "'")
     # Handle any remaining backslash issues at end of strings by stripping them
-    result = re.sub(r'\\+$', "", result)
+    result = re.sub(r"\\+$", "", result)
     return result
 
 
@@ -369,6 +369,15 @@ def sanitize_code(code: str) -> str:
     Returns:
         Cleaned code
     """
+    # Do not perform blanket escape-sequence rewrites here.
+    # parse_build_scenes/scene_repair call json.loads first, so escape handling
+    # is already resolved. Rewriting can corrupt valid Python/LaTeX strings
+    # (e.g., "\\text" -> tab + "ext", or r"...\\\"..." quote escapes).
+
+    # Do NOT strip '#' comments with regex here.
+    # Scene bodies can legitimately include '#' inside string literals
+    # (e.g., hex colors like "#FFFFFF"), and regex stripping corrupts code.
+
     # Remove HTML/XML-like tags emitted by models while preserving Python
     # comparison operators. We only strip tokens that look like real tags
     # (<tag ...> / </tag>) and never span across newlines.

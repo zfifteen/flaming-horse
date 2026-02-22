@@ -258,7 +258,6 @@ def compose_build_scenes_prompt(
         scene_id = current_scene.get("id", f"scene_{current_index + 1:02d}")
         scene_title = current_scene.get("title", "Unknown")
         narration_key = current_scene.get("narration_key", scene_id)
-        scene_file_name = current_scene.get("file", f"{scene_id}.py")
         scene_class_name = current_scene.get(
             "class_name", scene_id_to_class_name(scene_id)
         )
@@ -273,7 +272,6 @@ def compose_build_scenes_prompt(
         scene_id = f"scene_{current_index + 1:02d}"
         scene_title = "Unknown"
         narration_key = scene_id
-        scene_file_name = f"{scene_id}.py"
         scene_class_name = scene_id_to_class_name(scene_id)
         scene_details = "N/A"
 
@@ -324,7 +322,6 @@ def compose_build_scenes_prompt(
         "user.md",
         {
             "scene_id": scene_id,
-            "scene_file_name": scene_file_name,
             "scene_class_name": scene_class_name,
             "narration_key": narration_key,
             "scene_title": scene_title,
@@ -395,7 +392,6 @@ def compose_scene_repair_prompt(
     scene_title = "Unknown"
     narration_key = scene_id
     scene_class_name = scene_id_to_class_name(scene_id)
-    scene_file_name = scene_file.name
 
     if current_index < len(scenes):
         current_scene = scenes[current_index]
@@ -405,7 +401,6 @@ def compose_scene_repair_prompt(
         scene_class_name = current_scene.get(
             "class_name", scene_id_to_class_name(scene_id)
         )
-        scene_file_name = current_scene.get("file", scene_file_name)
 
     plan_scene = None
     for ps in plan_data.get("scenes", []):
@@ -433,7 +428,6 @@ def compose_scene_repair_prompt(
         "user.md",
         {
             "scene_id": scene_id,
-            "scene_file_name": scene_file_name,
             "scene_class_name": scene_class_name,
             "narration_key": narration_key,
             "scene_title": scene_title,

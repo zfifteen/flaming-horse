@@ -52,6 +52,24 @@ For color variations, hardcode specific hex values rather than using helper func
 
 If any Kitchen Sink example conflicts with this color rule, this color rule wins for scene_repair output.
 
+## Hard Layout Repair Rules
+
+When repairing a scene, treat readability/layout violations as first-class defects.
+
+Required:
+
+1. Preserve narration sync and semantic intent.
+2. Enforce the same layout contract as build_scenes:
+- `safe_position(...)` after `.next_to(...)`
+- `safe_layout(...)` for visible sibling groups
+- width-bounded long text
+- no `.arrange(...)` on `Text`/`MathTex`
+3. Prefer simplification over crowding when conflicts exist.
+4. Keep center equation band and side columns separated.
+5. Never return a runtime-valid but unreadable layout.
+
+If needed, remove non-essential decorative elements to preserve legibility.
+
 ## NO LOOPS - NEVER USE LOOPS IN SCENE BODY
 
 ## Helper Function Reference (flaming_horse.scene_helpers)
