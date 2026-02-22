@@ -2,7 +2,7 @@ phase: plan
 
 inputs:
   - topic: project_state.topic
-  - constraints: scene_count(8-12), scene_duration(20-45), total_duration(240-480)
+  - constraints: scene_count(12-24), scene_duration(20-45), total_duration(480-960)
   - style: non_math => explainer slide visuals
   - exclude: pipeline_overview, voice_policy, scene_codegen_rules
 
@@ -23,6 +23,6 @@ output:
 # The LLM should NOT include these fields in scene objects
 
 validation:
-  scene_count: 8-12
+  scene_count: 12-24
   scene_duration_seconds: 20-45
-  total_duration_seconds: 240-480
+  total_duration_seconds: 480-960
