@@ -1,0 +1,15 @@
+{
+  "title": "Test Video",
+  "description": "A test video",
+  "target_duration_seconds": 600,
+  "scenes": [
+    {
+      "id": "scene_01",
+      "narration_key": "scene_01",
+      "title": "Introduction",
+      "description": "Intro scene",
+      "estimated_duration_seconds": 30,
+      "visual_ideas": ["Use Text mobject for title"]
+    }
+  ]
+}
