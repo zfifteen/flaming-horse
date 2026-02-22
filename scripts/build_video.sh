@@ -32,6 +32,10 @@ PROJECTS_BASE_DIR="${PROJECTS_BASE_DIR:-projects}"
 PROJECT_DEFAULT_NAME="${PROJECT_DEFAULT_NAME:-default_video}"
 PHASE_RETRY_LIMIT="${PHASE_RETRY_LIMIT:-3}"
 PHASE_RETRY_BACKOFF_SECONDS="${PHASE_RETRY_BACKOFF_SECONDS:-2}"
+# FH_HARNESS: selects the harness implementation.
+#   "legacy"    (default) — existing harness/ path via python -m harness
+#   "responses" — new harness_responses/ path via python -m harness_responses
+FH_HARNESS="${FH_HARNESS:-legacy}"
 TARGET_PHASE=""
 
 PHASE_SEQUENCE=(
@@ -960,7 +964,7 @@ PY
   local retry_context_file
   retry_context_file="$(get_retry_context_file "$phase")"
   
-  echo "Using Python harness (${LLM_PROVIDER:-XAI} API)" | tee -a "$LOG_FILE"
+  echo "Using Python harness (${LLM_PROVIDER:-XAI} API, FH_HARNESS=${FH_HARNESS:-legacy})" | tee -a "$LOG_FILE"
 
   local -a harness_args=(
     --phase "$phase"
@@ -980,9 +984,16 @@ PY
   export XAI_API_KEY="$XAI_API_KEY"
   export MINIMAX_API_KEY="$MINIMAX_API_KEY"
   export LLM_PROVIDER="$LLM_PROVIDER"
-  $PYTHON_BIN -m harness "${harness_args[@]}" \
-    > >(tee -a "$LOG_FILE") \
-    2> >(tee -a "$LOG_FILE" >&2)
+  if [[ "${FH_HARNESS:-legacy}" == "responses" ]]; then
+    echo "Using harness_responses (xAI Responses API)" | tee -a "$LOG_FILE"
+    $PYTHON_BIN -m harness_responses "${harness_args[@]}" \
+      > >(tee -a "$LOG_FILE") \
+      2> >(tee -a "$LOG_FILE" >&2)
+  else
+    $PYTHON_BIN -m harness "${harness_args[@]}" \
+      > >(tee -a "$LOG_FILE") \
+      2> >(tee -a "$LOG_FILE" >&2)
+  fi
 
   local exit_code=$?
 
