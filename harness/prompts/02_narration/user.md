@@ -21,3 +21,10 @@ Critical output constraints:
 - Include all scene keys from the plan inside `script` and no extra keys outside `script`.
 - Use valid JSON with double-quoted keys and strings.
 - Output only the JSON object. No markdown, no code fences, no commentary.
+
+### Self-Check Before Output
+
+- [ ] Every scene's `narration_key` from the plan is present as a key inside `script`.
+- [ ] No extra keys exist outside the `script` object.
+- [ ] All narration values are non-empty strings (no placeholders like "..." or "TBD").
+- [ ] Output is a single JSON object `{"script": {...}}` with no markdown or code fences.

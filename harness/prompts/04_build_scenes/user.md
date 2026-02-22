@@ -218,21 +218,6 @@ Allowed API subset:
 - `safe_position`, `safe_layout`, `polished_fade_in`
 - `FadeIn`, `FadeOut`, `Create`, `Transform`, `LaggedStart`, `Write`
 
-### Color Rule (MANDATORY)
-**Always use hex strings for all colors.** Manim accepts hex directly.
-
-**Wrong:** `color=BLUE`, `color=GREEN`, `color=BROWN`
-**Right:** `color="#0000FF"`, `color="#00FF00"`, `color="#8B4513"`
-
-For color variations, hardcode specific hex values rather than using helper functions.
-
-Geometry construction rule (CRITICAL):
-- For Polygon and similar shapes, pass vertices as INDIVIDUAL arguments, NOT as a list:
-  - CORRECT: `Polygon(RIGHT * 3 + DOWN, LEFT * 3 + DOWN, UP * 2)`
-  - CORRECT: `Polygon(*[RIGHT * 3 + DOWN, LEFT * 3 + DOWN, UP * 2])`
-  - WRONG: `Polygon([RIGHT * 3 + DOWN, LEFT * 3 + DOWN, UP * 2])`
-- For complex positions, use explicit tuple coordinates: `Polygon((3, -1, 0), (3.8, -1, 0), (3.4, 0.5, 0))`
-
 Forbidden:
 - `play_next(...)`, `play_text_next(...)`
 - `self.add(...)` for first-time visible content

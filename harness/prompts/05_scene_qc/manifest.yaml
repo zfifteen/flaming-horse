@@ -6,8 +6,10 @@ inputs:
   - constraints: manim_contracts_and_policy_checks
 
 output:
-  format: markdown_only
+  format: json_object
   file: scene_qc_report.md
+  payload:
+    report_markdown: "<markdown string for scene_qc_report.md>"
   required_fields:
     - summary
     - findings[]

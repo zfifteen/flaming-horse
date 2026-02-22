@@ -63,4 +63,14 @@ For non-mathematical topics, default to explainer-slide planning:
 - no generic geometric filler unless directly relevant
 - visible progression every ~1.5–3 seconds
 
+### Self-Check Before Output
+
+- [ ] Scene count is between 12–24.
+- [ ] Each scene has `estimated_duration_seconds` between 20–45.
+- [ ] Total `target_duration_seconds` is between 480–960.
+- [ ] All `visual_ideas` reference Manim CE mobject classes by name.
+- [ ] No `id` or `narration_key` fields are included in scene objects.
+- [ ] No empty fields anywhere in the JSON.
+- [ ] Output is a single JSON object with no markdown or code fences.
+
 Output only the JSON object. No Markdown, no code fences, no commentary.
