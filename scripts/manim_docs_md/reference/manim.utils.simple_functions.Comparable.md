@@ -1,0 +1,10 @@
+<!-- source: https://docs.manim.community/en/stable/reference/manim.utils.simple_functions.Comparable.html -->
+
+# Comparable
+
+Qualified name: `manim.utils.simple\_functions.Comparable`
+
+class Comparable(**args*, ***kwargs*)[[source]](../_modules/manim/utils/simple_functions.html#Comparable)
+:   Bases: `Protocol`
+
+    Methods

@@ -1,0 +1,17 @@
+<!-- source: https://docs.manim.community/en/stable/reference/manim.utils.docbuild.manim_directive.SetupMetadata.html -->
+
+# SetupMetadata
+
+Qualified name: `manim.utils.docbuild.manim\_directive.SetupMetadata`
+
+class SetupMetadata[[source]](../_modules/manim/utils/docbuild/manim_directive.html#SetupMetadata)
+:   Bases: `TypedDict`
+
+    Methods
+
+    Attributes
+
+    |  |  |
+    | --- | --- |
+    | `parallel_read_safe` |  |
+    | `parallel_write_safe` |  |

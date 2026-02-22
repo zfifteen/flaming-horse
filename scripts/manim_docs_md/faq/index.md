@@ -1,0 +1,38 @@
+<!-- source: https://docs.manim.community/en/stable/faq/index.html -->
+
+# Frequently Asked Questions
+
+Table of Contents
+
+- [FAQ: General Usage](general.html)
+  - [Why does Manim say that “there are no scenes inside that module”?](general.html#why-does-manim-say-that-there-are-no-scenes-inside-that-module)
+  - [No matter what code I put in my file, Manim only renders a black frame! Why?](general.html#no-matter-what-code-i-put-in-my-file-manim-only-renders-a-black-frame-why)
+  - [What are the default measurements for Manim’s scene?](general.html#what-are-the-default-measurements-for-manim-s-scene)
+  - [How do I find out which keyword arguments I can pass when creating a `Mobject`?](general.html#how-do-i-find-out-which-keyword-arguments-i-can-pass-when-creating-a-mobject)
+  - [Can Manim render a video with transparent background?](general.html#can-manim-render-a-video-with-transparent-background)
+  - [I have watched a video where a creator ran command X, but it does not work for me. Why?](general.html#i-have-watched-a-video-where-a-creator-ran-command-x-but-it-does-not-work-for-me-why)
+  - [When using `Tex` or `MathTex`, some letters are missing. How can I fix this?](general.html#when-using-tex-or-mathtex-some-letters-are-missing-how-can-i-fix-this)
+  - [I want to translate some code from `manimgl` to `manim`, what do I do with `CONFIG` dictionaries?](general.html#i-want-to-translate-some-code-from-manimgl-to-manim-what-do-i-do-with-config-dictionaries)
+  - [My installation does not support converting PDF to SVG, help?](general.html#my-installation-does-not-support-converting-pdf-to-svg-help)
+  - [Where can I find more resources for learning Manim?](general.html#where-can-i-find-more-resources-for-learning-manim)
+- [FAQ: Getting Help](help.html)
+  - [How do I animate X? Why do I get error Y? Can someone help me?](help.html#how-do-i-animate-x-why-do-i-get-error-y-can-someone-help-me)
+  - [What should I do if nobody answers my question?](help.html#what-should-i-do-if-nobody-answers-my-question)
+  - [The library does not behave as documented, or something broke in a new release. What should I do?](help.html#the-library-does-not-behave-as-documented-or-something-broke-in-a-new-release-what-should-i-do)
+  - [I have an idea for a really cool feature that should be implemented, where should I share my idea?](help.html#i-have-an-idea-for-a-really-cool-feature-that-should-be-implemented-where-should-i-share-my-idea)
+- [FAQ: Installation](installation.html)
+  - [Why are there different versions of Manim?](installation.html#why-are-there-different-versions-of-manim)
+  - [Which version should I use?](installation.html#which-version-should-i-use)
+  - [What are the differences between Manim, ManimGL, ManimCairo? Can I tell for which version a scene was written for?](installation.html#what-are-the-differences-between-manim-manimgl-manimcairo-can-i-tell-for-which-version-a-scene-was-written-for)
+  - [How do I know which version of Manim I have installed?](installation.html#how-do-i-know-which-version-of-manim-i-have-installed)
+  - [I am following the video guide X to install Manim, but some step fails. What do I do?](installation.html#i-am-following-the-video-guide-x-to-install-manim-but-some-step-fails-what-do-i-do)
+  - [Why does ManimPango fail to install when running `pip install manim`?](installation.html#why-does-manimpango-fail-to-install-when-running-pip-install-manim)
+  - [I am using Windows and get the error `X is not recognized as an internal or external command, operable program or batch file`](installation.html#i-am-using-windows-and-get-the-error-x-is-not-recognized-as-an-internal-or-external-command-operable-program-or-batch-file)
+  - [I have tried using Chocolatey (`choco install manimce`) to install Manim, but it failed!](installation.html#i-have-tried-using-chocolatey-choco-install-manimce-to-install-manim-but-it-failed)
+  - [On Windows, when typing `python` or `python3` the Windows store is opened, can I fix this?](installation.html#on-windows-when-typing-python-or-python3-the-windows-store-is-opened-can-i-fix-this)
+  - [I am using Anaconda and get an `ImportError` mentioning that some Symbol is not found.](installation.html#i-am-using-anaconda-and-get-an-importerror-mentioning-that-some-symbol-is-not-found)
+  - [How can I fix the error that `manimpango/cmanimpango.c` could not be found when trying to install Manim?](installation.html#how-can-i-fix-the-error-that-manimpango-cmanimpango-c-could-not-be-found-when-trying-to-install-manim)
+- [Where can I learn more about Manim’s internal structure?](internals.html)
+- [FAQ: OpenGL rendering](opengl.html)
+  - [Are there any resources on how the OpenGL renderer in the community maintained version can be used?](opengl.html#are-there-any-resources-on-how-the-opengl-renderer-in-the-community-maintained-version-can-be-used)
+  - [I am trying to run an interactive scene with `--renderer=opengl` and `Scene.interactive_embed`, but an error (`sqlite3.ProgrammingError`) is raised. How can I fix this?](opengl.html#i-am-trying-to-run-an-interactive-scene-with-renderer-opengl-and-scene-interactive-embed-but-an-error-sqlite3-programmingerror-is-raised-how-can-i-fix-this)
