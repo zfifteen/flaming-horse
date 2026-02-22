@@ -69,6 +69,81 @@ suffix text
         assert body is not None
         assert "Write(title)" in body
 
+    def test_parse_response_with_competing_json_fragments(self):
+        """Parser should find scene_body even when competing JSON fragments exist.
+        
+        Regression test for bug where MiniMax responses contained small JSON objects
+        (like axis_config={"color": "#CCCCCC"}) embedded in Python code, causing the
+        parser to pick the wrong JSON object when sizes were equal.
+        """
+        # This is the actual response from z5d-predictor-2 scene_06 build_scenes
+        response = ''' Let me analyze this task carefully:
+
+1. I need to create a scene body for scene_06 with title "The Need for Calibrated Corrections"
+2. The narration is about why the 3-term PNT formula needs correction terms for sub-ppm accuracy
+3. The narration is ~30 seconds (74 words at 150 WPM)
+4. Key visual ideas: residual error visualization, showing where PNT under/over-estimates, previewing empirical tuning need
+
+Let me plan the visual elements:
+- Title at top
+- A graph/visualization showing residual errors
+- Show systematic over/under-estimation patterns
+- Show the need for calibrated corrections
+- Keep content within frame boundaries
+
+Timing:
+- Total run_time + wait_time must be <= tracker.duration * 0.95 (about 28.5 seconds for 30s narration)
+- Use tracker.duration in timing expressions
+
+Let me construct the scene:
+
+1. Title: "The Need for Calibrated Corrections" - positioned at UP * 3.8
+2. Show a simple error curve/graph visualization
+3. Show areas where formula over/under-estimates
+4. Show "correction terms needed" indicator
+
+I'll use:
+- Text for title and labels
+- Axes and a graph to show residual errors
+- Color coding for over/under-estimation regions
+
+Let me draft this:
+
+```python
+title = Text("The Need for Calibrated Corrections", font_size=48, weight=BOLD)
+title.move_to(UP * 3.8)
+self.play(Write(title), run_time=min(1.0, tracker.duration * 0.10))
+
+# Create axes for error visualization
+axes = Axes(
+    x_range=[0, 10, 2],
+    y_range=[-1, 1, 0.5],
+    x_length=7,
+    y_length=3,
+    axis_config={"color": "#CCCCCC"}
+)
+axes.shift(DOWN * 0.5)
+
+x_label = Text("Scale", font_size=24, color="#AAAAAA").next_to(axes.x_axis, DOWN)
+
+
+```
+
+I'll continue positioning labels and create a residual error curve that oscillates around zero, highlighting systematic deviations in the PNT formula. The visualization will demonstrate where the formula consistently over or under-estimates values across different scales.
+
+The graph will show a sinusoidal pattern representing residual errors, with color-coded regions to emphasize specific error characteristics. I'll use text annotations to explain the systematic nature of these deviations.
+
+```
+</think>
+
+```json
+{"scene_body": "title = Text(\\"The Need for Calibrated Corrections\\", font_size=48, weight=BOLD)\\ntitle.move_to(UP * 3.8)\\nself.play(Write(title), run_time=min(1.0, tracker.duration * 0.10))\\n\\naxes = Axes(x_range=[0, 10, 2], y_range=[-1, 1, 0.5], x_length=7, y_length=3, axis_config={\\"color\\": \\"#AAAAAA\\"})\\naxes.shift(DOWN * 0.5)\\nx_label = Text(\\"Scale\\", font_size=20, color=\\"#888888\\").next_to(axes.x_axis, DOWN)\\ny_label = Text(\\"Error\\", font_size=20, color=\\"#888888\\").next_to(axes.y_axis, LEFT)\\nself.play(Create(axes), Write(x_label), Write(y_label), run_time=min(1.5, tracker.duration * 0.12))\\n\\nerror_curve = axes.plot(lambda x: 0.3 * np.sin(x) + 0.15 * np.cos(2*x), color=\\"#FF6B6B\\", x_range=[0, 10])\\nself.play(Create(error_curve), run_time=min(1.5, tracker.duration * 0.12))\\n\\nzero_line = axes.plot(lambda x: 0, color=\\"#FFFFFF\\", opacity=0.5)\\nself.play(Create(zero_line), run_time=min(0.5, tracker.duration * 0.05))\\n\\nover_label = Text(\\"Over-estimate\\", font_size=18, color=\\"#FF4444\\").move_to(axes.c2p(1.5, 0.6))\\nunder_label = Text(\\"Under-estimate\\", font_size=18, color=\\"#4444FF\\").move_to(axes.c2p(4, -0.6))\\nself.play(FadeIn(over_label), FadeIn(under_label), run_time=min(1.0, tracker.duration * 0.08))\\n\\nresidual_text = Text(\\"Systematic residual patterns\\", font_size=24, color=\\"#FFAA00\\").move_to(UP * 1.8)\\nself.play(Write(residual_text), run_time=min(1.2, tracker.duration * 0.10))\\nself.wait(max(0.3, tracker.duration * 0.05))\\n\\ncorrection_label = Text(\\"Calibrated corrections needed for sub-ppm accuracy\\", font_size=22, color=\\"#00FF88\\").move_to(DOWN * 2.5)\\nself.play(Write(correction_label), run_time=min(1.5, tracker.duration * 0.12))\\n\\nbar = Rectangle(width=0.3, height=1.2, fill_opacity=0.7, color=\\"#00FF88\\").move_to(axes.c2p(8.5, 0))\\nself.play(Create(bar), run_time=min(0.8, tracker.duration * 0.06))\\n\\ntuning_text = Text(\\"Empirical tuning\\", font_size=20, color=\\"#00DDFF\\").next_to(bar, DOWN)\\nself.play(Write(tuning_text), run_time=min(0.8, tracker.duration * 0.06))\\nself.wait(max(0.5, tracker.duration * 0.08))"}'''
+        body = parse_build_scenes_response(response)
+        assert body is not None
+        assert "title = Text(\"The Need for Calibrated Corrections\"" in body
+        assert "axes = Axes" in body
+        assert "error_curve" in body
+
     def test_reject_scene_body_wrappers_in_build_scenes(self):
         """Build-scenes parser rejects legacy non-JSON wrappers."""
         response = """```python

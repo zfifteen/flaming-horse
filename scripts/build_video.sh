@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(realpath "${SCRIPT_DIR}/..")"
@@ -146,6 +146,15 @@ LOCK_FILE="${PROJECT_DIR}/.build.lock"
 LOG_DIR="${PROJECT_DIR}/log"
 LOG_FILE="${LOG_DIR}/build.log"
 ERROR_LOG="${LOG_DIR}/error.log"
+CRASH_DIAG_FILE="${LOG_DIR}/crash_diag.log"
+HEARTBEAT_FILE="${LOG_DIR}/heartbeat.txt"
+HEARTBEAT_INTERVAL_SECONDS="${HEARTBEAT_INTERVAL_SECONDS:-5}"
+HEARTBEAT_PID=""
+DIAG_PHASE="startup"
+DIAG_STAGE="boot"
+DIAG_SCENE=""
+DIAG_ATTEMPT="0"
+DIAG_ITERATION="0"
 mkdir -p "$LOG_DIR"
 
 
@@ -168,6 +177,87 @@ if [[ -f "$LOCK_FILE" ]]; then
   echo "🔒 Lock acquired (PID: $$)" | tee -a "$LOG_FILE"
 }
 
+diagnostics_log() {
+  local level="${1:-INFO}"
+  local message="${2:-}"
+  local ts
+  ts="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+  {
+    printf '[%s] level=%s pid=%s ppid=%s phase=%s stage=%s scene=%s iteration=%s attempt=%s msg=%s\n' \
+      "$ts" "$level" "$$" "$PPID" "${DIAG_PHASE:-}" "${DIAG_STAGE:-}" "${DIAG_SCENE:-}" \
+      "${DIAG_ITERATION:-}" "${DIAG_ATTEMPT:-}" "$message"
+  } >> "$CRASH_DIAG_FILE"
+}
+
+write_heartbeat() {
+  local ts
+  local tmp_file
+  ts="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+  # Use a unique temp file per writer/process to avoid collisions
+  # between the parent shell and background heartbeat loop.
+  tmp_file="$(mktemp "${HEARTBEAT_FILE}.tmp.XXXXXX")"
+  {
+    echo "timestamp_utc=${ts}"
+    echo "pid=$$"
+    echo "ppid=$PPID"
+    echo "phase=${DIAG_PHASE:-}"
+    echo "stage=${DIAG_STAGE:-}"
+    echo "scene=${DIAG_SCENE:-}"
+    echo "iteration=${DIAG_ITERATION:-}"
+    echo "attempt=${DIAG_ATTEMPT:-}"
+  } > "$tmp_file"
+  mv "$tmp_file" "$HEARTBEAT_FILE"
+}
+
+set_diag_context() {
+  DIAG_PHASE="${1:-$DIAG_PHASE}"
+  DIAG_STAGE="${2:-$DIAG_STAGE}"
+  DIAG_SCENE="${3:-$DIAG_SCENE}"
+  DIAG_ATTEMPT="${4:-$DIAG_ATTEMPT}"
+  DIAG_ITERATION="${5:-$DIAG_ITERATION}"
+  write_heartbeat
+}
+
+start_heartbeat() {
+  if [[ -n "${HEARTBEAT_PID}" ]] && kill -0 "${HEARTBEAT_PID}" 2>/dev/null; then
+    return 0
+  fi
+  (
+    while true; do
+      sleep "${HEARTBEAT_INTERVAL_SECONDS}"
+      write_heartbeat
+    done
+  ) &
+  HEARTBEAT_PID="$!"
+  diagnostics_log "INFO" "heartbeat started interval=${HEARTBEAT_INTERVAL_SECONDS}s"
+}
+
+stop_heartbeat() {
+  if [[ -n "${HEARTBEAT_PID}" ]] && kill -0 "${HEARTBEAT_PID}" 2>/dev/null; then
+    kill "${HEARTBEAT_PID}" 2>/dev/null || true
+    wait "${HEARTBEAT_PID}" 2>/dev/null || true
+  fi
+  HEARTBEAT_PID=""
+}
+
+on_error() {
+  local exit_code="$1"
+  local line_no="$2"
+  local cmd="$3"
+  diagnostics_log "ERROR" "err_trap exit_code=${exit_code} line=${line_no} cmd=${cmd}"
+}
+
+on_signal() {
+  local sig="$1"
+  diagnostics_log "ERROR" "signal=${sig} received; terminating children"
+  echo "🛑 ${sig}/TRAP received - killing children and exiting..." | tee -a "$LOG_FILE"
+  jobs -p | xargs -r kill -TERM 2>/dev/null || true
+  pkill -P $$ 2>/dev/null || true
+  sleep 2
+  jobs -p | xargs -r kill -KILL 2>/dev/null || true
+  exit 130
+}
+
 release_lock() {
   rm -f "$LOCK_FILE"
   echo "🔓 Lock released" | tee -a "$LOG_FILE"
@@ -175,6 +265,9 @@ release_lock() {
 
 on_exit() {
   local exit_code=$?
+  diagnostics_log "INFO" "on_exit exit_code=${exit_code}"
+  stop_heartbeat
+  write_heartbeat
   release_lock
 
   if [[ $exit_code -ne 0 ]]; then
@@ -192,7 +285,9 @@ on_exit() {
   fi
 }
 
-trap 'echo "🛑 SIGINT/TRAP received - killing children and exiting..."; jobs -p | xargs -r kill -TERM 2>/dev/null || true; pkill -P $$ 2>/dev/null || true; sleep 2; kill_tree() { jobs -p | xargs -r kill -KILL 2>/dev/null || true; }; kill_tree; exit 130' INT TERM
+trap 'on_error $? $LINENO "$BASH_COMMAND"' ERR
+trap 'on_signal INT' INT
+trap 'on_signal TERM' TERM
 trap on_exit EXIT
 
 
@@ -365,6 +460,7 @@ attempt = int("${attempt}")
 limit = int("${PHASE_RETRY_LIMIT}")
 state_path = Path("${STATE_FILE}")
 log_path = Path("${LOG_FILE}")
+debug_response_path = Path("${PROJECT_DIR}") / "log" / f"debug_response_{phase}.txt"
 
 state_error = "(none)"
 if state_path.exists():
@@ -430,6 +526,12 @@ print()
 print("Most recent state error:")
 print(state_error)
 print()
+if "Schema validation failed" in state_error:
+    print("Schema-failure guidance:")
+    print("- The previous response violated strict output/schema or Python-syntax requirements.")
+    print("- Return exactly the required top-level JSON payload and no extra text.")
+    print(f"- Refer to raw model output at: {debug_response_path}")
+    print()
 print("Recent build.log excerpt:")
 for ln in log_excerpt[-220:]:
     print(ln)
@@ -887,23 +989,7 @@ PY
   if [[ $exit_code -ne 0 ]]; then
     echo "❌ Harness invocation failed with exit code: $exit_code" | tee -a "$LOG_FILE"
     if [[ $exit_code -eq 3 ]]; then
-      echo "❌ Schema validation failure detected; stopping phase without retries." | tee -a "$LOG_FILE"
-      $PYTHON_BIN - <<PY
-import json
-from datetime import datetime, UTC
-
-with open("${STATE_FILE}", "r") as f:
-    state = json.load(f)
-
-state.setdefault("errors", []).append(
-    "Schema validation failed in phase ${phase}. See log/debug_response_${phase}.txt for raw model output."
-)
-state.setdefault("flags", {})["needs_human_review"] = True
-state["updated_at"] = datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')
-
-with open("${STATE_FILE}", "w") as f:
-    json.dump(state, f, indent=2)
-PY
+      echo "❌ Schema validation failure detected; phase remains retryable with retry context." | tee -a "$LOG_FILE"
     fi
     return $exit_code
   fi
@@ -1858,6 +1944,7 @@ EOF
 }
 
 handle_final_render() {
+  set_diag_context "final_render" "start" "" "0" "${DIAG_ITERATION}"
   echo "🎬 Final render with cached voiceover (backend: ${FLAMING_HORSE_TTS_BACKEND:-qwen})..." | tee -a "$LOG_FILE"
   export MANIM_VOICE_PROD=1
   # Ensure repo-root packages (e.g. flaming_horse_voice) are importable when
@@ -1892,8 +1979,6 @@ state["updated_at"] = datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')
 with open("${STATE_FILE}", "w") as f:
     json.dump(state, f, indent=2)
 PY
-
-  trap 'release_lock' EXIT INT TERM
 
   cd "$PROJECT_DIR"
 
@@ -2133,6 +2218,7 @@ PY
 
   while IFS='|' read -r scene_id scene_file scene_class est_duration; do
     [[ -n "$scene_id" ]] || continue
+    set_diag_context "final_render" "scene_start" "$scene_id" "0" "${DIAG_ITERATION}"
 
     # Pre-render syntax gate with self-healing.
     if ! scene_python_syntax_ok "$scene_file"; then
@@ -2222,6 +2308,7 @@ PY
     local failure_reason=""
     while [[ $attempt -lt $PHASE_RETRY_LIMIT ]]; do
       attempt=$((attempt + 1))
+      set_diag_context "final_render" "render_attempt" "$scene_id" "$attempt" "${DIAG_ITERATION}"
 
       local transient_attempt=0
       local transient_max_attempts=5
@@ -2234,6 +2321,7 @@ PY
         if "$manim_bin" render "$scene_file" "$scene_class" -qh \
           > >(tee -a "$LOG_FILE" | tee "$render_log") \
           2> >(tee -a "$LOG_FILE" | tee -a "$render_log" >&2); then
+          set_diag_context "final_render" "render_ok" "$scene_id" "$attempt" "${DIAG_ITERATION}"
           render_ok=1
           break
         fi
@@ -2254,6 +2342,7 @@ PY
         rm -f "$render_log"
         break
       fi
+      set_diag_context "final_render" "render_failed" "$scene_id" "$attempt" "${DIAG_ITERATION}"
 
       failure_reason=$(tail -n 80 "$render_log" 2>/dev/null | grep -A8 -B4 -E "Traceback|NameError|ImportError|SyntaxError|Exception" || true)
       if [[ -z "$failure_reason" ]]; then
@@ -2271,6 +2360,7 @@ PY
     done
 
     if [[ $ok -ne 1 ]]; then
+      set_diag_context "final_render" "scene_failed" "$scene_id" "$attempt" "${DIAG_ITERATION}"
       echo "❌ Render failed for $scene_id ($scene_class)" | tee -a "$LOG_FILE" >&2
       $PYTHON_BIN - <<PY
 import json
@@ -2309,6 +2399,7 @@ PY
     fi
 
     if ! verify_scene_video "$scene_id" "$scene_class"; then
+      set_diag_context "final_render" "verification_failed" "$scene_id" "$attempt" "${DIAG_ITERATION}"
       echo "❌ Verification failed for $scene_id ($scene_class)" | tee -a "$LOG_FILE" >&2
       $PYTHON_BIN - <<PY
 import json
@@ -2330,6 +2421,7 @@ PY
     fi
 
     update_state_rendered "$scene_id" "$scene_class" "$est_duration"
+    set_diag_context "final_render" "scene_verified" "$scene_id" "$attempt" "${DIAG_ITERATION}"
     echo "✓ Rendered + verified: $scene_id" | tee -a "$LOG_FILE"
   done <<< "$scene_lines"
 
@@ -2639,7 +2731,9 @@ main() {
   fi
   
   acquire_lock
-  
+  set_diag_context "startup" "lock_acquired" "" "0" "0"
+  start_heartbeat
+
   echo "════════════════════════════════════════════════════════════════" | tee -a "$LOG_FILE"
   echo "🚀 Starting Incremental Manim Video Builder" | tee -a "$LOG_FILE"
   echo "📁 Project: $PROJECT_DIR" | tee -a "$LOG_FILE"
@@ -2658,6 +2752,7 @@ main() {
   local iteration=0
 while true; do
     iteration=$((iteration + 1))
+    DIAG_ITERATION="$iteration"
 
     # Repair + normalize state (never trust agent edits).
     if ! normalize_state_json; then
@@ -2679,6 +2774,7 @@ while true; do
     
     local current_phase
     current_phase=$(get_phase)
+    set_diag_context "$current_phase" "phase_enter" "" "0" "$iteration"
     
     echo "" | tee -a "$LOG_FILE"
     echo "────────────────────────────────────────────────────────────────" | tee -a "$LOG_FILE"
@@ -2693,6 +2789,7 @@ while true; do
 
     while true; do
       attempt=$((attempt + 1))
+      set_diag_context "$current_phase" "phase_attempt" "" "$attempt" "$iteration"
       if [[ $attempt -gt 1 ]]; then
         echo "↻ Retry attempt ${attempt}/${PHASE_RETRY_LIMIT} for phase: $current_phase" | tee -a "$LOG_FILE"
       fi

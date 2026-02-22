@@ -46,12 +46,6 @@ def record_schema_failure(project_dir: Path, phase: str, error_text: str) -> Non
         state["errors"] = errors
     errors.append(f"Schema validation failed ({phase}): {error_text}")
 
-    flags = state.setdefault("flags", {})
-    if not isinstance(flags, dict):
-        flags = {}
-        state["flags"] = flags
-    flags["needs_human_review"] = True
-
     history = state.setdefault("history", [])
     if isinstance(history, list):
         history.append(
