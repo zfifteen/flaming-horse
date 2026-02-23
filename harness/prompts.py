@@ -10,6 +10,8 @@ import re
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
+from harness.collections import search_manim_collection
+
 PROMPTS_DIR = Path(__file__).parent / "prompts"
 TEMPLATES_DIR = Path(__file__).parent / "templates"
 
@@ -320,14 +322,7 @@ def compose_build_scenes_prompt(
     )
     estimated_duration_text = format_duration(estimated_duration_seconds)
 
-    reference_section = ""
-    if current_index == 0:
-        reference_section = (
-            "## Manim CE Reference Documentation\n\n"
-            "Use ONLY syntax documented in the official Manim CE reference:\n"
-            "https://docs.manim.community/en/stable/reference.html\n\n"
-            "This is your authoritative source for valid Manim classes, methods, and parameters."
-        )
+    reference_section = search_manim_collection(scene_details)
 
     retry_section = ""
     if retry_context:
@@ -446,6 +441,10 @@ def compose_scene_repair_prompt(
         narration_key = resolved_key
     scene_narration = resolved_narration or "N/A"
 
+    reference_section = search_manim_collection(
+        f"{scene_details}\n{retry_context or ''}"
+    )
+
     system_prompt = load_prompt_template(
         "scene_repair",
         "system.md",
@@ -466,6 +465,7 @@ def compose_scene_repair_prompt(
             "broken_file_name": scene_file.name,
             "broken_file_content": broken_file_content,
             "retry_context": retry_context or "Unknown error",
+            "reference_section": reference_section,
         },
     )
     return system_prompt, user_prompt

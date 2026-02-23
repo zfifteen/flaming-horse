@@ -37,7 +37,7 @@ SCRIPT["{{narration_key}}"] = {{scene_narration}}
 - [ ] Visual timeline matches `{{estimated_duration_seconds}}s`
 - [ ] No black/empty tail while narration is still speaking
 - [ ] At least one visual cluster remains visible until narration ends
-- [ ] Only valid Manim MObjects API used: https://docs.manim.community/en/stable/reference_index/mobjects.html
+- [ ] Only valid Manim MObjects API used (see retrieved reference documentation above)
 
 {{reference_section}}
 {{retry_section}}

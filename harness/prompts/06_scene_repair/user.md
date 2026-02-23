@@ -32,6 +32,8 @@ File naming/path selection is orchestrator-owned; do not produce or reason about
 If this is a retry, the current content above reflects the previous repair attempt.
 Build on what was previously tried rather than starting from scratch.
 
+{{reference_section}}
+
 Repair intent is strict:
 1. Patch only what is needed to fix the reported failure.
 2. Preserve this scene's topic and planned meaning.
