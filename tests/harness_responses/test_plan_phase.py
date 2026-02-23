@@ -661,7 +661,7 @@ class TestPromptComposition:
         info = hr_prompts.consume_last_retrieval_info()
         assert "Create a video plan for this topic" in captured["query"]
         assert "orbital resonance" in captured["query"]
-        assert "Plan docs chunk" in user
+        assert "Plan docs chunk" not in user
         assert info["phase"] == "plan"
         assert info["hit_count"] == 1
 
@@ -688,7 +688,7 @@ class TestPromptComposition:
         info = hr_prompts.consume_last_retrieval_info()
         assert "Narration Test" in captured["query"]
         assert "\"scene_01\"" in captured["query"]
-        assert "Narration docs chunk" in user
+        assert "Narration docs chunk" not in user
         assert info["phase"] == "narration"
         assert info["hit_count"] == 1
 
@@ -865,6 +865,44 @@ class TestCLI:
         assert hr_cli.main() == 0
         ref = captured.get("template_file_reference", "")
         assert "file_template_001" in ref
+
+    def test_retry_context_clears_response_pointer_before_api_call(
+        self, monkeypatch, tmp_path
+    ):
+        project = _make_project(tmp_path)
+        cleared = {"called": False}
+
+        def _fake_clear_response_pointer(**_kwargs):
+            cleared["called"] = True
+
+        monkeypatch.setattr(hr_cli, "compose_prompt", lambda **_: ("sys", "user"))
+        monkeypatch.setattr(hr_cli, "write_phase_artifacts", lambda **_: True)
+        monkeypatch.setattr(
+            "harness_responses.client.clear_response_pointer",
+            _fake_clear_response_pointer,
+        )
+
+        class _Raw:
+            id = "resp_retry_1"
+            content = "{\"ok\": \"yes\"}"
+            previous_response_id_used = None
+
+        monkeypatch.setattr(
+            "harness_responses.client.call_responses_api",
+            lambda **_: (_Raw(), _make_valid_plan(9)),
+        )
+        monkeypatch.setattr(
+            sys, "argv",
+            [
+                "prog",
+                "--phase", "plan",
+                "--project-dir", str(project),
+                "--topic", "test",
+                "--retry-context", "Traceback ...",
+            ],
+        )
+        assert hr_cli.main() == 0
+        assert cleared["called"] is True
 
     def test_semantic_validation_failure_returns_2(self, monkeypatch, tmp_path):
         project = _make_project(tmp_path)

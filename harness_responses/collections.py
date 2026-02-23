@@ -14,6 +14,8 @@ from typing import Any
 DEFAULT_MANIM_COLLECTION_ID = "collection_096219fb-a4b3-41fc-bfb9-2f796cf5377b"
 _MAX_RETRIES = 3
 _RETRY_DELAY = 2.0
+_MAX_FORMATTED_CHUNKS = 3
+_MAX_CHARS_PER_CHUNK = 1800
 
 
 @dataclass
@@ -32,7 +34,13 @@ class CollectionSearchResult:
     def formatted_reference(self) -> str:
         if not self.chunks:
             return ""
-        formatted = "\n\n---\n\n".join(self.chunks)
+        trimmed_chunks: list[str] = []
+        for chunk in self.chunks[:_MAX_FORMATTED_CHUNKS]:
+            if len(chunk) > _MAX_CHARS_PER_CHUNK:
+                trimmed_chunks.append(chunk[:_MAX_CHARS_PER_CHUNK] + "\n[chunk truncated]")
+            else:
+                trimmed_chunks.append(chunk)
+        formatted = "\n\n---\n\n".join(trimmed_chunks)
         return (
             "## Manim CE Reference Documentation\n\n"
             "The following was retrieved from the official Manim CE reference. "

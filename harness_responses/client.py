@@ -191,6 +191,11 @@ def ensure_build_scenes_template_file(
     }
 
 
+def clear_response_pointer(*, session_state_path: Path) -> None:
+    """Clear only conversation pointer metadata while preserving other session fields."""
+    _clear_session_state(session_state_path)
+
+
 def _extract_response_text(raw_response: Any) -> str:
     """
     Extract text payload from xai_sdk Response.content.

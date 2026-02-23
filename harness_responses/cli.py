@@ -237,6 +237,10 @@ def main() -> int:
 
     try:
         template_file_reference = ""
+        if args.retry_context and args.retry_context.strip():
+            from harness_responses.client import clear_response_pointer
+
+            clear_response_pointer(session_state_path=session_state_path)
         if args.phase == "build_scenes" and not args.dry_run:
             from harness_responses.client import ensure_build_scenes_template_file
 

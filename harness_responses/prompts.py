@@ -27,6 +27,7 @@ PHASE_DIRS: Dict[str, str] = {
 PLACEHOLDER_RE = re.compile(r"{{\s*([A-Za-z0-9_]+)\s*}}")
 DEFAULT_SPEECH_WPM = 150
 _LAST_RETRIEVAL_INFO: Dict[str, Any] = {}
+_MAX_RETRY_CONTEXT_CHARS = 6000
 
 
 def consume_last_retrieval_info() -> Dict[str, Any]:
@@ -238,11 +239,22 @@ def _format_duration(seconds: int) -> str:
     return f"{secs}s"
 
 
+def _truncate_retry_context(text: str) -> str:
+    value = (text or "").strip()
+    if len(value) <= _MAX_RETRY_CONTEXT_CHARS:
+        return value
+    head = value[:_MAX_RETRY_CONTEXT_CHARS]
+    return (
+        f"{head}\n\n[retry context truncated to {_MAX_RETRY_CONTEXT_CHARS} chars]"
+    )
+
+
 def _compose_plan_prompt(topic: str, retry_context: str) -> Tuple[str, str]:
     phase_dir = PROMPTS_DIR / PHASE_DIRS["plan"]
     values: Dict[str, Any] = {"topic": topic}
     system_prompt = _render(_read_file(phase_dir / "system.md"), values)
     user_prompt = _render(_read_file(phase_dir / "user.md"), values)
+    retry_context = _truncate_retry_context(retry_context)
     if retry_context:
         user_prompt = (
             user_prompt.rstrip()
@@ -250,8 +262,6 @@ def _compose_plan_prompt(topic: str, retry_context: str) -> Tuple[str, str]:
         )
     retrieval = search_manim_collection(user_prompt)
     _record_retrieval_info("plan", retrieval)
-    if retrieval.formatted_reference:
-        user_prompt = user_prompt.rstrip() + "\n\n" + retrieval.formatted_reference
     return system_prompt, user_prompt
 
 
@@ -333,6 +343,7 @@ def _compose_build_scenes_prompt(
     phase_dir = PROMPTS_DIR / PHASE_DIRS["build_scenes"]
     values = _build_scene_prompt_values(state, project_dir)
     values["template_file_reference"] = template_file_reference
+    retry_context = _truncate_retry_context(retry_context)
     values["retry_section"] = (
         (
             "## RETRY CONTEXT\n\n"
@@ -373,6 +384,7 @@ def _compose_narration_prompt(
     plan_file = _resolve_project_file(project_dir, state.get("plan_file"), "plan.json")
     plan_data = json.loads(_read_file(plan_file))
 
+    retry_context = _truncate_retry_context(retry_context)
     retry_block = ""
     if retry_context:
         retry_block = (
@@ -393,8 +405,6 @@ def _compose_narration_prompt(
     user_prompt = _render(_read_file(phase_dir / "user.md"), values)
     retrieval = search_manim_collection(user_prompt)
     _record_retrieval_info("narration", retrieval)
-    if retrieval.formatted_reference:
-        user_prompt = user_prompt.rstrip() + "\n\n" + retrieval.formatted_reference
     return system_prompt, user_prompt
 
 
@@ -437,6 +447,7 @@ def _compose_scene_repair_prompt(
     phase_dir = PROMPTS_DIR / PHASE_DIRS["scene_repair"]
     broken_file_content = _read_file(scene_file)
     values = _build_scene_prompt_values(state, project_dir)
+    retry_context = _truncate_retry_context(retry_context)
     ref_query = _build_reference_query(
         phase="scene_repair",
         scene_id=str(values.get("scene_id", "")),
