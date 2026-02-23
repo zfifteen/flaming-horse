@@ -15,9 +15,6 @@ You MUST deep-dive into the Manim documentation and adhere to the correct syntax
 - If uncertain about a class, method, constant, or kwarg, check docs first and then repair.
 - Do NOT rely on memory when docs can be checked.
 
-## Authoritative guidance (kitchen sink)
-{{kitchen_sink}}
-
 ## YOUR ONLY OUTPUT - Fixed Scene Body JSON
 
 Output exactly one JSON object with this required field:
