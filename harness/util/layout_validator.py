@@ -1,4 +1,4 @@
-from typing import List, Dict, Set
+from typing import Dict, Iterable, List, Mapping
 
 
 class LayoutValidator:
@@ -6,14 +6,20 @@ class LayoutValidator:
     Validates scene layout tags against defined options and requirements.
     """
 
-    def __init__(self, valid_layouts: Set[str], layout_rules: Dict[str, List[str]]):
+    def __init__(
+        self,
+        valid_layouts: Iterable[str],
+        layout_rules: Mapping[str, List[str]],
+    ):
         """
         Args:
             valid_layouts: Set of valid layout tag strings
             layout_rules: Dict mapping layout tags to lists of requirement strings
         """
-        self.valid_layouts = valid_layouts
-        self.layout_rules = layout_rules
+        self.valid_layouts = set(valid_layouts)
+        self.layout_rules: Dict[str, List[str]] = {
+            key: list(value) for key, value in layout_rules.items()
+        }
 
     def validate_layout(self, layout: str) -> List[str]:
         """
@@ -33,12 +39,6 @@ class LayoutValidator:
                 f"Unknown layout '{layout}'. Valid layouts: {', '.join(sorted(self.valid_layouts))}"
             )
             return errors
-
-        # Check layout-specific requirements
-        if layout in self.layout_rules:
-            requirements = self.layout_rules[layout]
-            # Requirements are informational for the agent, not runtime checks
-            # Actual enforcement happens via code generation compliance
 
         return errors
 
