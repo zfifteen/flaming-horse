@@ -260,6 +260,26 @@ def test_prompts_core_and_compose(tmp_path):
         s, u = prompts.compose_prompt(phase=phase, state=state, topic="topic", project_dir=project)
         assert isinstance(s, str) and isinstance(u, str)
 
+    _, plan_retry_prompt = prompts.compose_prompt(
+        phase="plan",
+        state=state,
+        topic="topic",
+        project_dir=project,
+        retry_context="Schema validation failed (plan): no valid top-level JSON object found",
+    )
+    assert "RETRY CONTEXT" in plan_retry_prompt
+    assert "Schema validation failed (plan)" in plan_retry_prompt
+
+    _, narration_retry_prompt = prompts.compose_prompt(
+        phase="narration",
+        state=state,
+        topic="topic",
+        project_dir=project,
+        retry_context="Schema validation failed (narration): no valid top-level JSON object found",
+    )
+    assert "RETRY CONTEXT" in narration_retry_prompt
+    assert "Schema validation failed (narration)" in narration_retry_prompt
+
     s, u = prompts.compose_prompt(
         phase="scene_repair",
         state=state,
