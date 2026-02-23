@@ -19,12 +19,14 @@ import pytest
 from pydantic import ValidationError
 
 import harness_responses.cli as hr_cli
+import harness_responses.client as hr_client
 import harness_responses.parser as hr_parser
 import harness_responses.prompts as hr_prompts
 from harness_responses.schemas.build_scenes import BuildScenesResponse
 from harness_responses.schemas.plan import PlanResponse, SceneItem
 from harness_responses.schemas.scene_repair import SceneRepairResponse
 from harness_responses.parser import SemanticValidationError
+from pydantic import BaseModel
 
 
 # ---------------------------------------------------------------------------
@@ -142,6 +144,28 @@ class TestPlanSchema:
                 visual_ideas=[],
             )
 
+    def test_schema_enforces_scene_count_bounds(self):
+        with pytest.raises(ValidationError):
+            _make_valid_plan(7)
+        with pytest.raises(ValidationError):
+            _make_valid_plan(13)
+
+    def test_schema_enforces_duration_bounds(self):
+        with pytest.raises(ValidationError):
+            PlanResponse(
+                title="Test",
+                description="desc",
+                target_duration_seconds=100,
+                scenes=[_make_valid_scene(i) for i in range(9)],
+            )
+        with pytest.raises(ValidationError):
+            SceneItem(
+                title="Bad scene",
+                description="desc",
+                estimated_duration_seconds=10,
+                visual_ideas=["idea"],
+            )
+
 
 # ---------------------------------------------------------------------------
 # Semantic validation tests
@@ -175,19 +199,29 @@ class TestSemanticValidation:
 
     def test_too_few_scenes_fails(self, tmp_path):
         project = _make_project(tmp_path)
-        plan = _make_valid_plan(7)  # below minimum of 8
+        plan = PlanResponse.model_construct(
+            title="Test Video",
+            description="A test video about testing",
+            target_duration_seconds=300,
+            scenes=[_make_valid_scene(i) for i in range(7)],
+        )
         with pytest.raises(SemanticValidationError, match="scenes must have"):
             hr_parser.validate_and_write_plan(plan, project)
 
     def test_too_many_scenes_fails(self, tmp_path):
         project = _make_project(tmp_path)
-        plan = _make_valid_plan(13)  # above maximum of 12
+        plan = PlanResponse.model_construct(
+            title="Test Video",
+            description="A test video about testing",
+            target_duration_seconds=300,
+            scenes=[_make_valid_scene(i) for i in range(13)],
+        )
         with pytest.raises(SemanticValidationError, match="scenes must have"):
             hr_parser.validate_and_write_plan(plan, project)
 
     def test_invalid_total_duration_fails(self, tmp_path):
         project = _make_project(tmp_path)
-        plan = PlanResponse(
+        plan = PlanResponse.model_construct(
             title="Test",
             description="desc",
             target_duration_seconds=100,  # below 240
@@ -199,13 +233,13 @@ class TestSemanticValidation:
     def test_invalid_scene_duration_fails(self, tmp_path):
         project = _make_project(tmp_path)
         scenes = [_make_valid_scene(i) for i in range(9)]
-        scenes[3] = SceneItem(
+        scenes[3] = SceneItem.model_construct(
             title="Bad scene",
             description="desc",
             estimated_duration_seconds=10,  # below 20
             visual_ideas=["idea"],
         )
-        plan = PlanResponse(
+        plan = PlanResponse.model_construct(
             title="Test",
             description="desc",
             target_duration_seconds=300,
@@ -227,13 +261,87 @@ class TestSemanticValidation:
 
     def test_failure_diagnostic_written(self, tmp_path):
         project = _make_project(tmp_path)
-        plan = _make_valid_plan(7)  # will fail
+        plan = PlanResponse.model_construct(
+            title="Test Video",
+            description="A test video about testing",
+            target_duration_seconds=300,
+            scenes=[_make_valid_scene(i) for i in range(7)],
+        )
         with pytest.raises(SemanticValidationError):
             hr_parser.validate_and_write_plan(plan, project, raw_response=None)
         diag = project / "log" / "responses_last_response.json"
         assert diag.exists()
         data = json.loads(diag.read_text())
         assert "validation_error" in data
+
+
+class TestResponsesClient:
+    class _DummySchema(BaseModel):
+        ok: str
+
+    class _FakeChat:
+        def __init__(self):
+            self.create_kwargs = None
+
+        def append(self, _msg):
+            return None
+
+        def parse(self, schema):
+            return _MockResponse(), schema(ok="yes")
+
+    class _FakeChatFactory:
+        def __init__(self, outer):
+            self.outer = outer
+
+        def create(self, model, **kwargs):
+            self.outer["model"] = model
+            self.outer["kwargs"] = kwargs
+            return TestResponsesClient._FakeChat()
+
+    class _FakeClient:
+        def __init__(self, *, api_key, _capture):
+            _capture["api_key"] = api_key
+            self.chat = TestResponsesClient._FakeChatFactory(_capture)
+
+    def test_enable_web_search_wires_search_parameters(self, monkeypatch):
+        capture = {}
+        monkeypatch.setenv("XAI_API_KEY", "test-key")
+        monkeypatch.setattr(
+            "xai_sdk.sync.client.Client",
+            lambda api_key: TestResponsesClient._FakeClient(api_key=api_key, _capture=capture),
+        )
+        monkeypatch.setattr("xai_sdk.chat.system", lambda s: {"role": "system", "content": s})
+        monkeypatch.setattr("xai_sdk.chat.user", lambda s: {"role": "user", "content": s})
+
+        raw, parsed = hr_client.call_responses_api(
+            system_prompt="sys",
+            user_prompt="usr",
+            schema=self._DummySchema,
+            enable_web_search=True,
+        )
+        assert parsed.ok == "yes"
+        assert raw.id == "mock_response_id_123"
+        assert "search_parameters" in capture["kwargs"]
+        assert capture["kwargs"]["search_parameters"].mode == "on"
+
+    def test_disable_web_search_omits_search_parameters(self, monkeypatch):
+        capture = {}
+        monkeypatch.setenv("XAI_API_KEY", "test-key")
+        monkeypatch.setattr(
+            "xai_sdk.sync.client.Client",
+            lambda api_key: TestResponsesClient._FakeClient(api_key=api_key, _capture=capture),
+        )
+        monkeypatch.setattr("xai_sdk.chat.system", lambda s: {"role": "system", "content": s})
+        monkeypatch.setattr("xai_sdk.chat.user", lambda s: {"role": "user", "content": s})
+
+        _, parsed = hr_client.call_responses_api(
+            system_prompt="sys",
+            user_prompt="usr",
+            schema=self._DummySchema,
+            enable_web_search=False,
+        )
+        assert parsed.ok == "yes"
+        assert "search_parameters" not in capture["kwargs"]
 
     def test_write_phase_artifacts_plan(self, tmp_path):
         project = _make_project(tmp_path)
@@ -461,7 +569,6 @@ class TestLegacyHarnessIsolation:
     def test_no_import_from_legacy_harness(self):
         """harness_responses modules must not import from harness/."""
         import ast
-        import os
 
         hr_root = Path(__file__).parent.parent.parent / "harness_responses"
         for py_file in hr_root.rglob("*.py"):

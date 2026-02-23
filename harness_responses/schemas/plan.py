@@ -16,6 +16,8 @@ class SceneItem(BaseModel):
     title: str = Field(min_length=1, description="Scene title")
     description: str = Field(min_length=1, description="Scene description")
     estimated_duration_seconds: int = Field(
+        ge=20,
+        le=45,
         description="Estimated scene duration in seconds (20-45)"
     )
     visual_ideas: List[str] = Field(
@@ -28,9 +30,12 @@ class PlanResponse(BaseModel):
     title: str = Field(min_length=1, description="Video title")
     description: str = Field(min_length=1, description="Video description")
     target_duration_seconds: int = Field(
+        ge=240,
+        le=480,
         description="Total target duration in seconds (240-480)"
     )
     scenes: List[SceneItem] = Field(
-        min_length=1,
+        min_length=8,
+        max_length=12,
         description="Ordered list of scenes (8-12 items)",
     )

@@ -76,6 +76,7 @@ def call_responses_api(
         object and parsed_instance is a validated Pydantic model instance.
     """
     # Import here to isolate xai_sdk from the rest of the codebase
+    from xai_sdk.search import SearchParameters, web_source
     from xai_sdk.sync.client import Client
     from xai_sdk.chat import system as sdk_system, user as sdk_user
 
@@ -92,11 +93,20 @@ def call_responses_api(
     last_exc: Optional[Exception] = None
     for attempt in range(_MAX_RETRIES):
         try:
+            create_kwargs = {
+                "temperature": temperature,
+                "max_tokens": max_tokens,
+                "store_messages": store,
+            }
+            if enable_web_search:
+                create_kwargs["search_parameters"] = SearchParameters(
+                    sources=[web_source()],
+                    mode="on",
+                )
+
             chat = client.chat.create(
                 resolved_model,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                store_messages=store,
+                **create_kwargs,
             )
             chat.append(sdk_system(system_prompt))
             chat.append(sdk_user(user_prompt))
