@@ -6,11 +6,15 @@ collection before each scene generation call.
 """
 
 import os
+import time
 
 import requests
 
 COLLECTIONS_SEARCH_URL = "https://api.x.ai/v1/documents/search"
 MANIM_COLLECTION_ID = "collection_096219fb-a4b3-41fc-bfb9-2f796cf5377b"
+
+_MAX_RETRIES = 3
+_RETRY_DELAY = 2.0
 
 
 def search_manim_collection(query: str, limit: int = 8) -> str:
@@ -33,10 +37,12 @@ def search_manim_collection(query: str, limit: int = 8) -> str:
             return ""
 
         payload = {
-            "collection_ids": [MANIM_COLLECTION_ID],
             "query": query,
+            "source": {
+                "collection_ids": [MANIM_COLLECTION_ID],
+            },
             "num_results": limit,
-            "retrieval_mode": "hybrid",
+            "retrieval_mode": {"type": "hybrid"},
         }
 
         headers = {
@@ -45,32 +51,54 @@ def search_manim_collection(query: str, limit: int = 8) -> str:
         }
 
         print("🔍 Retrieving Manim docs for scene generation...")
-        response = requests.post(
-            COLLECTIONS_SEARCH_URL,
-            headers=headers,
-            json=payload,
-            timeout=15,
-        )
-
-        if response.status_code != 200:
-            print(
-                f"⚠️  Collections search returned {response.status_code}: "
-                f"{response.text[:200]}"
+        response = None
+        for attempt in range(_MAX_RETRIES):
+            response = requests.post(
+                COLLECTIONS_SEARCH_URL,
+                headers=headers,
+                json=payload,
+                timeout=15,
             )
+            if response.status_code == 200:
+                break
+            elif response.status_code == 429 or response.status_code >= 500:
+                wait_time = _RETRY_DELAY * (2**attempt)
+                if attempt < _MAX_RETRIES - 1:
+                    print(
+                        f"⚠️  Collections search {response.status_code}, "
+                        f"retrying after {wait_time}s..."
+                    )
+                    time.sleep(wait_time)
+                else:
+                    print(
+                        f"⚠️  Collections search returned {response.status_code} "
+                        f"after {_MAX_RETRIES} attempts"
+                    )
+                    return ""
+            else:
+                print(
+                    f"⚠️  Collections search returned {response.status_code}: "
+                    f"{response.text[:200]}"
+                )
+                return ""
+
+        if response is None or response.status_code != 200:
             return ""
 
         data = response.json()
-        results = data.get("results", [])
+        # Handle both "results[].text" and "matches[].chunk_content" response shapes
+        results = data.get("results", data.get("matches", []))
 
         if not results:
             print("⚠️  Collections search returned no results")
             return ""
 
-        chunks = [
-            item.get("text", "").strip()
-            for item in results
-            if item.get("text", "").strip()
-        ]
+        chunks = []
+        for item in results:
+            text = (item.get("text") or item.get("chunk_content", "")).strip()
+            if text:
+                chunks.append(text)
+
         if not chunks:
             return ""
 

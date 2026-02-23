@@ -3,7 +3,6 @@
 import json
 from pathlib import Path
 
-import pytest
 import requests
 
 import harness.collections as collections_module
@@ -84,8 +83,9 @@ def test_search_manim_collection_no_api_key(monkeypatch):
 
 
 def test_search_manim_collection_api_error(monkeypatch):
-    """search_manim_collection returns empty string on non-200 API response."""
+    """search_manim_collection returns empty string after exhausting retries on 5xx."""
     monkeypatch.setenv("XAI_API_KEY", "test-key")
+    monkeypatch.setattr(collections_module.time, "sleep", lambda *_: None)
     monkeypatch.setattr(
         collections_module.requests,
         "post",
@@ -95,6 +95,45 @@ def test_search_manim_collection_api_error(monkeypatch):
     result = search_manim_collection("VGroup usage")
 
     assert result == ""
+
+
+def test_search_manim_collection_retries_then_succeeds(monkeypatch):
+    """search_manim_collection retries on 429 and returns chunks on eventual success."""
+    monkeypatch.setenv("XAI_API_KEY", "test-key")
+    monkeypatch.setattr(collections_module.time, "sleep", lambda *_: None)
+    calls = {"n": 0}
+    chunk_text = "Create animates drawing a shape."
+
+    def post_429_then_ok(*a, **kw):
+        calls["n"] += 1
+        if calls["n"] < 2:
+            return _CollectionsResp(status_code=429, data={})
+        return _CollectionsResp(data={"results": [{"text": chunk_text}]})
+
+    monkeypatch.setattr(collections_module.requests, "post", post_429_then_ok)
+
+    result = search_manim_collection("animation shapes")
+
+    assert chunk_text in result
+    assert calls["n"] == 2
+
+
+def test_search_manim_collection_matches_format(monkeypatch):
+    """search_manim_collection handles 'matches[].chunk_content' response shape."""
+    monkeypatch.setenv("XAI_API_KEY", "test-key")
+    chunk_text = "MathTex renders LaTeX mathematics."
+    monkeypatch.setattr(
+        collections_module.requests,
+        "post",
+        lambda *a, **kw: _CollectionsResp(
+            data={"matches": [{"chunk_content": chunk_text}]}
+        ),
+    )
+
+    result = search_manim_collection("MathTex LaTeX")
+
+    assert chunk_text in result
+    assert "Manim CE Reference Documentation" in result
 
 
 def test_search_manim_collection_empty_results(monkeypatch):

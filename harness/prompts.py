@@ -322,7 +322,7 @@ def compose_build_scenes_prompt(
     )
     estimated_duration_text = format_duration(estimated_duration_seconds)
 
-    reference_section = search_manim_collection(scene_details)
+    reference_section = search_manim_collection(scene_details) if scene_details != "N/A" else ""
 
     retry_section = ""
     if retry_context:
