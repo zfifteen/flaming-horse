@@ -33,6 +33,38 @@ class TimingTerm:
     multiplier: int = 1
 
 
+class _TimingScaleTransformer(ast.NodeTransformer):
+    def __init__(self, scale: float):
+        self.scale = scale
+        self.modified = False
+
+    def _scaled_expr(self, expr: ast.AST) -> ast.AST:
+        scaled = ast.BinOp(left=expr, op=ast.Mult(), right=ast.Constant(value=self.scale))
+        return ast.copy_location(scaled, expr)
+
+    def visit_Call(self, node: ast.Call) -> ast.AST:
+        self.generic_visit(node)
+        if (
+            isinstance(node.func, ast.Attribute)
+            and isinstance(node.func.value, ast.Name)
+            and node.func.value.id == "self"
+        ):
+            if node.func.attr == "play":
+                for kw in node.keywords:
+                    if kw.arg == "run_time":
+                        kw.value = self._scaled_expr(kw.value)
+                        self.modified = True
+            elif node.func.attr == "wait":
+                if node.args:
+                    node.args[0] = self._scaled_expr(node.args[0])
+                else:
+                    node.args.append(
+                        ast.copy_location(ast.Constant(value=1.0 * self.scale), node)
+                    )
+                self.modified = True
+        return node
+
+
 def _read_cache_entries(cache_data: Any) -> Iterable[dict[str, Any]]:
     if isinstance(cache_data, list):
         for item in cache_data:
@@ -252,6 +284,38 @@ def _collect_timing_terms(scene_source: str, tracker_duration: float) -> list[Ti
     return sorted(terms, key=lambda t: t.lineno)
 
 
+def _split_terms(terms: list[TimingTerm]) -> tuple[list[TimingTerm], list[TimingTerm], float]:
+    known_terms = [term for term in terms if term.value is not None]
+    unknown_terms = [term for term in terms if term.value is None]
+    projected = sum(term.value for term in known_terms if term.value is not None)
+    return known_terms, unknown_terms, projected
+
+
+def _print_unknown_terms(unknown_terms: list[TimingTerm]) -> None:
+    if not unknown_terms:
+        return
+    print("[timing-budget] WARN: unparsed timing expressions:")
+    for term in unknown_terms:
+        print(f"  - line {term.lineno}: {term.kind}={term.expr_text}")
+
+
+def _print_known_terms(known_terms: list[TimingTerm]) -> None:
+    print("[timing-budget] Offending terms:")
+    for term in known_terms:
+        if term.value is None:
+            continue
+        mult = f" ({term.multiplier}x)" if term.multiplier > 1 else ""
+        print(f"  - line {term.lineno}: {term.kind}={term.expr_text}{mult} -> {term.value:.2f}s")
+
+
+def _apply_timing_scale(scene_source: str, scale: float) -> tuple[str, bool]:
+    tree = ast.parse(scene_source)
+    transformer = _TimingScaleTransformer(scale)
+    new_tree = transformer.visit(tree)
+    ast.fix_missing_locations(new_tree)
+    return ast.unparse(new_tree) + "\n", transformer.modified
+
+
 def _scene_id_from_path(scene_path: Path) -> str:
     scene_id = scene_path.stem
     scene_id = re.sub(r"[^a-zA-Z0-9_]+", "", scene_id)
@@ -263,6 +327,7 @@ def main() -> int:
     parser.add_argument("--scene-file", required=True)
     parser.add_argument("--project-dir", required=True)
     parser.add_argument("--min-ratio", type=float, default=0.90)
+    parser.add_argument("--auto-adjust", action="store_true")
     args = parser.parse_args()
 
     scene_file = Path(args.scene_file).resolve()
@@ -280,10 +345,7 @@ def main() -> int:
 
     source = scene_file.read_text(encoding="utf-8")
     terms = _collect_timing_terms(source, narration_duration)
-
-    known_terms = [term for term in terms if term.value is not None]
-    unknown_terms = [term for term in terms if term.value is None]
-    projected = sum(term.value for term in known_terms if term.value is not None)
+    known_terms, unknown_terms, projected = _split_terms(terms)
 
     if projected <= 0:
         print(f"[timing-budget] WARN: no explicit timing terms found in {scene_file.name}")
@@ -295,20 +357,45 @@ def main() -> int:
         f"projected={projected:.2f}s ratio={ratio:.3f} threshold={args.min_ratio:.2f}"
     )
 
-    if unknown_terms:
-        print("[timing-budget] WARN: unparsed timing expressions:")
-        for term in unknown_terms:
-            print(f"  - line {term.lineno}: {term.kind}={term.expr_text}")
+    _print_unknown_terms(unknown_terms)
 
     if ratio < args.min_ratio:
-        print("[timing-budget] FAIL: projected timing exceeds narration budget")
-        print("[timing-budget] Offending terms:")
-        for term in known_terms:
-            if term.value is None:
-                continue
-            mult = f" ({term.multiplier}x)" if term.multiplier > 1 else ""
-            print(f"  - line {term.lineno}: {term.kind}={term.expr_text}{mult} -> {term.value:.2f}s")
-        return 1
+        if args.auto_adjust:
+            max_allowed_projected = narration_duration / args.min_ratio
+            desired_projected = max_allowed_projected * 0.98
+            scale = desired_projected / projected if projected > 0 else 1.0
+            scale = max(0.05, min(1.0, scale))
+            print(
+                f"[timing-budget] AUTO-ADJUST: scaling run_time/wait expressions by {scale:.4f}"
+            )
+            adjusted_source, modified = _apply_timing_scale(source, scale)
+            if not modified:
+                print("[timing-budget] FAIL: projected timing exceeds narration budget")
+                _print_known_terms(known_terms)
+                return 1
+
+            scene_file.write_text(adjusted_source, encoding="utf-8")
+            terms = _collect_timing_terms(adjusted_source, narration_duration)
+            known_terms, unknown_terms, projected = _split_terms(terms)
+            if projected <= 0:
+                print(
+                    f"[timing-budget] WARN: no explicit timing terms found after auto-adjust in {scene_file.name}"
+                )
+                return 2
+            ratio = narration_duration / projected if projected > 0 else 0.0
+            print(
+                f"[timing-budget] AUTO-ADJUST RESULT scene={scene_id} narration={narration_duration:.2f}s "
+                f"projected={projected:.2f}s ratio={ratio:.3f} threshold={args.min_ratio:.2f}"
+            )
+            _print_unknown_terms(unknown_terms)
+            if ratio < args.min_ratio:
+                print("[timing-budget] FAIL: projected timing exceeds narration budget")
+                _print_known_terms(known_terms)
+                return 1
+        else:
+            print("[timing-budget] FAIL: projected timing exceeds narration budget")
+            _print_known_terms(known_terms)
+            return 1
 
     if unknown_terms:
         print("[timing-budget] WARN: budget may be incomplete due to unparsed terms")

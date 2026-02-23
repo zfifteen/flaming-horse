@@ -14,7 +14,7 @@ from typing import Any, Dict, Optional, Tuple
 from harness_responses.collections import CollectionSearchResult, search_manim_collection
 
 PROMPTS_DIR = Path(__file__).parent / "prompts"
-LEGACY_TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "harness" / "templates"
+TEMPLATES_DIR = Path(__file__).parent / "templates"
 
 PHASE_DIRS: Dict[str, str] = {
     "plan": "plan",
@@ -248,6 +248,10 @@ def _compose_plan_prompt(topic: str, retry_context: str) -> Tuple[str, str]:
             user_prompt.rstrip()
             + f"\n\nRetry context (previous attempt failed):\n{retry_context}\n"
         )
+    retrieval = search_manim_collection(user_prompt)
+    _record_retrieval_info("plan", retrieval)
+    if retrieval.formatted_reference:
+        user_prompt = user_prompt.rstrip() + "\n\n" + retrieval.formatted_reference
     return system_prompt, user_prompt
 
 
@@ -363,7 +367,6 @@ def _compose_narration_prompt(
     project_dir: Path,
     retry_context: str,
 ) -> Tuple[str, str]:
-    _record_retrieval_info("narration", None)
     phase_dir = PROMPTS_DIR / PHASE_DIRS["narration"]
     plan_file = _resolve_project_file(project_dir, state.get("plan_file"), "plan.json")
     plan_data = json.loads(_read_file(plan_file))
@@ -386,6 +389,10 @@ def _compose_narration_prompt(
     }
     system_prompt = _render(_read_file(phase_dir / "system.md"), values)
     user_prompt = _render(_read_file(phase_dir / "user.md"), values)
+    retrieval = search_manim_collection(user_prompt)
+    _record_retrieval_info("narration", retrieval)
+    if retrieval.formatted_reference:
+        user_prompt = user_prompt.rstrip() + "\n\n" + retrieval.formatted_reference
     return system_prompt, user_prompt
 
 
@@ -406,7 +413,7 @@ def _compose_scene_qc_prompt(
             )
     all_scenes = "\n".join(scene_files_content)
     scenes_doc = ""
-    scenes_doc_path = LEGACY_TEMPLATES_DIR / "phase_scenes.md"
+    scenes_doc_path = TEMPLATES_DIR / "phase_scenes.md"
     if scenes_doc_path.exists():
         scenes_doc = _read_file(scenes_doc_path)
 

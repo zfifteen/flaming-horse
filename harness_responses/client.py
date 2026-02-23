@@ -11,6 +11,9 @@ Design:
 
 import os
 import time
+import json
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Optional, Tuple, Type, TypeVar
 
 from pydantic import BaseModel, ValidationError
@@ -23,6 +26,35 @@ _DEFAULT_MODEL = "grok-4-1-fast"
 # How many times to retry transient API failures
 _MAX_RETRIES = 3
 _RETRY_DELAY = 2.0
+def _utc_now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _read_previous_response_id(session_state_path: Path) -> Optional[str]:
+    if not session_state_path.exists():
+        return None
+    raw = json.loads(session_state_path.read_text(encoding="utf-8"))
+    previous_response_id = raw.get("previous_response_id")
+    if isinstance(previous_response_id, str) and previous_response_id.strip():
+        return previous_response_id
+    return None
+
+
+def _write_session_state(
+    session_state_path: Path,
+    *,
+    model: str,
+    previous_response_id: Optional[str],
+) -> None:
+    session_state_path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "model": model,
+        "updated_at": _utc_now(),
+        "previous_response_id": previous_response_id,
+    }
+    tmp_path = session_state_path.with_suffix(session_state_path.suffix + ".tmp")
+    tmp_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    tmp_path.replace(session_state_path)
 
 
 def _extract_response_text(raw_response: Any) -> str:
@@ -112,6 +144,7 @@ def call_responses_api(
     store: bool = False,
     enable_web_search: bool = False,
     model: Optional[str] = None,
+    session_state_path: Optional[Path] = None,
 ) -> Tuple[Any, T]:
     """
     Call xAI Responses API using response_format JSON mode and Pydantic validation.
@@ -133,17 +166,27 @@ def call_responses_api(
     # Import here to isolate xai_sdk from the rest of the codebase
     from xai_sdk.search import SearchParameters, web_source
     from xai_sdk.sync.client import Client
-    from xai_sdk.chat import system as sdk_system, user as sdk_user
+    from xai_sdk.chat import (
+        system as sdk_system,
+        user as sdk_user,
+    )
 
     api_key = _resolve_api_key()
     resolved_model = model or _resolve_model()
 
     print(f"🤖 harness_responses using:")
     print(f"   Model: {resolved_model}")
-    print(f"   Store: {store}")
+    effective_store = bool(store or session_state_path is not None)
+
+    print(f"   Store: {effective_store}")
     print(f"   Web search: {enable_web_search}")
 
     client = Client(api_key=api_key)
+    previous_response_id: Optional[str] = None
+    if session_state_path is not None:
+        previous_response_id = _read_previous_response_id(session_state_path)
+        if previous_response_id:
+            print("   Server thread: resuming from previous_response_id")
 
     last_exc: Optional[Exception] = None
     for attempt in range(_MAX_RETRIES):
@@ -151,9 +194,11 @@ def call_responses_api(
             create_kwargs = {
                 "temperature": temperature,
                 "max_tokens": max_tokens,
-                "store_messages": store,
+                "store_messages": effective_store,
                 "response_format": "json_object",
             }
+            if previous_response_id:
+                create_kwargs["previous_response_id"] = previous_response_id
             if enable_web_search:
                 create_kwargs["search_parameters"] = SearchParameters(
                     sources=[web_source()],
@@ -175,6 +220,12 @@ def call_responses_api(
                 raise ValueError(
                     f"Structured JSON validation failed for schema {schema.__name__}: {exc}"
                 ) from exc
+            if session_state_path is not None:
+                _write_session_state(
+                    session_state_path,
+                    model=resolved_model,
+                    previous_response_id=getattr(raw_response, "id", None),
+                )
             return raw_response, parsed
 
         except Exception as exc:

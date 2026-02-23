@@ -10,7 +10,7 @@ Plan JSON:
 ```
 
 Task requirements:
-- Return one narration entry per scene using each scene's `narration_key` as the key.
+- Return narration entries using each scene's `narration_key` as the key.
 - Cover the scene's planned teaching goal and visual intent without repeating identical phrasing across scenes.
 - Keep pacing natural for voiceover (~150-180 words per minute).
 - Target each scene duration within about plus/minus 5 seconds.

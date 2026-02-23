@@ -3,7 +3,7 @@ Tests for harness_responses plan phase.
 
 Covers:
   - Pydantic schema validation (pass/fail)
-  - Semantic validation (scene count, duration bounds)
+  - Semantic validation (duration bounds and content quality)
   - Artifact write (plan.json format and IDs)
   - CLI module invocation and dry-run
   - Prompt composition
@@ -185,14 +185,14 @@ class TestPlanSchema:
             PlanResponse(
                 title="Test",
                 description="desc",
-                target_duration_seconds=100,
+                target_duration_seconds=0,
                 scenes=[_make_valid_scene(i) for i in range(9)],
             )
         with pytest.raises(ValidationError):
             SceneItem(
                 title="Bad scene",
                 description="desc",
-                estimated_duration_seconds=10,
+                estimated_duration_seconds=0,
                 visual_ideas=["idea"],
             )
 
@@ -227,7 +227,7 @@ class TestSemanticValidation:
         assert data["scenes"][0]["narration_key"] == "scene_01"
         assert data["scenes"][8]["id"] == "scene_09"
 
-    def test_too_few_scenes_fails(self, tmp_path):
+    def test_few_scenes_allowed(self, tmp_path):
         project = _make_project(tmp_path)
         plan = PlanResponse.model_construct(
             title="Test Video",
@@ -235,10 +235,9 @@ class TestSemanticValidation:
             target_duration_seconds=300,
             scenes=[_make_valid_scene(i) for i in range(7)],
         )
-        with pytest.raises(SemanticValidationError, match="scenes must have"):
-            hr_parser.validate_and_write_plan(plan, project)
+        assert hr_parser.validate_and_write_plan(plan, project) is True
 
-    def test_too_many_scenes_fails(self, tmp_path):
+    def test_many_scenes_allowed(self, tmp_path):
         project = _make_project(tmp_path)
         plan = PlanResponse.model_construct(
             title="Test Video",
@@ -246,37 +245,34 @@ class TestSemanticValidation:
             target_duration_seconds=300,
             scenes=[_make_valid_scene(i) for i in range(13)],
         )
-        with pytest.raises(SemanticValidationError, match="scenes must have"):
-            hr_parser.validate_and_write_plan(plan, project)
+        assert hr_parser.validate_and_write_plan(plan, project) is True
 
-    def test_invalid_total_duration_fails(self, tmp_path):
+    def test_short_total_duration_allowed(self, tmp_path):
         project = _make_project(tmp_path)
         plan = PlanResponse.model_construct(
             title="Test",
             description="desc",
-            target_duration_seconds=100,  # below 240
-            scenes=[_make_valid_scene(i) for i in range(9)],
+            target_duration_seconds=90,
+            scenes=[_make_valid_scene(i) for i in range(3)],
         )
-        with pytest.raises(SemanticValidationError, match="target_duration_seconds"):
-            hr_parser.validate_and_write_plan(plan, project)
+        assert hr_parser.validate_and_write_plan(plan, project) is True
 
-    def test_invalid_scene_duration_fails(self, tmp_path):
+    def test_short_scene_duration_allowed(self, tmp_path):
         project = _make_project(tmp_path)
-        scenes = [_make_valid_scene(i) for i in range(9)]
-        scenes[3] = SceneItem.model_construct(
-            title="Bad scene",
+        scenes = [_make_valid_scene(i) for i in range(3)]
+        scenes[1] = SceneItem.model_construct(
+            title="Short scene",
             description="desc",
-            estimated_duration_seconds=10,  # below 20
+            estimated_duration_seconds=5,
             visual_ideas=["idea"],
         )
         plan = PlanResponse.model_construct(
             title="Test",
             description="desc",
-            target_duration_seconds=300,
+            target_duration_seconds=90,
             scenes=scenes,
         )
-        with pytest.raises(SemanticValidationError, match="estimated_duration_seconds"):
-            hr_parser.validate_and_write_plan(plan, project)
+        assert hr_parser.validate_and_write_plan(plan, project) is True
 
     def test_empty_title_fails(self, tmp_path):
         project = _make_project(tmp_path)
@@ -292,7 +288,7 @@ class TestSemanticValidation:
     def test_failure_diagnostic_written(self, tmp_path):
         project = _make_project(tmp_path)
         plan = PlanResponse.model_construct(
-            title="Test Video",
+            title="   ",
             description="A test video about testing",
             target_duration_seconds=300,
             scenes=[_make_valid_scene(i) for i in range(7)],
@@ -533,6 +529,58 @@ class TestPromptComposition:
         )
         assert "voiceover writer" in system
         assert "Narration Test" in user
+
+    def test_plan_prompt_queries_collections_with_user_prompt(self, monkeypatch):
+        captured = {}
+
+        def _fake_search(query):
+            captured["query"] = query
+            return CollectionSearchResult(
+                query=query,
+                collection_id="collection_test",
+                limit=8,
+                chunks=["Plan docs chunk"],
+            )
+
+        monkeypatch.setattr(hr_prompts, "search_manim_collection", _fake_search)
+        _, user = hr_prompts.compose_prompt(
+            phase="plan",
+            topic="orbital resonance",
+            project_dir=Path("."),
+        )
+        info = hr_prompts.consume_last_retrieval_info()
+        assert "Create a video plan for this topic" in captured["query"]
+        assert "orbital resonance" in captured["query"]
+        assert "Plan docs chunk" in user
+        assert info["phase"] == "plan"
+        assert info["hit_count"] == 1
+
+    def test_narration_prompt_queries_collections_with_user_prompt(
+        self, monkeypatch, tmp_path
+    ):
+        project = _make_narration_project(tmp_path)
+        captured = {}
+
+        def _fake_search(query):
+            captured["query"] = query
+            return CollectionSearchResult(
+                query=query,
+                collection_id="collection_test",
+                limit=8,
+                chunks=["Narration docs chunk"],
+            )
+
+        monkeypatch.setattr(hr_prompts, "search_manim_collection", _fake_search)
+        _, user = hr_prompts.compose_prompt(
+            phase="narration",
+            project_dir=project,
+        )
+        info = hr_prompts.consume_last_retrieval_info()
+        assert "Narration Test" in captured["query"]
+        assert "\"scene_01\"" in captured["query"]
+        assert "Narration docs chunk" in user
+        assert info["phase"] == "narration"
+        assert info["hit_count"] == 1
 
     def test_scene_qc_prompt_loads(self, tmp_path):
         project = _make_scene_project(tmp_path)

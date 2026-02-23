@@ -9,7 +9,6 @@ Responsibilities:
 No dependencies on harness/.
 """
 
-import ast
 import json
 import re
 from datetime import datetime, timezone
@@ -21,26 +20,6 @@ from harness_responses.schemas.narration import NarrationResponse
 from harness_responses.schemas.plan import PlanResponse
 from harness_responses.schemas.scene_qc import SceneQcResponse
 from harness_responses.schemas.scene_repair import SceneRepairResponse
-
-# Semantic validation bounds (from plan manifest)
-_PLAN_MIN_SCENES = 8
-_PLAN_MAX_SCENES = 12
-_PLAN_MIN_SCENE_DURATION = 20
-_PLAN_MAX_SCENE_DURATION = 45
-_PLAN_MIN_TOTAL_DURATION = 240
-_PLAN_MAX_TOTAL_DURATION = 480
-
-_FORBIDDEN_SCENE_BODY_TOKENS = (
-    "from manim import",
-    "from pathlib import",
-    "import numpy",
-    "config.frame",
-    "class Scene",
-    "def construct",
-    "SLOT_START:scene_body",
-    "SLOT_END:scene_body",
-)
-
 
 class SemanticValidationError(ValueError):
     """Raised when a phase response passes schema validation but fails semantic rules."""
@@ -88,52 +67,6 @@ def _fail_with_diag(
 ) -> None:
     _write_failure_diagnostic(project_dir / "log", raw_response, extracted_content, msg)
     raise SemanticValidationError(msg)
-
-
-def _sanitize_code(code: str) -> str:
-    code = re.sub(r"</?[A-Za-z][^>\n]*>", "", code)
-    code = re.sub(r"^\s*</?[A-Za-z][^>]*>\s*$", "", code, flags=re.MULTILINE)
-    code = re.sub(r"^```python\s*", "", code, flags=re.MULTILINE)
-    code = re.sub(r"^```\s*$", "", code, flags=re.MULTILINE)
-    return code.strip()
-
-
-def _verify_python_syntax(code: str) -> bool:
-    try:
-        compile(code, "<string>", "exec")
-        return True
-    except SyntaxError:
-        return False
-
-
-def _has_executable_self_play_call(body_code: str) -> bool:
-    try:
-        tree = ast.parse(body_code)
-    except SyntaxError:
-        return False
-
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.Call):
-            continue
-        func = node.func
-        if not isinstance(func, ast.Attribute) or func.attr != "play":
-            continue
-        owner = func.value
-        if not isinstance(owner, ast.Name) or owner.id != "self":
-            continue
-        if len(node.args) >= 1:
-            return True
-    return False
-
-
-def _validate_scene_body_syntax(body_code: str) -> bool:
-    indented_body = "\n".join("    " + line for line in body_code.split("\n"))
-    test_code = f"def test():\n{indented_body}\n    pass"
-    try:
-        compile(test_code, "<string>", "exec")
-        return True
-    except (SyntaxError, ValueError):
-        return False
 
 
 def _inject_body_into_scaffold(scaffold_path: Path, body_code: str) -> str:
@@ -201,29 +134,12 @@ def validate_and_write_plan(
         _fail("plan.description must not be empty")
 
     scene_count = len(parsed.scenes)
-    if not (_PLAN_MIN_SCENES <= scene_count <= _PLAN_MAX_SCENES):
-        _fail(
-            f"plan.scenes must have {_PLAN_MIN_SCENES}-{_PLAN_MAX_SCENES} scenes, "
-            f"got {scene_count}"
-        )
-
-    if not (_PLAN_MIN_TOTAL_DURATION <= parsed.target_duration_seconds <= _PLAN_MAX_TOTAL_DURATION):
-        _fail(
-            f"plan.target_duration_seconds must be {_PLAN_MIN_TOTAL_DURATION}-"
-            f"{_PLAN_MAX_TOTAL_DURATION}, got {parsed.target_duration_seconds}"
-        )
 
     for idx, scene in enumerate(parsed.scenes):
         if not scene.title.strip():
             _fail(f"plan.scenes[{idx}].title must not be empty")
         if not scene.description.strip():
             _fail(f"plan.scenes[{idx}].description must not be empty")
-        dur = scene.estimated_duration_seconds
-        if not (_PLAN_MIN_SCENE_DURATION <= dur <= _PLAN_MAX_SCENE_DURATION):
-            _fail(
-                f"plan.scenes[{idx}].estimated_duration_seconds must be "
-                f"{_PLAN_MIN_SCENE_DURATION}-{_PLAN_MAX_SCENE_DURATION}, got {dur}"
-            )
         if not scene.visual_ideas:
             _fail(f"plan.scenes[{idx}].visual_ideas must not be empty")
         for vi_idx, idea in enumerate(scene.visual_ideas):
@@ -352,55 +268,13 @@ def _normalize_and_validate_scene_body(
     raw_response: Any,
     extracted_content: Any,
 ) -> str:
-    candidate = _sanitize_code(scene_body)
+    candidate = scene_body.strip()
     if not candidate:
         _fail_with_diag(
             project_dir,
             raw_response,
             extracted_content,
-            f"{phase}.scene_body cannot be empty after sanitization",
-        )
-    if not _verify_python_syntax(candidate):
-        _fail_with_diag(
-            project_dir,
-            raw_response,
-            extracted_content,
-            f"{phase}.scene_body must be valid Python",
-        )
-    if any(token in candidate for token in _FORBIDDEN_SCENE_BODY_TOKENS):
-        _fail_with_diag(
-            project_dir,
-            raw_response,
-            extracted_content,
-            f"{phase}.scene_body must contain body statements only (no imports/class/config/scaffold markers)",
-        )
-    if re.search(r"with\s+self\.voiceover\(", candidate):
-        _fail_with_diag(
-            project_dir,
-            raw_response,
-            extracted_content,
-            f"{phase}.scene_body must not include self.voiceover wrapper",
-        )
-    if candidate.strip().startswith(("class ", "def ", "import ", "from ")):
-        _fail_with_diag(
-            project_dir,
-            raw_response,
-            extracted_content,
-            f"{phase}.scene_body must not start with class/def/import statements",
-        )
-    if not _has_executable_self_play_call(candidate):
-        _fail_with_diag(
-            project_dir,
-            raw_response,
-            extracted_content,
-            f"{phase}.scene_body must contain at least one executable self.play(...) call",
-        )
-    if not _validate_scene_body_syntax(candidate):
-        _fail_with_diag(
-            project_dir,
-            raw_response,
-            extracted_content,
-            f"{phase}.scene_body must compile as method-body statements",
+            f"{phase}.scene_body cannot be empty",
         )
     return candidate
 

@@ -212,7 +212,7 @@ def main() -> int:
         temperature = 0.7
     temperature = max(0.0, min(2.0, temperature))
 
-    store = False  # stateful mode is opt-in; default stateless
+    store = True  # use server-side threading via response_id / previous_response_id
     enable_web_search = False  # tools off by default
 
     log_dir = args.project_dir / "log"
@@ -274,6 +274,7 @@ def main() -> int:
             temperature=temperature,
             store=store,
             enable_web_search=enable_web_search,
+            session_state_path=log_dir / "responses_session.json",
         )
 
         response_id: Optional[str] = getattr(raw_response, "id", None)

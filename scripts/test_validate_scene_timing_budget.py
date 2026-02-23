@@ -95,6 +95,43 @@ class Dummy:
             self.assertEqual(result.returncode, 1, msg=result.stdout + result.stderr)
             self.assertIn("FAIL: projected timing exceeds narration budget", result.stdout)
 
+    def test_auto_adjust_when_ratio_below_threshold(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_dir = Path(temp_dir)
+            scene_id = "scene_06_resistance_and_training"
+            scene_file = project_dir / f"{scene_id}.py"
+            _write_cache(project_dir, scene_id, 22.4)
+            _write_scene(
+                scene_file,
+                """
+class Dummy:
+    def construct(self):
+        self.play(FadeIn(a), run_time=tracker.duration * 0.97)
+        self.wait(tracker.duration * 0.26)
+""".strip(),
+            )
+
+            result = subprocess.run(
+                [
+                    "python3",
+                    str(SCRIPT_PATH),
+                    "--scene-file",
+                    str(scene_file),
+                    "--project-dir",
+                    str(project_dir),
+                    "--min-ratio",
+                    "0.90",
+                    "--auto-adjust",
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
+            self.assertIn("AUTO-ADJUST", result.stdout)
+            updated = scene_file.read_text(encoding="utf-8")
+            self.assertIn("run_time=", updated)
+
     def test_indeterminate_for_unparsed_expression(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             project_dir = Path(temp_dir)

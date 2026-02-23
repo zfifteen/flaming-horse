@@ -1,4 +1,4 @@
-Generate exactly ONE scene body for this run.
+Generate the scene body for this run.
 
 Scene ID: {{scene_id}}
 Scene file: {{scene_file_name}}
@@ -91,33 +91,6 @@ self.play(...)
 self.wait(...)
 ```
 
-Allowed API subset:
-- `self.play(...)`, `self.wait(...)`
-- `Text`, `MathTex`, `Tex`, `VGroup`, standard Manim primitives
-- `safe_position`, `safe_layout`, `polished_fade_in`, `harmonious_color`
-- `FadeIn`, `FadeOut`, `Create`, `Transform`, `LaggedStart`, `Write`
-
-Geometry construction rule (CRITICAL):
-- For Polygon and similar shapes, pass vertices as INDIVIDUAL arguments, NOT as a list:
-  - CORRECT: `Polygon(RIGHT * 3 + DOWN, LEFT * 3 + DOWN, UP * 2)`
-  - CORRECT: `Polygon(*[RIGHT * 3 + DOWN, LEFT * 3 + DOWN, UP * 2])`
-  - WRONG: `Polygon([RIGHT * 3 + DOWN, LEFT * 3 + DOWN, UP * 2])`
-- For complex positions, use explicit tuple coordinates: `Polygon((3, -1, 0), (3.8, -1, 0), (3.4, 0.5, 0))`
-
-Forbidden:
-- `play_next(...)`, `play_text_next(...)`
-- `self.add(...)` for first-time visible content
-- `from ... import` or `import ...` statements - do NOT include imports in scene_body
-- `random` module usage (`random.choice`, `random.randint`, `random.random`, etc.) - use deterministic values only
-- class definitions, config blocks, helper function definitions
-- unresolved placeholders like `{{...}}`
-- `.to_edge(UP)` for titles/labels
-- `self.set_background_color(...)` - DOES NOT EXIST in Manim. Use `config.background_color = BLACK` in config section instead (NOT in scene_body).
-- `self.camera.set_background(...)` - NOT needed, background is handled by config
-
-MathTex rule:
-- Use `MathTex(r"... \times ...")` (single backslash command in raw string), not `\\times`.
-
 Final output rule:
 - Return only one JSON object containing `scene_body` and no extra text.
 
@@ -125,4 +98,3 @@ Final output rule:
 + a `construct(self)` method body. NEVER include: import statements,
 + class definitions, function definitions (def), or config/scaffold
 + markers. The scaffold already provides these. Violation = instant rejection.
-
