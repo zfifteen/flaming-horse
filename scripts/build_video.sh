@@ -1214,13 +1214,24 @@ invoke_scene_fix_agent() {
 Error details:
 ${error_stacktrace}"
 
-  $PYTHON_BIN -m harness \
-    --phase scene_repair \
-    --project-dir "$PROJECT_DIR" \
-    --scene-file "$scene_file" \
-    --retry-context "$retry_context" \
-    > >(tee -a "$LOG_FILE") \
-    2> >(tee -a "$LOG_FILE" >&2)
+  if [[ "${FH_HARNESS:-legacy}" == "responses" ]]; then
+    echo "Using harness_responses (xAI Responses API) for scene repair" | tee -a "$LOG_FILE"
+    $PYTHON_BIN -m harness_responses \
+      --phase scene_repair \
+      --project-dir "$PROJECT_DIR" \
+      --scene-file "$scene_file" \
+      --retry-context "$retry_context" \
+      > >(tee -a "$LOG_FILE") \
+      2> >(tee -a "$LOG_FILE" >&2)
+  else
+    $PYTHON_BIN -m harness \
+      --phase scene_repair \
+      --project-dir "$PROJECT_DIR" \
+      --scene-file "$scene_file" \
+      --retry-context "$retry_context" \
+      > >(tee -a "$LOG_FILE") \
+      2> >(tee -a "$LOG_FILE" >&2)
+  fi
 
   local exit_code=$?
   return $exit_code

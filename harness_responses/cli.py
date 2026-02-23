@@ -1,7 +1,10 @@
 """
 Command-line interface for harness_responses.
 
-Supports phases implemented in Phase 1: plan.
+Supports phases implemented in this harness:
+- plan
+- build_scenes
+- scene_repair
 Exit codes match legacy harness contract: 0=success, 1=recoverable/phase failure, 2=config error.
 """
 
@@ -17,7 +20,7 @@ from harness_responses.parser import SemanticValidationError, write_phase_artifa
 from harness_responses.prompts import compose_prompt
 
 # Phases implemented in Phase 1
-_IMPLEMENTED_PHASES = ["plan"]
+_IMPLEMENTED_PHASES = ["plan", "build_scenes", "scene_repair"]
 
 
 def _utc_timestamp() -> str:
@@ -78,6 +81,12 @@ def _get_schema_for_phase(phase: str):
     if phase == "plan":
         from harness_responses.schemas.plan import PlanResponse
         return PlanResponse
+    if phase == "build_scenes":
+        from harness_responses.schemas.build_scenes import BuildScenesResponse
+        return BuildScenesResponse
+    if phase == "scene_repair":
+        from harness_responses.schemas.scene_repair import SceneRepairResponse
+        return SceneRepairResponse
     raise NotImplementedError(f"No schema for phase: {phase}")
 
 
@@ -110,6 +119,11 @@ def main() -> int:
         help="Error context for retry attempts",
     )
     parser.add_argument(
+        "--scene-file",
+        type=Path,
+        help="Scene file path (required for scene_repair phase)",
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Build and validate prompt/request payload without making API calls",
@@ -128,6 +142,9 @@ def main() -> int:
     # Phase-specific input validation
     if args.phase == "plan" and not args.topic:
         print("❌ --topic is required for plan phase", file=sys.stderr)
+        return 1
+    if args.phase == "scene_repair" and not args.scene_file:
+        print("❌ --scene-file is required for scene_repair phase", file=sys.stderr)
         return 1
 
     # Runtime config
@@ -151,8 +168,10 @@ def main() -> int:
     try:
         system_prompt, user_prompt = compose_prompt(
             phase=args.phase,
+            project_dir=args.project_dir,
             topic=args.topic or "",
             retry_context=args.retry_context or "",
+            scene_file=args.scene_file,
         )
 
         if args.dry_run:

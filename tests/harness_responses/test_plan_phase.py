@@ -21,7 +21,9 @@ from pydantic import ValidationError
 import harness_responses.cli as hr_cli
 import harness_responses.parser as hr_parser
 import harness_responses.prompts as hr_prompts
+from harness_responses.schemas.build_scenes import BuildScenesResponse
 from harness_responses.schemas.plan import PlanResponse, SceneItem
+from harness_responses.schemas.scene_repair import SceneRepairResponse
 from harness_responses.parser import SemanticValidationError
 
 
@@ -52,6 +54,63 @@ def _make_project(tmp_path: Path) -> Path:
     project.mkdir()
     state = {"phase": "plan", "scenes": [], "current_scene_index": 0}
     (project / "project_state.json").write_text(json.dumps(state), encoding="utf-8")
+    return project
+
+
+def _make_scene_project(tmp_path: Path) -> Path:
+    project = tmp_path / "scene_project"
+    project.mkdir()
+    state = {
+        "phase": "build_scenes",
+        "plan_file": "plan.json",
+        "narration_file": "narration_script.py",
+        "scenes": [
+            {
+                "id": "scene_01",
+                "title": "Scene 1",
+                "narration_key": "scene_01",
+                "file": "scene_01.py",
+                "class_name": "Scene01",
+            }
+        ],
+        "current_scene_index": 0,
+    }
+    (project / "project_state.json").write_text(json.dumps(state), encoding="utf-8")
+    (project / "plan.json").write_text(
+        json.dumps(
+            {
+                "title": "Plan",
+                "description": "desc",
+                "target_duration_seconds": 300,
+                "scenes": [
+                    {
+                        "id": "scene_01",
+                        "narration_key": "scene_01",
+                        "title": "Scene 1",
+                        "description": "desc",
+                        "estimated_duration_seconds": 30,
+                        "visual_ideas": ["idea"],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (project / "narration_script.py").write_text(
+        "SCRIPT = {\n    \"scene_01\": \"Narration text for scene one.\"\n}\n",
+        encoding="utf-8",
+    )
+    (project / "scene_01.py").write_text(
+        "from manim import *\n\n"
+        "class Scene01(VoiceoverScene):\n"
+        "    def construct(self):\n"
+        "        with self.voiceover(text=SCRIPT[\"scene_01\"]) as tracker:\n"
+        "            # SLOT_START:scene_body\n"
+        "            title = Text(\"Placeholder\")\n"
+        "            self.play(Write(title), run_time=min(1.0, tracker.duration * 0.2))\n"
+        "            # SLOT_END:scene_body\n",
+        encoding="utf-8",
+    )
     return project
 
 
@@ -186,6 +245,24 @@ class TestSemanticValidation:
         with pytest.raises(NotImplementedError):
             hr_parser.write_phase_artifacts("narration", None, project)
 
+    def test_write_phase_artifacts_build_scenes(self, tmp_path):
+        project = _make_scene_project(tmp_path)
+        parsed = BuildScenesResponse(
+            scene_body='title = Text("Rebuilt")\nself.play(Write(title), run_time=min(1.0, tracker.duration * 0.2))'
+        )
+        assert hr_parser.write_phase_artifacts("build_scenes", parsed, project) is True
+        content = (project / "scene_01.py").read_text(encoding="utf-8")
+        assert "Rebuilt" in content
+
+    def test_write_phase_artifacts_scene_repair(self, tmp_path):
+        project = _make_scene_project(tmp_path)
+        parsed = SceneRepairResponse(
+            scene_body='title = Text("Fixed")\nself.play(Write(title), run_time=min(1.0, tracker.duration * 0.2))'
+        )
+        assert hr_parser.write_phase_artifacts("scene_repair", parsed, project) is True
+        content = (project / "scene_01.py").read_text(encoding="utf-8")
+        assert "Fixed" in content
+
 
 # ---------------------------------------------------------------------------
 # Prompt composition tests
@@ -193,23 +270,59 @@ class TestSemanticValidation:
 
 class TestPromptComposition:
     def test_plan_prompts_load(self):
-        system, user = hr_prompts.compose_prompt(phase="plan", topic="black holes")
+        system, user = hr_prompts.compose_prompt(
+            phase="plan",
+            topic="black holes",
+            project_dir=Path("."),
+        )
         assert "Manim" in system
         assert "black holes" in user
 
-    def test_unknown_phase_raises(self):
+    def test_unknown_phase_raises(self, tmp_path):
         with pytest.raises(ValueError, match="not implemented"):
-            hr_prompts.compose_prompt(phase="narration", topic="test")
+            hr_prompts.compose_prompt(
+                phase="narration",
+                topic="test",
+                project_dir=tmp_path,
+            )
 
     def test_retry_context_appended(self):
         _, user = hr_prompts.compose_prompt(
-            phase="plan", topic="test", retry_context="previous error details"
+            phase="plan",
+            topic="test",
+            retry_context="previous error details",
+            project_dir=Path("."),
         )
         assert "previous error details" in user
 
     def test_no_retry_context_clean(self):
-        _, user = hr_prompts.compose_prompt(phase="plan", topic="test", retry_context="")
+        _, user = hr_prompts.compose_prompt(
+            phase="plan",
+            topic="test",
+            retry_context="",
+            project_dir=Path("."),
+        )
         assert "Retry context" not in user
+
+    def test_build_scenes_prompt_loads(self, tmp_path):
+        project = _make_scene_project(tmp_path)
+        system, user = hr_prompts.compose_prompt(
+            phase="build_scenes",
+            project_dir=project,
+        )
+        assert "Build Scenes Phase" in system
+        assert "Scene ID: scene_01" in user
+
+    def test_scene_repair_prompt_loads(self, tmp_path):
+        project = _make_scene_project(tmp_path)
+        _, user = hr_prompts.compose_prompt(
+            phase="scene_repair",
+            project_dir=project,
+            scene_file=project / "scene_01.py",
+            retry_context="boom",
+        )
+        assert "Current Scene ID" in user
+        assert "boom" in user
 
 
 # ---------------------------------------------------------------------------
@@ -230,6 +343,14 @@ class TestCLI:
         monkeypatch.setattr(
             sys, "argv",
             ["prog", "--phase", "plan", "--project-dir", str(project)],
+        )
+        assert hr_cli.main() == 1
+
+    def test_missing_scene_file_for_scene_repair_returns_1(self, monkeypatch, tmp_path):
+        project = _make_scene_project(tmp_path)
+        monkeypatch.setattr(
+            sys, "argv",
+            ["prog", "--phase", "scene_repair", "--project-dir", str(project)],
         )
         assert hr_cli.main() == 1
 
