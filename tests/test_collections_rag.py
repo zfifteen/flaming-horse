@@ -151,10 +151,13 @@ def test_search_manim_collection_empty_results(monkeypatch):
 
 
 def test_search_manim_collection_request_exception(monkeypatch):
-    """search_manim_collection returns empty string on network exception."""
+    """search_manim_collection retries on request exception then returns empty."""
     monkeypatch.setenv("XAI_API_KEY", "test-key")
+    monkeypatch.setattr(collections_module.time, "sleep", lambda *_: None)
+    calls = {"n": 0}
 
     def raise_exc(*a, **kw):
+        calls["n"] += 1
         raise requests.exceptions.ConnectionError("network down")
 
     monkeypatch.setattr(collections_module.requests, "post", raise_exc)
@@ -162,6 +165,24 @@ def test_search_manim_collection_request_exception(monkeypatch):
     result = search_manim_collection("VGroup usage")
 
     assert result == ""
+    assert calls["n"] == 3
+
+
+def test_search_manim_collection_uses_collection_id_override(monkeypatch):
+    """search_manim_collection honors XAI_COLLECTION_ID override."""
+    monkeypatch.setenv("XAI_API_KEY", "test-key")
+    monkeypatch.setenv("XAI_COLLECTION_ID", "collection_test_override")
+    captured = {}
+
+    def capture_post(*a, **kw):
+        captured["payload"] = kw["json"]
+        return _CollectionsResp()
+
+    monkeypatch.setattr(collections_module.requests, "post", capture_post)
+
+    _ = search_manim_collection("VGroup usage")
+
+    assert captured["payload"]["source"]["collection_ids"] == ["collection_test_override"]
 
 
 def test_compose_build_scenes_prompt_includes_collections_chunks(monkeypatch, tmp_path):
@@ -210,3 +231,26 @@ def test_compose_scene_repair_prompt_includes_collections_chunks(monkeypatch, tm
 
     assert chunk_text in user_prompt
     assert "Manim CE Reference Documentation" in user_prompt
+
+
+def test_compose_scene_repair_prompt_skips_collections_for_low_signal(monkeypatch, tmp_path):
+    """compose_scene_repair_prompt skips collections call when query context is low-signal."""
+    state, project_dir = _make_project(tmp_path)
+    # Force no matching plan scene details and no retry context.
+    state["scenes"][0]["id"] = "scene_missing"
+    state["scenes"][0]["narration_key"] = "scene_missing"
+    called = {"n": 0}
+
+    def fake_search(_query):
+        called["n"] += 1
+        return "should not be used"
+
+    monkeypatch.setattr("harness.prompts.search_manim_collection", fake_search)
+
+    scene_file = project_dir / "scene_01.py"
+    _, user_prompt = compose_scene_repair_prompt(
+        state, project_dir, scene_file, None
+    )
+
+    assert called["n"] == 0
+    assert "Manim CE Reference Documentation" not in user_prompt

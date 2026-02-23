@@ -11,7 +11,7 @@ import time
 import requests
 
 COLLECTIONS_SEARCH_URL = "https://api.x.ai/v1/documents/search"
-MANIM_COLLECTION_ID = "collection_096219fb-a4b3-41fc-bfb9-2f796cf5377b"
+DEFAULT_MANIM_COLLECTION_ID = "collection_096219fb-a4b3-41fc-bfb9-2f796cf5377b"
 
 _MAX_RETRIES = 3
 _RETRY_DELAY = 2.0
@@ -36,10 +36,16 @@ def search_manim_collection(query: str, limit: int = 8) -> str:
             print("⚠️  Collections search skipped: XAI_API_KEY not set")
             return ""
 
+        collection_id = (
+            os.getenv("XAI_COLLECTION_ID")
+            or os.getenv("FLAMING_HORSE_COLLECTION_ID")
+            or DEFAULT_MANIM_COLLECTION_ID
+        )
+
         payload = {
             "query": query,
             "source": {
-                "collection_ids": [MANIM_COLLECTION_ID],
+                "collection_ids": [collection_id],
             },
             "num_results": limit,
             "retrieval_mode": {"type": "hybrid"},
@@ -53,12 +59,27 @@ def search_manim_collection(query: str, limit: int = 8) -> str:
         print("🔍 Retrieving Manim docs for scene generation...")
         response = None
         for attempt in range(_MAX_RETRIES):
-            response = requests.post(
-                COLLECTIONS_SEARCH_URL,
-                headers=headers,
-                json=payload,
-                timeout=15,
-            )
+            try:
+                response = requests.post(
+                    COLLECTIONS_SEARCH_URL,
+                    headers=headers,
+                    json=payload,
+                    timeout=15,
+                )
+            except requests.exceptions.RequestException as e:
+                wait_time = _RETRY_DELAY * (2**attempt)
+                if attempt < _MAX_RETRIES - 1:
+                    print(
+                        f"⚠️  Collections search request failed: {e}. "
+                        f"Retrying after {wait_time}s..."
+                    )
+                    time.sleep(wait_time)
+                    continue
+                print(
+                    f"⚠️  Collections search request failed after {_MAX_RETRIES} "
+                    f"attempts: {e}"
+                )
+                return ""
             if response.status_code == 200:
                 break
             elif response.status_code == 429 or response.status_code >= 500:

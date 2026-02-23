@@ -338,9 +338,7 @@ def compose_build_scenes_prompt(
     system_prompt = load_prompt_template(
         "build_scenes",
         "system.md",
-        {
-            "kitchen_sink": read_file(TEMPLATES_DIR / "kitchen_sink.md"),
-        },
+        {},
     )
     user_prompt = load_prompt_template(
         "build_scenes",
@@ -441,16 +439,19 @@ def compose_scene_repair_prompt(
         narration_key = resolved_key
     scene_narration = resolved_narration or "N/A"
 
-    reference_section = search_manim_collection(
-        f"{scene_details}\n{retry_context or ''}"
+    query_parts = []
+    if scene_details != "N/A":
+        query_parts.append(scene_details)
+    if retry_context and retry_context.strip():
+        query_parts.append(retry_context.strip())
+    reference_section = (
+        search_manim_collection("\n".join(query_parts)) if query_parts else ""
     )
 
     system_prompt = load_prompt_template(
         "scene_repair",
         "system.md",
-        {
-            "kitchen_sink": read_file(TEMPLATES_DIR / "kitchen_sink.md"),
-        },
+        {},
     )
     user_prompt = load_prompt_template(
         "scene_repair",

@@ -54,6 +54,3 @@ Your output is invalid unless it satisfies ALL of the following:
 6. If space is tight, reduce element count; never trade readability for density.
 
 If any rule above cannot be satisfied, simplify the scene and still satisfy all rules.
-
-Authoritative guidance (kitchen sink):
-{{kitchen_sink}}
