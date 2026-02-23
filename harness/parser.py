@@ -11,6 +11,8 @@ import textwrap
 from pathlib import Path
 from typing import Dict, Any, Optional, List, Tuple
 
+from harness.util.layout_validator import LayoutValidator
+
 
 class SchemaValidationError(ValueError):
     """Raised when a phase response fails strict JSON schema validation."""
@@ -766,6 +768,45 @@ def parse_build_scenes_response(response_text: str) -> Optional[str]:
     return candidate
 
 
+def _validate_current_scene_layout(
+    scene: Dict[str, Any],
+    scene_index: int,
+    valid_layouts: List[str],
+    layout_rules: Dict[str, List[str]],
+) -> None:
+    """Validate optional scene layout metadata before writing build artifacts."""
+    layout = scene.get("layout")
+    if layout is None:
+        return
+    if not isinstance(layout, str) or not layout.strip():
+        raise SchemaValidationError(
+            f"state.scenes[{scene_index}].layout must be a non-empty string when provided"
+        )
+
+    validator = LayoutValidator(valid_layouts, layout_rules)
+    errors = validator.validate_layout(layout.strip())
+    if errors:
+        requirements_lines = []
+        for rule_layout in sorted(layout_rules):
+            reqs = validator.get_layout_requirements(rule_layout)
+            if reqs:
+                requirements_lines.append(f"  - {rule_layout}: {', '.join(reqs)}")
+            else:
+                requirements_lines.append(f"  - {rule_layout}: (no extra requirements)")
+        requirements_text = "\n".join(requirements_lines) if requirements_lines else "  - (none configured)"
+        raise SchemaValidationError(
+            f"build_scenes state layout validation failed for scene {scene_index + 1}:\n"
+            f"  Layout: {layout.strip()}\n"
+            f"  Errors:\n"
+            + "\n".join(f"    - {error}" for error in errors)
+            + "\n\n"
+            + "Configured layout requirement notes:\n"
+            + requirements_text
+            + "\n\n"
+            + "The agent must use one of the valid layout tags listed above."
+        )
+
+
 def parse_scene_qc_response(
     response_text: str,
 ) -> Tuple[List[Tuple[str, str]], Optional[str]]:
@@ -866,6 +907,37 @@ def parse_and_write_artifacts(
             current_scene = scenes[current_index]
             scene_id = current_scene.get("id", f"scene_{current_index + 1:02d}")
             scene_file_name = current_scene.get("file", f"{scene_id}.py")
+            configured_layouts = state.get("scene_layout_options", [])
+            configured_layout_rules = state.get("layout_validation_rules", {})
+
+            if not isinstance(configured_layouts, list):
+                raise SchemaValidationError(
+                    "state.scene_layout_options must be a list when provided"
+                )
+            if not isinstance(configured_layout_rules, dict):
+                raise SchemaValidationError(
+                    "state.layout_validation_rules must be an object when provided"
+                )
+            normalized_layout_rules: Dict[str, List[str]] = {}
+            for key, value in configured_layout_rules.items():
+                if not isinstance(key, str):
+                    raise SchemaValidationError(
+                        "state.layout_validation_rules keys must be strings"
+                    )
+                if not isinstance(value, list) or not all(
+                    isinstance(item, str) for item in value
+                ):
+                    raise SchemaValidationError(
+                        f"state.layout_validation_rules[{key!r}] must be a list of strings"
+                    )
+                normalized_layout_rules[key] = value
+
+            _validate_current_scene_layout(
+                current_scene,
+                current_index,
+                configured_layouts,
+                normalized_layout_rules,
+            )
 
             body_code = parse_build_scenes_response(response_text)
 

@@ -1,6 +1,8 @@
 Create a video plan for this topic:
 {{topic}}
 
+{{retry_context_block}}
+
 Return one JSON object with:
 - title (string)
 - description (string)

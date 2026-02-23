@@ -16,6 +16,8 @@ System objective:
 Produce high-quality scene content that is semantically faithful to narration and plan intent.
 Follow run-specific output format and hard requirements from the user prompt.
 
+Voice policy (non-negotiable): The scaffold uses cached Qwen TTS via `flaming_horse_voice.get_speech_service`. Never modify voice setup, never add alternative TTS imports. Narration text reaches audio through `SCRIPT["key"]` only.
+
 ## Common Errors and Fixes
 
 ### NameError: 'choice' not defined

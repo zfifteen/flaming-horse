@@ -193,7 +193,22 @@ def format_duration(seconds: int) -> str:
     return f"{secs}s"
 
 
-def compose_plan_prompt(state: Dict[str, Any], topic: Optional[str]) -> Tuple[str, str]:
+def compose_plan_prompt(
+    state: Dict[str, Any],
+    topic: Optional[str],
+    retry_context: Optional[str] = None,
+) -> Tuple[str, str]:
+    _ = state
+    retry_block = ""
+    if retry_context:
+        retry_block = (
+            "## RETRY CONTEXT\n\n"
+            "The previous attempt failed with the following error details:\n\n"
+            "```\n"
+            f"{retry_context}\n"
+            "```\n\n"
+            "Fix this failure and return only the required top-level JSON object.\n"
+        )
     system_prompt = load_prompt_template(
         "plan",
         "system.md",
@@ -201,7 +216,11 @@ def compose_plan_prompt(state: Dict[str, Any], topic: Optional[str]) -> Tuple[st
             "pipeline_doc": read_file(TEMPLATES_DIR / "manim_content_pipeline.md"),
         },
     )
-    user_prompt = load_prompt_template("plan", "user.md", {"topic": topic or ""})
+    user_prompt = load_prompt_template(
+        "plan",
+        "user.md",
+        {"topic": topic or "", "retry_context_block": retry_block},
+    )
     return system_prompt, user_prompt
 
 
@@ -214,10 +233,20 @@ def compose_review_prompt(state: Dict[str, Any], project_dir: Path) -> Tuple[str
 
 
 def compose_narration_prompt(
-    state: Dict[str, Any], project_dir: Path
+    state: Dict[str, Any], project_dir: Path, retry_context: Optional[str] = None
 ) -> Tuple[str, str]:
     plan_file = resolve_project_file(project_dir, state.get("plan_file"), "plan.json")
     plan_data = json.loads(read_file(plan_file))
+    retry_block = ""
+    if retry_context:
+        retry_block = (
+            "## RETRY CONTEXT\n\n"
+            "The previous narration attempt failed with the following error details:\n\n"
+            "```\n"
+            f"{retry_context}\n"
+            "```\n\n"
+            "Fix this failure and return only the required top-level JSON object.\n"
+        )
 
     system_prompt = load_prompt_template(
         "narration",
@@ -232,6 +261,7 @@ def compose_narration_prompt(
         {
             "title": plan_data.get("title", "Unknown"),
             "plan_json": json.dumps(plan_data, indent=2),
+            "retry_context_block": retry_block,
         },
     )
     return system_prompt, user_prompt
@@ -454,11 +484,11 @@ def compose_prompt(
         raise ValueError("project_dir is required")
 
     if phase == "plan":
-        return compose_plan_prompt(state, topic)
+        return compose_plan_prompt(state, topic, retry_context)
     if phase == "review":
         return compose_review_prompt(state, project_dir)
     if phase == "narration":
-        return compose_narration_prompt(state, project_dir)
+        return compose_narration_prompt(state, project_dir, retry_context)
     if phase == "build_scenes":
         return compose_build_scenes_prompt(state, project_dir, retry_context)
     if phase == "scene_qc":

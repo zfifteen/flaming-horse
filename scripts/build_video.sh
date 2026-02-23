@@ -2678,14 +2678,15 @@ with state_path.open('r', encoding='utf-8') as f:
     state = json.load(f)
 
 def ffprobe_duration(path: Path, audio_only: bool = False):
+    entries = 'stream=duration' if audio_only else 'format=duration'
     cmd = [
         'ffprobe',
         '-v', 'error',
-        '-show_entries', 'format=duration',
+        '-show_entries', entries,
         '-of', 'default=noprint_wrappers=1:nokey=1',
     ]
     if audio_only:
-        cmd.extend(['-select_streams', 'a:0', '-show_entries', 'stream=duration'])
+        cmd.extend(['-select_streams', 'a:0'])
     cmd.append(str(path))
     try:
         out = subprocess.run(cmd, capture_output=True, text=True, check=True).stdout.strip()
