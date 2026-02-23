@@ -11,7 +11,7 @@ from typing import Optional
 from datetime import datetime, timezone
 
 from harness.prompts import compose_prompt
-from harness.client import call_xai_api
+from harness.client import call_llm_api
 from harness.parser import SchemaValidationError, parse_and_write_artifacts
 
 
@@ -45,12 +45,6 @@ def record_schema_failure(project_dir: Path, phase: str, error_text: str) -> Non
         errors = []
         state["errors"] = errors
     errors.append(f"Schema validation failed ({phase}): {error_text}")
-
-    flags = state.setdefault("flags", {})
-    if not isinstance(flags, dict):
-        flags = {}
-        state["flags"] = flags
-    flags["needs_human_review"] = True
 
     history = state.setdefault("history", [])
     if isinstance(history, list):
@@ -204,7 +198,7 @@ def main() -> int:
 
         # Call LLM API
         print(f"🤖 Calling LLM API for phase: {args.phase}")
-        response_text = call_xai_api(
+        response_text = call_llm_api(
             system_prompt=system_prompt,
             user_prompt=user_prompt,
             temperature=temperature,
@@ -257,7 +251,11 @@ def main() -> int:
     except Exception as e:
         try:
             # Best-effort logging for failures after prompt composition.
-            if "conversation_log" in locals() and "system_prompt" in locals() and "user_prompt" in locals():
+            if (
+                "conversation_log" in locals()
+                and "system_prompt" in locals()
+                and "user_prompt" in locals()
+            ):
                 append_conversation_log(
                     conversation_log,
                     phase=args.phase,

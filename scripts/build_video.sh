@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(realpath "${SCRIPT_DIR}/..")"
@@ -37,6 +37,7 @@ PHASE_RETRY_BACKOFF_SECONDS="${PHASE_RETRY_BACKOFF_SECONDS:-2}"
 #   "responses" — new harness_responses/ path via python -m harness_responses
 FH_HARNESS="${FH_HARNESS:-legacy}"
 TARGET_PHASE=""
+RERENDER_FINAL=""
 
 PHASE_SEQUENCE=(
   "init"
@@ -61,8 +62,10 @@ export TOKENIZERS_PARALLELISM
 
 usage() {
   cat <<EOF
-Usage: $0 [project_dir] [--topic "<video topic>"] [--phase <target_phase>]
+Usage: $0 [project_dir] [--topic "<video topic>"] [--phase <target_phase>] [--skip-precache] [--rerender-final]
   --phase stops after the specified phase has completed.
+  --skip-precache skips voice precaching, using existing cache (for re-rendering without API calls).
+  --rerender-final resets to precache_voiceovers and forces fresh voice cache generation (no scene regeneration).
 
 Recommended user entrypoint:
   ./scripts/create_video.sh <project_name> --topic "<video topic>" [--phase <target_phase>]
@@ -86,6 +89,7 @@ shift || true
 
 # Optional topic injection (primarily for plan phase)
 TOPIC_OVERRIDE=""
+SKIP_PRECACHE=""
 while [[ ${#} -gt 0 ]]; do
   case "${1}" in
     --topic)
@@ -103,6 +107,14 @@ while [[ ${#} -gt 0 ]]; do
         exit 1
       fi
       shift 2
+      ;;
+    --skip-precache)
+      SKIP_PRECACHE="1"
+      shift
+      ;;
+    --rerender-final)
+      RERENDER_FINAL="1"
+      shift
       ;;
     -h|--help)
       usage >&2
@@ -150,6 +162,15 @@ LOCK_FILE="${PROJECT_DIR}/.build.lock"
 LOG_DIR="${PROJECT_DIR}/log"
 LOG_FILE="${LOG_DIR}/build.log"
 ERROR_LOG="${LOG_DIR}/error.log"
+CRASH_DIAG_FILE="${LOG_DIR}/crash_diag.log"
+HEARTBEAT_FILE="${LOG_DIR}/heartbeat.txt"
+HEARTBEAT_INTERVAL_SECONDS="${HEARTBEAT_INTERVAL_SECONDS:-5}"
+HEARTBEAT_PID=""
+DIAG_PHASE="startup"
+DIAG_STAGE="boot"
+DIAG_SCENE=""
+DIAG_ATTEMPT="0"
+DIAG_ITERATION="0"
 mkdir -p "$LOG_DIR"
 
 
@@ -172,6 +193,87 @@ if [[ -f "$LOCK_FILE" ]]; then
   echo "🔒 Lock acquired (PID: $$)" | tee -a "$LOG_FILE"
 }
 
+diagnostics_log() {
+  local level="${1:-INFO}"
+  local message="${2:-}"
+  local ts
+  ts="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+  {
+    printf '[%s] level=%s pid=%s ppid=%s phase=%s stage=%s scene=%s iteration=%s attempt=%s msg=%s\n' \
+      "$ts" "$level" "$$" "$PPID" "${DIAG_PHASE:-}" "${DIAG_STAGE:-}" "${DIAG_SCENE:-}" \
+      "${DIAG_ITERATION:-}" "${DIAG_ATTEMPT:-}" "$message"
+  } >> "$CRASH_DIAG_FILE"
+}
+
+write_heartbeat() {
+  local ts
+  local tmp_file
+  ts="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+  # Use a unique temp file per writer/process to avoid collisions
+  # between the parent shell and background heartbeat loop.
+  tmp_file="$(mktemp "${HEARTBEAT_FILE}.tmp.XXXXXX")"
+  {
+    echo "timestamp_utc=${ts}"
+    echo "pid=$$"
+    echo "ppid=$PPID"
+    echo "phase=${DIAG_PHASE:-}"
+    echo "stage=${DIAG_STAGE:-}"
+    echo "scene=${DIAG_SCENE:-}"
+    echo "iteration=${DIAG_ITERATION:-}"
+    echo "attempt=${DIAG_ATTEMPT:-}"
+  } > "$tmp_file"
+  mv "$tmp_file" "$HEARTBEAT_FILE"
+}
+
+set_diag_context() {
+  DIAG_PHASE="${1:-$DIAG_PHASE}"
+  DIAG_STAGE="${2:-$DIAG_STAGE}"
+  DIAG_SCENE="${3:-$DIAG_SCENE}"
+  DIAG_ATTEMPT="${4:-$DIAG_ATTEMPT}"
+  DIAG_ITERATION="${5:-$DIAG_ITERATION}"
+  write_heartbeat
+}
+
+start_heartbeat() {
+  if [[ -n "${HEARTBEAT_PID}" ]] && kill -0 "${HEARTBEAT_PID}" 2>/dev/null; then
+    return 0
+  fi
+  (
+    while true; do
+      sleep "${HEARTBEAT_INTERVAL_SECONDS}"
+      write_heartbeat
+    done
+  ) &
+  HEARTBEAT_PID="$!"
+  diagnostics_log "INFO" "heartbeat started interval=${HEARTBEAT_INTERVAL_SECONDS}s"
+}
+
+stop_heartbeat() {
+  if [[ -n "${HEARTBEAT_PID}" ]] && kill -0 "${HEARTBEAT_PID}" 2>/dev/null; then
+    kill "${HEARTBEAT_PID}" 2>/dev/null || true
+    wait "${HEARTBEAT_PID}" 2>/dev/null || true
+  fi
+  HEARTBEAT_PID=""
+}
+
+on_error() {
+  local exit_code="$1"
+  local line_no="$2"
+  local cmd="$3"
+  diagnostics_log "ERROR" "err_trap exit_code=${exit_code} line=${line_no} cmd=${cmd}"
+}
+
+on_signal() {
+  local sig="$1"
+  diagnostics_log "ERROR" "signal=${sig} received; terminating children"
+  echo "🛑 ${sig}/TRAP received - killing children and exiting..." | tee -a "$LOG_FILE"
+  jobs -p | xargs -r kill -TERM 2>/dev/null || true
+  pkill -P $$ 2>/dev/null || true
+  sleep 2
+  jobs -p | xargs -r kill -KILL 2>/dev/null || true
+  exit 130
+}
+
 release_lock() {
   rm -f "$LOCK_FILE"
   echo "🔓 Lock released" | tee -a "$LOG_FILE"
@@ -179,6 +281,9 @@ release_lock() {
 
 on_exit() {
   local exit_code=$?
+  diagnostics_log "INFO" "on_exit exit_code=${exit_code}"
+  stop_heartbeat
+  write_heartbeat
   release_lock
 
   if [[ $exit_code -ne 0 ]]; then
@@ -196,7 +301,9 @@ on_exit() {
   fi
 }
 
-trap 'echo "🛑 SIGINT/TRAP received - killing children and exiting..."; jobs -p | xargs -r kill -TERM 2>/dev/null || true; pkill -P $$ 2>/dev/null || true; sleep 2; kill_tree() { jobs -p | xargs -r kill -KILL 2>/dev/null || true; }; kill_tree; exit 130' INT TERM
+trap 'on_error $? $LINENO "$BASH_COMMAND"' ERR
+trap 'on_signal INT' INT
+trap 'on_signal TERM' TERM
 trap on_exit EXIT
 
 
@@ -335,6 +442,77 @@ apply_state_phase() {
     >/dev/null
 }
 
+prepare_rerender_final() {
+  [[ -n "${RERENDER_FINAL}" ]] || return 0
+
+  echo "→ --rerender-final enabled; forcing fresh voice cache and restarting from precache_voiceovers." | tee -a "$LOG_FILE"
+
+  local voice_output_dir
+  voice_output_dir=$($PYTHON_BIN - <<PY
+import json
+from pathlib import Path
+
+project_dir = Path("${PROJECT_DIR}")
+output_dir = "media/voiceovers/qwen"
+cfg_path = project_dir / "voice_clone_config.json"
+if cfg_path.exists():
+    try:
+        cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
+    except Exception:
+        cfg = {}
+    candidate = cfg.get("output_dir")
+    if isinstance(candidate, str) and candidate.strip():
+        output_dir = candidate.strip()
+print(str((project_dir / output_dir).resolve()))
+PY
+)
+
+  if [[ -n "${voice_output_dir}" && -d "${voice_output_dir}" ]]; then
+    if [[ "${voice_output_dir}" == "${PROJECT_DIR}"/* ]]; then
+      echo "→ Removing existing voice cache/audio: ${voice_output_dir}" | tee -a "$LOG_FILE"
+      rm -rf "${voice_output_dir}"
+    else
+      echo "❌ Refusing to remove voice cache outside project directory: ${voice_output_dir}" | tee -a "$LOG_FILE" >&2
+      return 1
+    fi
+  fi
+
+  $PYTHON_BIN - <<PY
+import json
+from datetime import datetime, UTC
+
+with open("${STATE_FILE}", "r") as f:
+    state = json.load(f)
+
+state["phase"] = "precache_voiceovers"
+state.setdefault("flags", {})["needs_human_review"] = False
+state["updated_at"] = datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')
+
+errors = state.get("errors", [])
+state["errors"] = [
+    e for e in errors
+    if not (
+        isinstance(e, str)
+        and (
+            e.startswith("precache_voiceovers ")
+            or e.startswith("final_render ")
+            or e.startswith("assemble ")
+            or e.startswith("Assemble ")
+        )
+    )
+]
+
+state.setdefault("history", []).append({
+    "timestamp": state["updated_at"],
+    "phase": "manual_reset",
+    "action": "rerender_final_with_fresh_voice_cache",
+})
+
+with open("${STATE_FILE}", "w") as f:
+    json.dump(state, f, indent=2)
+PY
+}
+
 is_retryable_phase() {
   local phase="$1"
   case "$phase" in
@@ -369,6 +547,7 @@ attempt = int("${attempt}")
 limit = int("${PHASE_RETRY_LIMIT}")
 state_path = Path("${STATE_FILE}")
 log_path = Path("${LOG_FILE}")
+debug_response_path = Path("${PROJECT_DIR}") / "log" / f"debug_response_{phase}.txt"
 
 state_error = "(none)"
 if state_path.exists():
@@ -434,6 +613,12 @@ print()
 print("Most recent state error:")
 print(state_error)
 print()
+if "Schema validation failed" in state_error:
+    print("Schema-failure guidance:")
+    print("- The previous response violated strict output/schema or Python-syntax requirements.")
+    print("- Return exactly the required top-level JSON payload and no extra text.")
+    print(f"- Refer to raw model output at: {debug_response_path}")
+    print()
 print("Recent build.log excerpt:")
 for ln in log_excerpt[-220:]:
     print(ln)
@@ -881,6 +1066,9 @@ PY
 
   export XAI_API_KEY="$XAI_API_KEY"
   export MINIMAX_API_KEY="$MINIMAX_API_KEY"
+  export OLLAMA_API_KEY="${OLLAMA_API_KEY:-}"
+  export OLLAMA_BASE_URL="${OLLAMA_BASE_URL:-http://127.0.0.1:11434/v1}"
+  export OLLAMA_MODEL="${OLLAMA_MODEL:-qwen2.5-coder:7b}"
   export LLM_PROVIDER="$LLM_PROVIDER"
   if [[ "${FH_HARNESS:-legacy}" == "responses" ]]; then
     echo "Using harness_responses (xAI Responses API)" | tee -a "$LOG_FILE"
@@ -898,23 +1086,7 @@ PY
   if [[ $exit_code -ne 0 ]]; then
     echo "❌ Harness invocation failed with exit code: $exit_code" | tee -a "$LOG_FILE"
     if [[ $exit_code -eq 3 ]]; then
-      echo "❌ Schema validation failure detected; stopping phase without retries." | tee -a "$LOG_FILE"
-      $PYTHON_BIN - <<PY
-import json
-from datetime import datetime, UTC
-
-with open("${STATE_FILE}", "r") as f:
-    state = json.load(f)
-
-state.setdefault("errors", []).append(
-    "Schema validation failed in phase ${phase}. See log/debug_response_${phase}.txt for raw model output."
-)
-state.setdefault("flags", {})["needs_human_review"] = True
-state["updated_at"] = datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')
-
-with open("${STATE_FILE}", "w") as f:
-    json.dump(state, f, indent=2)
-PY
+      echo "❌ Schema validation failure detected; phase remains retryable with retry context." | tee -a "$LOG_FILE"
     fi
     return $exit_code
   fi
@@ -1566,6 +1738,18 @@ PY
 }
 
 handle_precache_voiceovers() {
+  # Skip entirely if --skip-precache flag is set
+  if [[ -n "${SKIP_PRECACHE}" ]]; then
+    echo "→ --skip-precache enabled; skipping voice precaching phase." | tee -a "$LOG_FILE"
+    if [[ -f "media/voiceovers/qwen/cache.json" ]]; then
+      echo "→ Using existing voice cache." | tee -a "$LOG_FILE"
+      apply_state_phase "precache_voiceovers" || true
+      return 0
+    else
+      echo "⚠ WARNING: No existing voice cache found. Rendering may fail without voice." | tee -a "$LOG_FILE"
+      return 0
+    fi
+  fi
   echo "🎙️  Precaching voiceovers (backend: ${FLAMING_HORSE_TTS_BACKEND:-qwen})..." | tee -a "$LOG_FILE"
   cd "$PROJECT_DIR"
   if [[ ! -f "voice_clone_config.json" ]]; then
@@ -1617,7 +1801,7 @@ state = json.load(open("${STATE_FILE}", "r"))
 idx = int(state.get("current_scene_index") or 0)
 scenes = state.get("scenes") or []
 if not isinstance(scenes, list) or idx >= len(scenes):
-    print("||||")
+    print("__NO_SCENE__||||")
     raise SystemExit(0)
 
 scene = scenes[idx] if isinstance(scenes[idx], dict) else {}
@@ -1633,6 +1817,13 @@ PY
 
   local scene_id scene_file scene_class narration_key
   IFS='|' read -r scene_id scene_file scene_class narration_key <<< "$scene_meta"
+
+  if [[ "$scene_id" == "__NO_SCENE__" ]]; then
+    echo "ℹ No remaining scenes to build; advancing state deterministically." | tee -a "$LOG_FILE"
+    normalize_state_json || true
+    apply_state_phase "build_scenes" || true
+    return 0
+  fi
 
   narration_key="$(get_scene_narration_key "$scene_id")"
   if [[ -z "$narration_key" ]]; then
@@ -1880,6 +2071,7 @@ EOF
 }
 
 handle_final_render() {
+  set_diag_context "final_render" "start" "" "0" "${DIAG_ITERATION}"
   echo "🎬 Final render with cached voiceover (backend: ${FLAMING_HORSE_TTS_BACKEND:-qwen})..." | tee -a "$LOG_FILE"
   export MANIM_VOICE_PROD=1
   # Ensure repo-root packages (e.g. flaming_horse_voice) are importable when
@@ -1915,12 +2107,11 @@ with open("${STATE_FILE}", "w") as f:
     json.dump(state, f, indent=2)
 PY
 
-  trap 'release_lock' EXIT INT TERM
-
   cd "$PROJECT_DIR"
 
   # Ensure voice cache exists (precache step). If missing, generate it now.
-  if [[ ! -f "media/voiceovers/qwen/cache.json" ]]; then
+  # Skip this check if --skip-precache flag is set.
+  if [[ -z "${SKIP_PRECACHE}" && ! -f "media/voiceovers/qwen/cache.json" ]]; then
     echo "→ Missing voice cache index; running precache step..." | tee -a "$LOG_FILE"
     if ! handle_precache_voiceovers; then
       echo "❌ Precaching voiceovers failed; cannot render." | tee -a "$LOG_FILE" >&2
@@ -1932,12 +2123,14 @@ with open("${STATE_FILE}", "r") as f:
     state = json.load(f)
 state.setdefault("errors", []).append("final_render failed: precache_voiceovers failed")
 state.setdefault("flags", {})["needs_human_review"] = True
-state["updated_at"] = datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')
+state["updated_at"] = datetime.now(UTC).strftime('%Y-%m-%dT%SZ')
 with open("${STATE_FILE}", "w") as f:
     json.dump(state, f, indent=2)
 PY
       exit 1
     fi
+  elif [[ -n "${SKIP_PRECACHE}" ]]; then
+    echo "→ --skip-precache enabled; using existing voice cache if available." | tee -a "$LOG_FILE"
   fi
 
   # Best-effort repair: ensure scene metadata needed for rendering exists.
@@ -2155,6 +2348,7 @@ PY
 
   while IFS='|' read -r scene_id scene_file scene_class est_duration; do
     [[ -n "$scene_id" ]] || continue
+    set_diag_context "final_render" "scene_start" "$scene_id" "0" "${DIAG_ITERATION}"
 
     # Pre-render syntax gate with self-healing.
     if ! scene_python_syntax_ok "$scene_file"; then
@@ -2244,6 +2438,7 @@ PY
     local failure_reason=""
     while [[ $attempt -lt $PHASE_RETRY_LIMIT ]]; do
       attempt=$((attempt + 1))
+      set_diag_context "final_render" "render_attempt" "$scene_id" "$attempt" "${DIAG_ITERATION}"
 
       local transient_attempt=0
       local transient_max_attempts=5
@@ -2256,6 +2451,7 @@ PY
         if "$manim_bin" render "$scene_file" "$scene_class" -qh \
           > >(tee -a "$LOG_FILE" | tee "$render_log") \
           2> >(tee -a "$LOG_FILE" | tee -a "$render_log" >&2); then
+          set_diag_context "final_render" "render_ok" "$scene_id" "$attempt" "${DIAG_ITERATION}"
           render_ok=1
           break
         fi
@@ -2276,6 +2472,7 @@ PY
         rm -f "$render_log"
         break
       fi
+      set_diag_context "final_render" "render_failed" "$scene_id" "$attempt" "${DIAG_ITERATION}"
 
       failure_reason=$(tail -n 80 "$render_log" 2>/dev/null | grep -A8 -B4 -E "Traceback|NameError|ImportError|SyntaxError|Exception" || true)
       if [[ -z "$failure_reason" ]]; then
@@ -2293,6 +2490,7 @@ PY
     done
 
     if [[ $ok -ne 1 ]]; then
+      set_diag_context "final_render" "scene_failed" "$scene_id" "$attempt" "${DIAG_ITERATION}"
       echo "❌ Render failed for $scene_id ($scene_class)" | tee -a "$LOG_FILE" >&2
       $PYTHON_BIN - <<PY
 import json
@@ -2331,6 +2529,7 @@ PY
     fi
 
     if ! verify_scene_video "$scene_id" "$scene_class"; then
+      set_diag_context "final_render" "verification_failed" "$scene_id" "$attempt" "${DIAG_ITERATION}"
       echo "❌ Verification failed for $scene_id ($scene_class)" | tee -a "$LOG_FILE" >&2
       $PYTHON_BIN - <<PY
 import json
@@ -2352,6 +2551,7 @@ PY
     fi
 
     update_state_rendered "$scene_id" "$scene_class" "$est_duration"
+    set_diag_context "final_render" "scene_verified" "$scene_id" "$attempt" "${DIAG_ITERATION}"
     echo "✓ Rendered + verified: $scene_id" | tee -a "$LOG_FILE"
   done <<< "$scene_lines"
 
@@ -2486,8 +2686,93 @@ PY
       > >(tee -a "$LOG_FILE") \
       2> >(tee -a "$LOG_FILE" >&2); then
       echo "✗ QC FAILED! Video has quality issues." | tee -a "$LOG_FILE"
-      $PYTHON_BIN <<PYEOF
+      if $PYTHON_BIN <<PYEOF
 import json
+import subprocess
+from datetime import datetime, UTC
+from pathlib import Path
+
+state_path = Path('${STATE_FILE}')
+project_dir = Path('${PROJECT_DIR}')
+ratio_threshold = 0.90
+
+with state_path.open('r', encoding='utf-8') as f:
+    state = json.load(f)
+
+def ffprobe_duration(path: Path, audio_only: bool = False):
+    entries = 'stream=duration' if audio_only else 'format=duration'
+    cmd = [
+        'ffprobe',
+        '-v', 'error',
+        '-show_entries', entries,
+        '-of', 'default=noprint_wrappers=1:nokey=1',
+    ]
+    if audio_only:
+        cmd.extend(['-select_streams', 'a:0'])
+    cmd.append(str(path))
+    try:
+        out = subprocess.run(cmd, capture_output=True, text=True, check=True).stdout.strip()
+    except Exception:
+        return None
+    if not out:
+        return None
+    for line in out.splitlines():
+        line = line.strip()
+        if not line or line == 'N/A':
+            continue
+        try:
+            value = float(line)
+            if value > 0:
+                return value
+        except Exception:
+            continue
+    return None
+
+scenes = state.get('scenes') if isinstance(state.get('scenes'), list) else []
+failing_index = None
+failing_scene_id = None
+failing_ratio = None
+
+for i, scene in enumerate(scenes):
+    if not isinstance(scene, dict):
+        continue
+    scene_id = str(scene.get('id') or '').strip()
+    scene_class = str(scene.get('class_name') or '').strip()
+    if not scene_id or not scene_class:
+        continue
+    video_path = project_dir / 'media' / 'videos' / scene_id / '1440p60' / f'{scene_class}.mp4'
+    if not video_path.exists():
+        continue
+    v = ffprobe_duration(video_path, audio_only=False)
+    a = ffprobe_duration(video_path, audio_only=True)
+    if not v or not a:
+        continue
+    ratio = a / v
+    if ratio < ratio_threshold:
+        failing_index = i
+        failing_scene_id = scene_id
+        failing_ratio = ratio
+        break
+
+if failing_index is not None:
+    state['phase'] = 'build_scenes'
+    state['current_scene_index'] = failing_index
+    state.setdefault('flags', {})['needs_human_review'] = False
+    state.setdefault('history', []).append({
+        'timestamp': datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ'),
+        'phase': 'assemble',
+        'action': 'qc_sync_failure_routed_to_build_scenes',
+        'scene_id': failing_scene_id,
+        'ratio': round(float(failing_ratio), 3),
+    })
+    state.setdefault('errors', []).append(
+        f'Assemble QC detected audio/video sync issue in {failing_scene_id}; rerouting to build_scenes index {failing_index}'
+    )
+    with state_path.open('w', encoding='utf-8') as f:
+        json.dump(state, f, indent=2)
+    print(f'↻ Routed QC failure to build_scenes at {failing_scene_id} (index {failing_index})')
+    raise SystemExit(0)
+
 with open('${STATE_FILE}', 'r') as f:
     state = json.load(f)
 state['phase'] = 'error'
@@ -2496,7 +2781,11 @@ state['flags']['needs_human_review'] = True
 with open('${STATE_FILE}', 'w') as f:
     json.dump(state, f, indent=2)
 PYEOF
-      return 1
+      then
+        return 0
+      else
+        return 1
+      fi
     fi
     echo "✓ QC passed!" | tee -a "$LOG_FILE"
   else
@@ -2543,7 +2832,11 @@ run_phase_once() {
     final_render) handle_final_render ;;
     assemble) handle_assemble ;;
     complete) handle_complete ;;
-    *) echo "❌ Unknown phase: $phase" >&2; rc=1 ;;
+    *)
+      echo "❌ Unknown phase: $phase" >&2
+      set -e
+      return 1
+      ;;
   esac
   rc=$?
   set -e
@@ -2661,12 +2954,18 @@ main() {
   fi
   
   acquire_lock
-  
+  set_diag_context "startup" "lock_acquired" "" "0" "0"
+  start_heartbeat
+
   echo "════════════════════════════════════════════════════════════════" | tee -a "$LOG_FILE"
   echo "🚀 Starting Incremental Manim Video Builder" | tee -a "$LOG_FILE"
   echo "📁 Project: $PROJECT_DIR" | tee -a "$LOG_FILE"
   echo "⏰ Started: $(date)" | tee -a "$LOG_FILE"
   echo "════════════════════════════════════════════════════════════════" | tee -a "$LOG_FILE"
+
+  if ! prepare_rerender_final; then
+    exit 1
+  fi
   
   if [[ -n "${TARGET_PHASE}" ]]; then
     local start_phase
@@ -2680,6 +2979,7 @@ main() {
   local iteration=0
 while true; do
     iteration=$((iteration + 1))
+    DIAG_ITERATION="$iteration"
 
     # Repair + normalize state (never trust agent edits).
     if ! normalize_state_json; then
@@ -2701,6 +3001,7 @@ while true; do
     
     local current_phase
     current_phase=$(get_phase)
+    set_diag_context "$current_phase" "phase_enter" "" "0" "$iteration"
     
     echo "" | tee -a "$LOG_FILE"
     echo "────────────────────────────────────────────────────────────────" | tee -a "$LOG_FILE"
@@ -2715,6 +3016,7 @@ while true; do
 
     while true; do
       attempt=$((attempt + 1))
+      set_diag_context "$current_phase" "phase_attempt" "" "$attempt" "$iteration"
       if [[ $attempt -gt 1 ]]; then
         echo "↻ Retry attempt ${attempt}/${PHASE_RETRY_LIMIT} for phase: $current_phase" | tee -a "$LOG_FILE"
       fi
@@ -2750,11 +3052,11 @@ while true; do
         if [[ $attempt -ge $PHASE_RETRY_LIMIT ]]; then
           echo "❌ Phase $current_phase failed after ${PHASE_RETRY_LIMIT} attempts. Marking for human review." | tee -a "$LOG_FILE"
           log_error_event "$current_phase" "phase failed after retry budget exhausted" "$attempt" "$PHASE_RETRY_LIMIT"
+          mark_retry_exhausted "$current_phase"
         else
           echo "❌ Phase $current_phase failed at attempt ${attempt}/${PHASE_RETRY_LIMIT}. Marking for human review." | tee -a "$LOG_FILE"
           log_error_event "$current_phase" "phase failed and requested human review" "$attempt" "$PHASE_RETRY_LIMIT"
         fi
-        mark_retry_exhausted "$current_phase"
       else
         echo "❌ Phase $current_phase failed (non-agent phase)." | tee -a "$LOG_FILE"
         log_error_event "$current_phase" "non-agent phase failure" "$attempt" "$PHASE_RETRY_LIMIT"

@@ -22,6 +22,10 @@ PROVIDER_DEFAULTS = {
         "base_url": "https://api.minimax.io/v1",
         "model": "MiniMax-M2.5",
     },
+    "OLLAMA": {
+        "base_url": "http://127.0.0.1:11434/v1",
+        "model": "qwen2.5-coder:7b",
+    },
 }
 
 
@@ -70,6 +74,9 @@ class LLMClient:
                     raise ValueError(
                         f"{prefix}_API_KEY or XAI_API_KEY environment variable must be set"
                     )
+            elif self.provider == "OLLAMA":
+                # Ollama typically doesn't require an API key for local daemon
+                self.api_key = os.getenv("OLLAMA_API_KEY", "")
             else:
                 raise ValueError(f"{prefix}_API_KEY environment variable must be set")
 
@@ -94,7 +101,11 @@ class LLMClient:
 
         # Strip provider prefix from model name if present (e.g., "xai/grok-..." → "grok-...")
         if self.model:
-            self.model = self.model.removeprefix("xai/").removeprefix("minimax/")
+            self.model = (
+                self.model.removeprefix("xai/")
+                .removeprefix("minimax/")
+                .removeprefix("ollama/")
+            )
 
         print(f"🤖 Harness using:")
         print(f"   Provider: {self.provider}")

@@ -10,14 +10,11 @@ inputs:
   - exclude: full_pipeline_doc, unrelated_scene_code
 
 output:
-  format: python_only
-  file: "<scene_id>.py"
+  format: json_object
+  payload:
+    scene_body: "<python_scene_body_only>"
   required_fields:
-    - VoiceoverScene subclass
-    - import_narration_script
-    - SCRIPT[narration_key] usage
-    - locked_config_block
-    - cached_qwen_voice_service
+    - scene_body
 
 validation:
   python_syntax_valid: true

@@ -14,6 +14,7 @@ Design goals:
 
 from __future__ import annotations
 
+import ast
 import argparse
 import json
 import os
@@ -277,17 +278,15 @@ def load_plan(project_dir: Path) -> dict:
 
 def scenes_from_plan(plan: dict) -> list[dict]:
     out = []
-    for s in plan.get("scenes", []):
+    for index, s in enumerate(plan.get("scenes", []), start=1):
         if not isinstance(s, dict):
             continue
-        scene_id = _safe_str(s.get("id"))
-        if not scene_id:
-            continue
+        scene_id = f"scene_{index:02d}"
         out.append(
             {
                 "id": scene_id,
                 "title": _safe_str(s.get("title")) or scene_id,
-                "narration_key": _safe_str(s.get("narration_key")) or scene_id,
+                "narration_key": scene_id,
                 "narration_summary": _safe_str(s.get("narration_summary")) or "",
                 "estimated_words": int(s.get("estimated_words") or 0),
                 "estimated_duration": _safe_str(s.get("estimated_duration")) or "0s",
@@ -322,6 +321,49 @@ def infer_class_name(scene_path: Path) -> str | None:
     if m:
         return m.group(1)
     return None
+
+
+def extract_narration_script_keys(narration_path: Path) -> set[str] | None:
+    """Return SCRIPT dict keys from narration_script.py or None if invalid."""
+    try:
+        source = narration_path.read_text(encoding="utf-8")
+    except OSError:
+        return None
+
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return None
+
+    script_value = None
+    for node in tree.body:
+        if not isinstance(node, ast.Assign):
+            continue
+        if any(
+            isinstance(target, ast.Name) and target.id == "SCRIPT"
+            for target in node.targets
+        ):
+            script_value = node.value
+            break
+
+    if script_value is None:
+        return None
+
+    try:
+        script_dict = ast.literal_eval(script_value)
+    except (SyntaxError, ValueError):
+        return None
+
+    if not isinstance(script_dict, dict):
+        return None
+
+    keys: set[str] = set()
+    for key, value in script_dict.items():
+        if not isinstance(key, str) or not isinstance(value, str):
+            continue
+        if value.strip():
+            keys.add(key)
+    return keys
 
 
 def apply_phase(project_dir: Path, state: dict, phase: str) -> dict:
@@ -363,6 +405,36 @@ def apply_phase(project_dir: Path, state: dict, phase: str) -> dict:
             _add_error_unique(state, "narration failed: narration_script.py missing")
             state["flags"]["needs_human_review"] = True
             return state
+
+        script_keys = extract_narration_script_keys(narration_path)
+        if script_keys is None:
+            _add_error_unique(
+                state,
+                "narration failed: narration_script.py must define SCRIPT as a dict[str, str]",
+            )
+            state["phase"] = "narration"
+            state["flags"]["needs_human_review"] = False
+            return state
+
+        missing_keys: list[str] = []
+        for scene in state.get("scenes", []):
+            if not isinstance(scene, dict):
+                continue
+            scene_id = _safe_str(scene.get("id")) or ""
+            narration_key = _safe_str(scene.get("narration_key")) or scene_id
+            if narration_key and narration_key not in script_keys:
+                missing_keys.append(narration_key)
+        if missing_keys:
+            ordered_missing = sorted(set(missing_keys))
+            _add_error_unique(
+                state,
+                "narration failed: missing SCRIPT entries for keys: "
+                + ", ".join(ordered_missing),
+            )
+            state["phase"] = "narration"
+            state["flags"]["needs_human_review"] = False
+            return state
+
         state["narration_file"] = "narration_script.py"
         state["phase"] = "build_scenes"
         state["flags"]["needs_human_review"] = False
@@ -446,8 +518,12 @@ def apply_phase(project_dir: Path, state: dict, phase: str) -> dict:
             return state
         if idx >= len(scenes):
             state["phase"] = "scene_qc"
+            state.setdefault("flags", {})["needs_human_review"] = False
             _clear_errors_matching(
-                state, lambda e: e.startswith("build_scenes incomplete:")
+                state,
+                lambda e: e.startswith("build_scenes incomplete:")
+                or e.startswith("build_scenes failed:")
+                or e.startswith("Phase build_scenes failed after"),
             )
             return state
 
@@ -487,6 +563,13 @@ def apply_phase(project_dir: Path, state: dict, phase: str) -> dict:
             lambda e: e.startswith("build_scenes incomplete: expected")
             or e.startswith("build_scenes incomplete: could not infer class name"),
         )
+        if state["current_scene_index"] > 0:
+            state.setdefault("flags", {})["needs_human_review"] = False
+            _clear_errors_matching(
+                state,
+                lambda e: e.startswith("build_scenes failed:")
+                or e.startswith("Phase build_scenes failed after"),
+            )
 
         if state["current_scene_index"] >= len(scenes):
             state["phase"] = "scene_qc"

@@ -30,6 +30,7 @@ class TimingTerm:
     lineno: int
     expr_text: str
     value: Optional[float]
+    multiplier: int = 1
 
 
 def _read_cache_entries(cache_data: Any) -> Iterable[dict[str, Any]]:
@@ -148,63 +149,106 @@ def _collect_timing_terms(scene_source: str, tracker_duration: float) -> list[Ti
     terms: list[TimingTerm] = []
     default_play_seconds = 1.0
 
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.Call):
-            continue
-        if not isinstance(node.func, ast.Attribute):
-            continue
-        if not isinstance(node.func.value, ast.Name):
-            continue
-        if node.func.value.id != "self":
-            continue
+    def _range_iteration_count(iter_node: ast.AST) -> Optional[int]:
+        if not isinstance(iter_node, ast.Call):
+            return None
+        if not isinstance(iter_node.func, ast.Name) or iter_node.func.id != "range":
+            return None
 
-        if node.func.attr == "play":
-            has_run_time = False
-            for kw in node.keywords:
-                if kw.arg != "run_time":
-                    continue
-                has_run_time = True
-                value = _safe_eval(kw.value, tracker_duration)
-                terms.append(
-                    TimingTerm(
-                        kind="run_time",
-                        lineno=getattr(kw.value, "lineno", getattr(node, "lineno", 0)),
-                        expr_text=_expr_text(scene_source, kw.value),
-                        value=value,
-                    )
-                )
-            if not has_run_time:
-                terms.append(
-                    TimingTerm(
-                        kind="play_default",
-                        lineno=getattr(node, "lineno", 0),
-                        expr_text="(default play run_time)",
-                        value=default_play_seconds,
-                    )
-                )
+        values: list[int] = []
+        for arg in iter_node.args:
+            val = _safe_eval(arg, tracker_duration)
+            if val is None:
+                return None
+            as_int = int(val)
+            if float(as_int) != float(val):
+                return None
+            values.append(as_int)
 
-        if node.func.attr == "wait":
-            if node.args:
-                expr_node = node.args[0]
-                value = _safe_eval(expr_node, tracker_duration)
-                terms.append(
-                    TimingTerm(
-                        kind="wait",
-                        lineno=getattr(expr_node, "lineno", getattr(node, "lineno", 0)),
-                        expr_text=_expr_text(scene_source, expr_node),
-                        value=value,
-                    )
-                )
-            else:
-                terms.append(
-                    TimingTerm(
-                        kind="wait",
-                        lineno=getattr(node, "lineno", 0),
-                        expr_text="(default wait)",
-                        value=1.0,
-                    )
-                )
+        if len(values) == 1:
+            start, stop, step = 0, values[0], 1
+        elif len(values) == 2:
+            start, stop, step = values[0], values[1], 1
+        elif len(values) == 3:
+            start, stop, step = values[0], values[1], values[2]
+        else:
+            return None
 
+        if step == 0:
+            return None
+        return len(range(start, stop, step))
+
+    def _visit(node: ast.AST, multiplier: int = 1) -> None:
+        if isinstance(node, ast.For):
+            loop_count = _range_iteration_count(node.iter)
+            loop_multiplier = multiplier * loop_count if loop_count is not None else multiplier
+            for child in node.body:
+                _visit(child, loop_multiplier)
+            for child in node.orelse:
+                _visit(child, multiplier)
+            return
+
+        if isinstance(node, ast.Call):
+            if (
+                isinstance(node.func, ast.Attribute)
+                and isinstance(node.func.value, ast.Name)
+                and node.func.value.id == "self"
+            ):
+                if node.func.attr == "play":
+                    has_run_time = False
+                    for kw in node.keywords:
+                        if kw.arg != "run_time":
+                            continue
+                        has_run_time = True
+                        value = _safe_eval(kw.value, tracker_duration)
+                        terms.append(
+                            TimingTerm(
+                                kind="run_time",
+                                lineno=getattr(kw.value, "lineno", getattr(node, "lineno", 0)),
+                                expr_text=_expr_text(scene_source, kw.value),
+                                value=value * multiplier if value is not None else None,
+                                multiplier=multiplier,
+                            )
+                        )
+                    if not has_run_time:
+                        terms.append(
+                            TimingTerm(
+                                kind="play_default",
+                                lineno=getattr(node, "lineno", 0),
+                                expr_text="(default play run_time)",
+                                value=default_play_seconds * multiplier,
+                                multiplier=multiplier,
+                            )
+                        )
+
+                if node.func.attr == "wait":
+                    if node.args:
+                        expr_node = node.args[0]
+                        value = _safe_eval(expr_node, tracker_duration)
+                        terms.append(
+                            TimingTerm(
+                                kind="wait",
+                                lineno=getattr(expr_node, "lineno", getattr(node, "lineno", 0)),
+                                expr_text=_expr_text(scene_source, expr_node),
+                                value=value * multiplier if value is not None else None,
+                                multiplier=multiplier,
+                            )
+                        )
+                    else:
+                        terms.append(
+                            TimingTerm(
+                                kind="wait",
+                                lineno=getattr(node, "lineno", 0),
+                                expr_text="(default wait)",
+                                value=1.0 * multiplier,
+                                multiplier=multiplier,
+                            )
+                        )
+
+        for child in ast.iter_child_nodes(node):
+            _visit(child, multiplier)
+
+    _visit(tree, 1)
     return sorted(terms, key=lambda t: t.lineno)
 
 
@@ -262,7 +306,8 @@ def main() -> int:
         for term in known_terms:
             if term.value is None:
                 continue
-            print(f"  - line {term.lineno}: {term.kind}={term.expr_text} -> {term.value:.2f}s")
+            mult = f" ({term.multiplier}x)" if term.multiplier > 1 else ""
+            print(f"  - line {term.lineno}: {term.kind}={term.expr_text}{mult} -> {term.value:.2f}s")
         return 1
 
     if unknown_terms:

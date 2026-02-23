@@ -4,22 +4,6 @@
 
 ---
 
-## 🚨 CRITICAL: VOICE POLICY - READ THIS FIRST
-
-### Local Qwen Voice Clone - No Fallback
-
-**ABSOLUTE REQUIREMENTS:**
-- ✅ **ONLY** local Qwen voice clone audio cached on disk (no network TTS).
-- ✅ **Model:** `Qwen/Qwen3-TTS-12Hz-1.7B-Base` (voice clone).
-- ✅ **Device/Dtype:** CPU `float32` for stability.
-- ✅ **Reference assets:** `assets/voice_ref/ref.wav` + `assets/voice_ref/ref.txt` per project.
-- ❌ **NEVER** use any network TTS service (e.g., ElevenLabs, Google TTS, Azure TTS).
-- ❌ **NEVER** create fallback code patterns.
-
-**If cached audio is missing, the build MUST fail and instruct to run the precache step.**
-
----
-
 ## 🚨 CRITICAL: Execution Protocol
 
 **When the user says "proceed", "execute", "continue", or "approve":**
@@ -33,16 +17,16 @@
 
 The intent of this system is to generate videos from a single prompt without approval loops.
 
----
-
 ## 🚨 CRITICAL RULES - NEVER VIOLATE
 
-### 1. Voice Configuration
-- ❌ **NEVER** use any network TTS service
-- ❌ **NEVER** create conditional fallback patterns
-- ❌ **NEVER** import other TTS services
-- ❌ **NEVER** enable optional alignment extras or cloud features
+### 1. Voice Configuration (Cached Qwen Only — No Exceptions)
+- ✅ **ONLY** local Qwen voice clone audio cached on disk: `Qwen/Qwen3-TTS-12Hz-1.7B-Base`
 - ✅ **ALWAYS** use cached Qwen voice via `flaming_horse_voice.get_speech_service`
+- ✅ **Reference assets** required: `assets/voice_ref/ref.wav` + `assets/voice_ref/ref.txt`
+- ❌ **NEVER** use any network TTS service (ElevenLabs, Google TTS, Azure TTS, pyttsx3, etc.)
+- ❌ **NEVER** create conditional fallback code patterns
+- ❌ **NEVER** import other TTS services
+- **If cached audio is missing, the build MUST fail and instruct to run the precache step.**
 
 ### 2. Import Naming (Python Module Convention)
 - ❌ **WRONG:** `from manim-voiceover-plus import ...` (hyphens = SyntaxError)

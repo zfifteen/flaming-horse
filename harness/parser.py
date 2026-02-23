@@ -11,6 +11,8 @@ import textwrap
 from pathlib import Path
 from typing import Dict, Any, Optional, List, Tuple
 
+from harness.util.layout_validator import LayoutValidator
+
 
 class SchemaValidationError(ValueError):
     """Raised when a phase response fails strict JSON schema validation."""
@@ -190,6 +192,23 @@ def _is_non_empty(value: Any) -> bool:
     return True
 
 
+def _fix_invalid_json_escapes(text: str) -> str:
+    """
+    Fix common invalid escape sequences in JSON-like text from LLM output.
+
+    Handles:
+    - \\' (backslash-escaped single quote) -> plain '
+    - Trailing backslashes at end of the text that often break JSON decoding
+    """
+    # LLM may output \' inside strings - convert to valid JSON by using a plain '
+    result = text
+    # Replace \' with ' (\' is not a standard JSON escape)
+    result = result.replace("\\'", "'")
+    # Handle any remaining backslash issues at end of strings by stripping them
+    result = re.sub(r"\\+$", "", result)
+    return result
+
+
 def extract_json_block(
     text: str, required_keys: Optional[List[str]] = None
 ) -> Optional[str]:
@@ -223,6 +242,22 @@ def extract_json_block(
         except json.JSONDecodeError:
             continue
 
+    # If no candidates found and we have required_keys, try fixing common
+    # escape issues in the text and retry (handles LLM output with \' etc.)
+    if not candidates and required_keys:
+        fixed_text = _fix_invalid_json_escapes(text)
+        if fixed_text != text:  # Only retry if we actually fixed something
+            for idx, ch in enumerate(fixed_text):
+                if ch != "{":
+                    continue
+                try:
+                    obj, _ = decoder.raw_decode(fixed_text[idx:])
+                    if isinstance(obj, dict):
+                        if all(k in obj for k in required_keys):
+                            candidates.append((len(obj), obj))
+                except json.JSONDecodeError:
+                    continue
+
     if not candidates:
         return None
 
@@ -238,8 +273,13 @@ def extract_json_block(
         if valid_candidates:
             selected_obj = max(valid_candidates, key=lambda x: x[0])[1]
         else:
-            # Fall back to the original behavior: choose largest by key count
-            selected_obj = max(candidates, key=lambda x: x[0])[1]
+            # Fall back to the largest candidate by key count, even if it lacks
+            # required keys. This handles cases where model output has JSON errors
+            # (e.g., invalid escapes) that prevent full parsing.
+            if candidates:
+                selected_obj = max(candidates, key=lambda x: x[0])[1]
+            else:
+                return None
     else:
         selected_obj = max(candidates, key=lambda x: x[0])[1]
 
@@ -331,6 +371,15 @@ def sanitize_code(code: str) -> str:
     Returns:
         Cleaned code
     """
+    # Do not perform blanket escape-sequence rewrites here.
+    # parse_build_scenes/scene_repair call json.loads first, so escape handling
+    # is already resolved. Rewriting can corrupt valid Python/LaTeX strings
+    # (e.g., "\\text" -> tab + "ext", or r"...\\\"..." quote escapes).
+
+    # Do NOT strip '#' comments with regex here.
+    # Scene bodies can legitimately include '#' inside string literals
+    # (e.g., hex colors like "#FFFFFF"), and regex stripping corrupts code.
+
     # Remove HTML/XML-like tags emitted by models while preserving Python
     # comparison operators. We only strip tokens that look like real tags
     # (<tag ...> / </tag>) and never span across newlines.
@@ -619,7 +668,7 @@ def extract_scene_body_from_full_file(code: str) -> Optional[str]:
 def _extract_scene_body_from_json_response(response_text: str, phase: str) -> str:
     """Extract and validate `scene_body` from strict JSON phase payload."""
     cleaned_response = strip_harness_preamble(response_text)
-    json_text = extract_json_block(cleaned_response)
+    json_text = extract_json_block(cleaned_response, required_keys=["scene_body"])
     if not json_text:
         raise SchemaValidationError("no valid top-level JSON object found")
 
@@ -719,6 +768,45 @@ def parse_build_scenes_response(response_text: str) -> Optional[str]:
     return candidate
 
 
+def _validate_current_scene_layout(
+    scene: Dict[str, Any],
+    scene_index: int,
+    valid_layouts: List[str],
+    layout_rules: Dict[str, List[str]],
+) -> None:
+    """Validate optional scene layout metadata before writing build artifacts."""
+    layout = scene.get("layout")
+    if layout is None:
+        return
+    if not isinstance(layout, str) or not layout.strip():
+        raise SchemaValidationError(
+            f"state.scenes[{scene_index}].layout must be a non-empty string when provided"
+        )
+
+    validator = LayoutValidator(valid_layouts, layout_rules)
+    errors = validator.validate_layout(layout.strip())
+    if errors:
+        requirements_lines = []
+        for rule_layout in sorted(layout_rules):
+            reqs = validator.get_layout_requirements(rule_layout)
+            if reqs:
+                requirements_lines.append(f"  - {rule_layout}: {', '.join(reqs)}")
+            else:
+                requirements_lines.append(f"  - {rule_layout}: (no extra requirements)")
+        requirements_text = "\n".join(requirements_lines) if requirements_lines else "  - (none configured)"
+        raise SchemaValidationError(
+            f"build_scenes state layout validation failed for scene {scene_index + 1}:\n"
+            f"  Layout: {layout.strip()}\n"
+            f"  Errors:\n"
+            + "\n".join(f"    - {error}" for error in errors)
+            + "\n\n"
+            + "Configured layout requirement notes:\n"
+            + requirements_text
+            + "\n\n"
+            + "The agent must use one of the valid layout tags listed above."
+        )
+
+
 def parse_scene_qc_response(
     response_text: str,
 ) -> Tuple[List[Tuple[str, str]], Optional[str]]:
@@ -732,7 +820,7 @@ def parse_scene_qc_response(
         (list of (filename, code) tuples, report markdown or None)
     """
     cleaned_response = strip_harness_preamble(response_text)
-    json_text = extract_json_block(cleaned_response)
+    json_text = extract_json_block(cleaned_response, required_keys=["report_markdown"])
     if not json_text:
         raise SchemaValidationError("no valid top-level JSON object found")
     try:
@@ -819,6 +907,37 @@ def parse_and_write_artifacts(
             current_scene = scenes[current_index]
             scene_id = current_scene.get("id", f"scene_{current_index + 1:02d}")
             scene_file_name = current_scene.get("file", f"{scene_id}.py")
+            configured_layouts = state.get("scene_layout_options", [])
+            configured_layout_rules = state.get("layout_validation_rules", {})
+
+            if not isinstance(configured_layouts, list):
+                raise SchemaValidationError(
+                    "state.scene_layout_options must be a list when provided"
+                )
+            if not isinstance(configured_layout_rules, dict):
+                raise SchemaValidationError(
+                    "state.layout_validation_rules must be an object when provided"
+                )
+            normalized_layout_rules: Dict[str, List[str]] = {}
+            for key, value in configured_layout_rules.items():
+                if not isinstance(key, str):
+                    raise SchemaValidationError(
+                        "state.layout_validation_rules keys must be strings"
+                    )
+                if not isinstance(value, list) or not all(
+                    isinstance(item, str) for item in value
+                ):
+                    raise SchemaValidationError(
+                        f"state.layout_validation_rules[{key!r}] must be a list of strings"
+                    )
+                normalized_layout_rules[key] = value
+
+            _validate_current_scene_layout(
+                current_scene,
+                current_index,
+                configured_layouts,
+                normalized_layout_rules,
+            )
 
             body_code = parse_build_scenes_response(response_text)
 

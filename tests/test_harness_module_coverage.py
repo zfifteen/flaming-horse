@@ -260,6 +260,26 @@ def test_prompts_core_and_compose(tmp_path):
         s, u = prompts.compose_prompt(phase=phase, state=state, topic="topic", project_dir=project)
         assert isinstance(s, str) and isinstance(u, str)
 
+    _, plan_retry_prompt = prompts.compose_prompt(
+        phase="plan",
+        state=state,
+        topic="topic",
+        project_dir=project,
+        retry_context="Schema validation failed (plan): no valid top-level JSON object found",
+    )
+    assert "RETRY CONTEXT" in plan_retry_prompt
+    assert "Schema validation failed (plan)" in plan_retry_prompt
+
+    _, narration_retry_prompt = prompts.compose_prompt(
+        phase="narration",
+        state=state,
+        topic="topic",
+        project_dir=project,
+        retry_context="Schema validation failed (narration): no valid top-level JSON object found",
+    )
+    assert "RETRY CONTEXT" in narration_retry_prompt
+    assert "Schema validation failed (narration)" in narration_retry_prompt
+
     s, u = prompts.compose_prompt(
         phase="scene_repair",
         state=state,
@@ -630,6 +650,28 @@ def test_build_scenes_parser_accepts_comments_and_dict_literals():
     )
     parsed_dict = parser.parse_build_scenes_response(response_with_dict_literal)
     assert 'style["run_time"]' in parsed_dict
+
+
+def test_build_scenes_parser_preserves_hex_color_literals():
+    response_with_hex_colors = (
+        '{"scene_body":"title = Text(\\"Intro\\", color=\\"#FFFFFF\\")\\n'
+        'accent = Text(\\"Signal\\", color=\\"#00FFFF\\")\\n'
+        'self.play(Write(title), Write(accent))"}'
+    )
+    parsed = parser.parse_build_scenes_response(response_with_hex_colors)
+    assert '#FFFFFF' in parsed
+    assert '#00FFFF' in parsed
+
+
+def test_scene_repair_parser_preserves_latex_text_command():
+    response = (
+        '{"scene_body":"theorem = MathTex(r\\"\\\\text{Conformal maps in } n \\\\geq 3 '
+        '\\\\text{ are M\\\\\\"{o}bius transformations.}\\")\\n'
+        'self.play(Write(theorem))"}'
+    )
+    parsed = parser.parse_scene_repair_response(response)
+    assert "\\text{Conformal maps in }" in parsed
+    assert '\\"{o}' in parsed
 
 
 def test_narration_parser_rejects_placeholder_punctuation():

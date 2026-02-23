@@ -2,6 +2,8 @@ Write the full narration for this video.
 
 Title: {{title}}
 
+{{retry_context_block}}
+
 Plan JSON:
 ```json
 {{plan_json}}

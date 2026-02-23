@@ -51,10 +51,17 @@ while [[ ${#} -gt 0 ]]; do
 done
 
 # Source .env for environment variables (e.g., FLAMING_HORSE_VOICE_REF_DIR)
+# Note: Preserve LLM_PROVIDER if already set in environment
+_llm_provider_env="${LLM_PROVIDER:-}"
 if [[ -f "${ENV_FILE}" ]]; then
   # shellcheck disable=SC1090
   source "${ENV_FILE}"
 fi
+# Restore LLM_PROVIDER from environment if it was set before sourcing .env
+if [[ -n "${_llm_provider_env}" ]]; then
+  LLM_PROVIDER="${_llm_provider_env}"
+fi
+unset _llm_provider_env
 
 errors=0
 warnings=0
@@ -63,13 +70,46 @@ PYTHON_BIN="python3"
 echo "Checking dependencies..."
 echo ""
 
-# Required API key for harness phases
-if [[ -n "${XAI_API_KEY:-}" ]]; then
-  echo "✓ XAI_API_KEY is set"
-else
-  echo "✗ XAI_API_KEY is not set (required for harness execution)"
-  errors=$((errors+1))
-fi
+# Determine LLM provider (use XAI as default only if not set)
+LLM_PROVIDER="${LLM_PROVIDER:-XAI}"
+
+# Required API key for harness phases (depends on provider)
+case "${LLM_PROVIDER}" in
+  XAI)
+    if [[ -z "${XAI_API_KEY:-}" ]]; then
+      echo "✗ XAI_API_KEY is not set (required for XAI provider)"
+      errors=$((errors+1))
+    else
+      echo "✓ XAI_API_KEY is set"
+    fi
+    ;;
+  MINIMAX)
+    if [[ -z "${MINIMAX_API_KEY:-}" ]]; then
+      echo "✗ MINIMAX_API_KEY is not set (required for MINIMAX provider)"
+      errors=$((errors+1))
+    else
+      echo "✓ MINIMAX_API_KEY is set"
+    fi
+    ;;
+  OLLAMA)
+    if ! command -v ollama >/dev/null 2>&1; then
+      echo "✗ ollama command not found (required for OLLAMA provider)"
+      errors=$((errors+1))
+    else
+      echo "✓ ollama command available"
+      # Check if daemon is running
+      if curl -s http://127.0.0.1:11434/api/tags >/dev/null 2>&1; then
+        echo "✓ Ollama daemon is running on http://127.0.0.1:11434"
+      else
+        echo "⚠ Ollama daemon not responding on http://127.0.0.1:11434 (start with: ollama serve)"
+        warnings=$((warnings+1))
+      fi
+    fi
+    ;;
+  *)
+    echo "⚠ Unknown LLM_PROVIDER: ${LLM_PROVIDER}"
+    ;;
+esac
 
 # Python
 if command -v "${PYTHON_BIN}" >/dev/null; then

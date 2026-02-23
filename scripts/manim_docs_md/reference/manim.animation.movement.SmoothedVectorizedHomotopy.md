@@ -1,0 +1,37 @@
+<!-- source: https://docs.manim.community/en/stable/reference/manim.animation.movement.SmoothedVectorizedHomotopy.html -->
+
+# SmoothedVectorizedHomotopy
+
+Qualified name: `manim.animation.movement.SmoothedVectorizedHomotopy`
+
+class SmoothedVectorizedHomotopy(*mobject=None*, **args*, *use_override=True*, ***kwargs*)[[source]](../_modules/manim/animation/movement.html#SmoothedVectorizedHomotopy)
+:   Bases: [`Homotopy`](manim.animation.movement.Homotopy.html#manim.animation.movement.Homotopy "manim.animation.movement.Homotopy")
+
+    Methods
+
+    |  |  |
+    | --- | --- |
+    | `interpolate_submobject` |  |
+
+    Attributes
+
+    |  |  |
+    | --- | --- |
+    | `run_time` |  |
+
+    Parameters:
+    :   - **homotopy** (*Callable**[**[**float**,* *float**,* *float**,* *float**]**,* *tuple**[**float**,* *float**,* *float**]**]*)
+        - **mobject** ([*Mobject*](manim.mobject.mobject.Mobject.html#manim.mobject.mobject.Mobject "manim.mobject.mobject.Mobject"))
+        - **run_time** (*float*)
+        - **apply_function_kwargs** (*dict**[**str**,* *Any**]* *|* *None*)
+        - **kwargs** (*Any*)
+
+    _original__init__(*homotopy*, *mobject*, *run_time=3*, *apply_function_kwargs=None*, ***kwargs*)
+    :   Initialize self. See help(type(self)) for accurate signature.
+
+        Parameters:
+        :   - **homotopy** (*Callable**[**[**float**,* *float**,* *float**,* *float**]**,* *tuple**[**float**,* *float**,* *float**]**]*)
+            - **mobject** ([*Mobject*](manim.mobject.mobject.Mobject.html#manim.mobject.mobject.Mobject "manim.mobject.mobject.Mobject"))
+            - **run_time** (*float*)
+            - **apply_function_kwargs** (*dict**[**str**,* *Any**]* *|* *None*)
+            - **kwargs** (*Any*)

@@ -9,6 +9,10 @@ This file is designed for system-prompt injection and contains concrete examples
 
 When this reference is injected into the `build_scenes` phase, follow this contract first.
 
+Phase-scoped color override (build_scenes + scene_repair):
+- If the active phase prompt requires hex-only colors, that requirement overrides illustrative Kitchen Sink examples that use named colors or `harmonious_color(...)`.
+- In those phases, use hex color strings in generated output and treat non-hex color examples as non-normative references.
+
 - `SAFE_FOR_BUILD_SCENES`: `self.play(...)`, `self.wait(...)`, documented Manim mobjects/animations, and repo helpers that are explicitly listed in the user prompt scaffold section.
 - `SAFE_FOR_BUILD_SCENES`: Title/header placement via `.move_to(UP * 3.8)` (or nearby explicit coordinates), not `.to_edge(UP)`.
 - `SAFE_FOR_BUILD_SCENES`: Narration sync via `with self.voiceover(text=SCRIPT["key"]) as tracker:` when `VoiceoverScene` is available in scaffold.

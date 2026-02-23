@@ -229,8 +229,111 @@ def test_build_scenes_prompt_uses_current_scene_narration_only():
         assert "NARRATION_TWO_UNIQUE" in user_prompt
         assert "NARRATION_ONE_UNIQUE" not in user_prompt
         assert "unresolved placeholders like `{{...}}`" in user_prompt
+        assert "Scene file:" not in user_prompt
+        assert "{{scene_file_name}}" not in user_prompt
+        assert (
+            "File naming/path selection is orchestrator-owned; "
+            "do not produce or reason about filenames."
+        ) in user_prompt
 
     print("✅ Build scenes prompt uses current scene narration only")
+
+
+def test_scene_repair_prompt_omits_filename_contract():
+    """Scene repair prompt should not ask model for file naming decisions."""
+    print("Testing scene_repair prompt filename contract...")
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        project_dir = Path(tmpdir)
+        scene_file = project_dir / "scene_02_focus.py"
+        scene_file.write_text(
+            "from manim import *\nclass Scene02Focus(Scene):\n    pass\n",
+            encoding="utf-8",
+        )
+
+        plan = {
+            "title": "Repair filename contract test",
+            "scenes": [
+                {
+                    "id": "scene_01_intro",
+                    "title": "Intro",
+                    "narration_key": "scene_01_intro",
+                },
+                {
+                    "id": "scene_02_focus",
+                    "title": "Focus",
+                    "narration_key": "scene_02_focus",
+                },
+            ],
+        }
+        (project_dir / "plan.json").write_text(
+            json.dumps(plan, indent=2), encoding="utf-8"
+        )
+
+        narration_text = """SCRIPT = {
+    "scene_01_intro": "NARRATION_ONE_UNIQUE",
+    "scene_02_focus": "NARRATION_TWO_UNIQUE"
+}
+"""
+        (project_dir / "narration_script.py").write_text(
+            narration_text, encoding="utf-8"
+        )
+
+        state = {
+            "plan_file": "plan.json",
+            "narration_file": "narration_script.py",
+            "scenes": [
+                {
+                    "id": "scene_01_intro",
+                    "title": "Intro",
+                    "narration_key": "scene_01_intro",
+                },
+                {
+                    "id": "scene_02_focus",
+                    "title": "Focus",
+                    "narration_key": "scene_02_focus",
+                    "file": "scene_02_focus.py",
+                },
+            ],
+            "current_scene_index": 1,
+        }
+
+        _, user_prompt = compose_prompt(
+            phase="scene_repair",
+            state=state,
+            retry_context="TypeError: example",
+            scene_file=scene_file,
+            project_dir=project_dir,
+        )
+
+        assert "Expected File Name:" not in user_prompt
+        assert "{{scene_file_name}}" not in user_prompt
+        assert (
+            "File naming/path selection is orchestrator-owned; "
+            "do not produce or reason about filenames."
+        ) in user_prompt
+        assert 'SCRIPT["scene_02_focus"]' in user_prompt
+
+    print("✅ Scene repair prompt omits filename contract")
+
+
+def test_prompt_manifests_do_not_declare_output_file():
+    """Build/repair manifests should describe body payload only, not filenames."""
+    print("Testing prompt manifest output contract...")
+
+    build_manifest = (
+        REPO_ROOT / "harness" / "prompts" / "04_build_scenes" / "manifest.yaml"
+    ).read_text(encoding="utf-8")
+    repair_manifest = (
+        REPO_ROOT / "harness" / "prompts" / "06_scene_repair" / "manifest.yaml"
+    ).read_text(encoding="utf-8")
+
+    assert "\n  file:" not in build_manifest
+    assert "\n  file:" not in repair_manifest
+    assert "scene_body" in build_manifest
+    assert "scene_body" in repair_manifest
+
+    print("✅ Prompt manifests declare body-only output contract")
 
 
 def test_full_pipeline():
@@ -299,6 +402,8 @@ def test_full_pipeline():
 
         # Test prompt narration scoping
         test_build_scenes_prompt_uses_current_scene_narration_only()
+        test_scene_repair_prompt_omits_filename_contract()
+        test_prompt_manifests_do_not_declare_output_file()
 
         # Verify all files exist
         assert plan_file.exists(), "plan.json not created"

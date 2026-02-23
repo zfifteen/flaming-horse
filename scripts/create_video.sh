@@ -9,11 +9,12 @@ export TOKENIZERS_PARALLELISM=false
 usage() {
   cat <<'EOF'
 Usage:
-  ./scripts/create_video.sh <project_name> [--topic "..."] [--phase <target_phase>] [--projects-dir <dir>] [--build-args "..."]
+  ./scripts/create_video.sh <project_name> [--topic "..."] [--phase <target_phase>] [--projects-dir <dir>] [--build-args "..."] [--skip-precache]
 
 Examples:
   ./scripts/create_video.sh semi_prime_factorization --topic "Create a video about factoring semi primes"
   ./scripts/create_video.sh my-video --topic "Explain hash functions" --phase build_scenes
+  ./scripts/create_video.sh my-video --skip-precache  # Re-render without voice API calls
 
 Notes:
   - Canonical entrypoint for users: this script.
@@ -23,6 +24,7 @@ Notes:
   - For reliability, it also warms up the voice service once before building.
   - --phase runs/resumes the pipeline and stops after that phase is completed.
   - --build-args is parsed like a shell command line (quotes supported).
+  - --skip-precache skips voice precaching, using existing cache for re-rendering without API calls.
   - You can also provide the topic via VIDEO_TOPIC.
   - PROJECTS_BASE_DIR sets the default for --projects-dir when omitted.
   - If the project already exists (has project_state.json), this script resumes it and does NOT reinitialize state.
@@ -63,6 +65,7 @@ TOPIC=""
 TARGET_PHASE=""
 PROJECTS_DIR="${PROJECTS_BASE_DIR:-./projects}"
 BUILD_ARGS_STR=""
+SKIP_PRECACHE=""
 INITIAL_PWD="$(pwd)"
 
 while [[ ${#} -gt 0 ]]; do
@@ -93,6 +96,10 @@ while [[ ${#} -gt 0 ]]; do
         exit 1
       fi
       shift 2
+      ;;
+    --skip-precache)
+      SKIP_PRECACHE="1"
+      shift
       ;;
     --build-args)
       BUILD_ARGS_STR="${2:-}"
@@ -183,6 +190,10 @@ fi
 
 if [[ -n "${TARGET_PHASE}" ]]; then
   BUILD_ARGS=(--phase "${TARGET_PHASE}" "${BUILD_ARGS[@]}")
+fi
+
+if [[ -n "${SKIP_PRECACHE}" ]]; then
+  BUILD_ARGS+=(--skip-precache)
 fi
 
 exec "${SCRIPT_DIR}/build_video.sh" "${PROJECT_DIR}" "${BUILD_ARGS[@]}"

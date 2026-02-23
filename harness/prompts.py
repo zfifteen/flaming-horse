@@ -10,6 +10,8 @@ import re
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
+from harness.collections import search_manim_collection
+
 PROMPTS_DIR = Path(__file__).parent / "prompts"
 TEMPLATES_DIR = Path(__file__).parent / "templates"
 
@@ -193,7 +195,22 @@ def format_duration(seconds: int) -> str:
     return f"{secs}s"
 
 
-def compose_plan_prompt(state: Dict[str, Any], topic: Optional[str]) -> Tuple[str, str]:
+def compose_plan_prompt(
+    state: Dict[str, Any],
+    topic: Optional[str],
+    retry_context: Optional[str] = None,
+) -> Tuple[str, str]:
+    _ = state
+    retry_block = ""
+    if retry_context:
+        retry_block = (
+            "## RETRY CONTEXT\n\n"
+            "The previous attempt failed with the following error details:\n\n"
+            "```\n"
+            f"{retry_context}\n"
+            "```\n\n"
+            "Fix this failure and return only the required top-level JSON object.\n"
+        )
     system_prompt = load_prompt_template(
         "plan",
         "system.md",
@@ -201,7 +218,11 @@ def compose_plan_prompt(state: Dict[str, Any], topic: Optional[str]) -> Tuple[st
             "pipeline_doc": read_file(TEMPLATES_DIR / "manim_content_pipeline.md"),
         },
     )
-    user_prompt = load_prompt_template("plan", "user.md", {"topic": topic or ""})
+    user_prompt = load_prompt_template(
+        "plan",
+        "user.md",
+        {"topic": topic or "", "retry_context_block": retry_block},
+    )
     return system_prompt, user_prompt
 
 
@@ -214,10 +235,20 @@ def compose_review_prompt(state: Dict[str, Any], project_dir: Path) -> Tuple[str
 
 
 def compose_narration_prompt(
-    state: Dict[str, Any], project_dir: Path
+    state: Dict[str, Any], project_dir: Path, retry_context: Optional[str] = None
 ) -> Tuple[str, str]:
     plan_file = resolve_project_file(project_dir, state.get("plan_file"), "plan.json")
     plan_data = json.loads(read_file(plan_file))
+    retry_block = ""
+    if retry_context:
+        retry_block = (
+            "## RETRY CONTEXT\n\n"
+            "The previous narration attempt failed with the following error details:\n\n"
+            "```\n"
+            f"{retry_context}\n"
+            "```\n\n"
+            "Fix this failure and return only the required top-level JSON object.\n"
+        )
 
     system_prompt = load_prompt_template(
         "narration",
@@ -232,6 +263,7 @@ def compose_narration_prompt(
         {
             "title": plan_data.get("title", "Unknown"),
             "plan_json": json.dumps(plan_data, indent=2),
+            "retry_context_block": retry_block,
         },
     )
     return system_prompt, user_prompt
@@ -258,7 +290,6 @@ def compose_build_scenes_prompt(
         scene_id = current_scene.get("id", f"scene_{current_index + 1:02d}")
         scene_title = current_scene.get("title", "Unknown")
         narration_key = current_scene.get("narration_key", scene_id)
-        scene_file_name = current_scene.get("file", f"{scene_id}.py")
         scene_class_name = current_scene.get(
             "class_name", scene_id_to_class_name(scene_id)
         )
@@ -273,7 +304,6 @@ def compose_build_scenes_prompt(
         scene_id = f"scene_{current_index + 1:02d}"
         scene_title = "Unknown"
         narration_key = scene_id
-        scene_file_name = f"{scene_id}.py"
         scene_class_name = scene_id_to_class_name(scene_id)
         scene_details = "N/A"
 
@@ -292,14 +322,7 @@ def compose_build_scenes_prompt(
     )
     estimated_duration_text = format_duration(estimated_duration_seconds)
 
-    reference_section = ""
-    if current_index == 0:
-        reference_section = (
-            "## Manim CE Reference Documentation\n\n"
-            "Use ONLY syntax documented in the official Manim CE reference:\n"
-            "https://docs.manim.community/en/stable/reference.html\n\n"
-            "This is your authoritative source for valid Manim classes, methods, and parameters."
-        )
+    reference_section = search_manim_collection(scene_details) if scene_details != "N/A" else ""
 
     retry_section = ""
     if retry_context:
@@ -324,7 +347,6 @@ def compose_build_scenes_prompt(
         "user.md",
         {
             "scene_id": scene_id,
-            "scene_file_name": scene_file_name,
             "scene_class_name": scene_class_name,
             "narration_key": narration_key,
             "scene_title": scene_title,
@@ -395,7 +417,6 @@ def compose_scene_repair_prompt(
     scene_title = "Unknown"
     narration_key = scene_id
     scene_class_name = scene_id_to_class_name(scene_id)
-    scene_file_name = scene_file.name
 
     if current_index < len(scenes):
         current_scene = scenes[current_index]
@@ -405,7 +426,6 @@ def compose_scene_repair_prompt(
         scene_class_name = current_scene.get(
             "class_name", scene_id_to_class_name(scene_id)
         )
-        scene_file_name = current_scene.get("file", scene_file_name)
 
     plan_scene = None
     for ps in plan_data.get("scenes", []):
@@ -421,6 +441,10 @@ def compose_scene_repair_prompt(
         narration_key = resolved_key
     scene_narration = resolved_narration or "N/A"
 
+    reference_section = search_manim_collection(
+        f"{scene_details}\n{retry_context or ''}"
+    )
+
     system_prompt = load_prompt_template(
         "scene_repair",
         "system.md",
@@ -433,7 +457,6 @@ def compose_scene_repair_prompt(
         "user.md",
         {
             "scene_id": scene_id,
-            "scene_file_name": scene_file_name,
             "scene_class_name": scene_class_name,
             "narration_key": narration_key,
             "scene_title": scene_title,
@@ -442,6 +465,7 @@ def compose_scene_repair_prompt(
             "broken_file_name": scene_file.name,
             "broken_file_content": broken_file_content,
             "retry_context": retry_context or "Unknown error",
+            "reference_section": reference_section,
         },
     )
     return system_prompt, user_prompt
@@ -460,11 +484,11 @@ def compose_prompt(
         raise ValueError("project_dir is required")
 
     if phase == "plan":
-        return compose_plan_prompt(state, topic)
+        return compose_plan_prompt(state, topic, retry_context)
     if phase == "review":
         return compose_review_prompt(state, project_dir)
     if phase == "narration":
-        return compose_narration_prompt(state, project_dir)
+        return compose_narration_prompt(state, project_dir, retry_context)
     if phase == "build_scenes":
         return compose_build_scenes_prompt(state, project_dir, retry_context)
     if phase == "scene_qc":
