@@ -3,8 +3,8 @@ phase: narration
 inputs:
   - plan_json: project_dir/plan.json
   - title: plan.title
-  - constraints: one_script_entry_per_scene_narration_key
-  - exclude: pipeline_overview, voice_runtime_policy
+  - constraints: one_script_entry_per_scene_narration_key, qwen_tts_safe_text
+  - note: narration text is fed to cached Qwen TTS — use plain spoken prose only, no special markup
 
 output:
   format: json_only
