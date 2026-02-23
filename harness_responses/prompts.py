@@ -328,9 +328,11 @@ def _compose_build_scenes_prompt(
     state: Dict[str, Any],
     project_dir: Path,
     retry_context: str,
+    template_file_reference: str = "",
 ) -> Tuple[str, str]:
     phase_dir = PROMPTS_DIR / PHASE_DIRS["build_scenes"]
     values = _build_scene_prompt_values(state, project_dir)
+    values["template_file_reference"] = template_file_reference
     values["retry_section"] = (
         (
             "## RETRY CONTEXT\n\n"
@@ -467,6 +469,7 @@ def compose_prompt(
     topic: str = "",
     retry_context: str = "",
     scene_file: Optional[Path] = None,
+    template_file_reference: str = "",
 ) -> Tuple[str, str]:
     """
     Compose system and user prompts for a phase.
@@ -495,7 +498,12 @@ def compose_prompt(
     state = _load_project_state(project_dir)
 
     if phase == "build_scenes":
-        return _compose_build_scenes_prompt(state, project_dir, retry_context)
+        return _compose_build_scenes_prompt(
+            state,
+            project_dir,
+            retry_context,
+            template_file_reference,
+        )
 
     if phase == "narration":
         return _compose_narration_prompt(state, project_dir, retry_context)

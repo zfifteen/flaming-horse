@@ -306,14 +306,18 @@ class TestResponsesClient:
         ok: str
 
     class _FakeChat:
-        def __init__(self, raw_content: str):
+        def __init__(self, raw_content: str, outer):
             self.raw_content = raw_content
+            self.outer = outer
 
-        def append(self, _msg):
+        def append(self, msg):
+            self.outer.setdefault("appended_messages", []).append(msg)
             return None
 
         def sample(self):
-            return _MockResponse(self.raw_content)
+            response = _MockResponse(self.raw_content)
+            response.id = self.outer.get("response_id", "mock_response_id_123")
+            return response
 
     class _FakeChatFactory:
         def __init__(self, outer):
@@ -323,12 +327,22 @@ class TestResponsesClient:
             self.outer["model"] = model
             self.outer["kwargs"] = kwargs
             raw_content = self.outer.get("raw_content", "{\"ok\":\"yes\"}")
-            return TestResponsesClient._FakeChat(raw_content)
+            return TestResponsesClient._FakeChat(raw_content, self.outer)
 
     class _FakeClient:
         def __init__(self, *, api_key, _capture):
             _capture["api_key"] = api_key
             self.chat = TestResponsesClient._FakeChatFactory(_capture)
+
+    class _FakeHttpResponse:
+        def __init__(self, payload: dict):
+            self._payload = payload
+
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return self._payload
 
     def test_enable_web_search_wires_search_parameters(self, monkeypatch):
         capture = {}
@@ -351,6 +365,7 @@ class TestResponsesClient:
         assert "search_parameters" in capture["kwargs"]
         assert capture["kwargs"]["search_parameters"].mode == "on"
         assert capture["kwargs"]["response_format"] == "json_object"
+        assert capture["kwargs"]["store_messages"] is True
 
     def test_disable_web_search_omits_search_parameters(self, monkeypatch):
         capture = {}
@@ -371,6 +386,101 @@ class TestResponsesClient:
         assert parsed.ok == "yes"
         assert "search_parameters" not in capture["kwargs"]
         assert capture["kwargs"]["response_format"] == "json_object"
+        assert capture["kwargs"]["store_messages"] is True
+        assert "previous_response_id" not in capture["kwargs"]
+        assert len(capture["appended_messages"]) == 2
+
+    def test_previous_response_id_used_when_session_pointer_exists(
+        self, monkeypatch, tmp_path
+    ):
+        capture = {}
+        session_state = tmp_path / "responses_session.json"
+        session_state.write_text(
+            json.dumps(
+                {
+                    "model": "grok-4-1-fast",
+                    "updated_at": "2026-01-01T00:00:00+00:00",
+                    "last_response_id": "resp_prev_001",
+                    "phase": "plan",
+                }
+            ),
+            encoding="utf-8",
+        )
+        monkeypatch.setenv("XAI_API_KEY", "test-key")
+        monkeypatch.setattr(
+            "xai_sdk.sync.client.Client",
+            lambda api_key: TestResponsesClient._FakeClient(api_key=api_key, _capture=capture),
+        )
+        monkeypatch.setattr("xai_sdk.chat.system", lambda s: {"role": "system", "content": s})
+        monkeypatch.setattr("xai_sdk.chat.user", lambda s: {"role": "user", "content": s})
+
+        raw, parsed = hr_client.call_responses_api(
+            system_prompt="sys",
+            user_prompt="usr",
+            schema=self._DummySchema,
+            session_state_path=session_state,
+            phase="plan",
+        )
+        assert parsed.ok == "yes"
+        assert capture["kwargs"]["previous_response_id"] == "resp_prev_001"
+        assert getattr(raw, "previous_response_id_used") == "resp_prev_001"
+        assert len(capture["appended_messages"]) == 2
+
+    def test_session_state_stores_last_response_id_not_history(self, monkeypatch, tmp_path):
+        capture = {"response_id": "resp_new_001"}
+        session_state = tmp_path / "responses_session.json"
+        monkeypatch.setenv("XAI_API_KEY", "test-key")
+        monkeypatch.setattr(
+            "xai_sdk.sync.client.Client",
+            lambda api_key: TestResponsesClient._FakeClient(api_key=api_key, _capture=capture),
+        )
+        monkeypatch.setattr("xai_sdk.chat.system", lambda s: {"role": "system", "content": s})
+        monkeypatch.setattr("xai_sdk.chat.user", lambda s: {"role": "user", "content": s})
+
+        _, parsed = hr_client.call_responses_api(
+            system_prompt="sys",
+            user_prompt="usr",
+            schema=self._DummySchema,
+            session_state_path=session_state,
+            phase="narration",
+        )
+        assert parsed.ok == "yes"
+
+        data = json.loads(session_state.read_text(encoding="utf-8"))
+        assert data["last_response_id"] == "resp_new_001"
+        assert data["model"] == "grok-4-1-fast"
+        assert data["phase"] == "narration"
+        assert "history" not in data
+
+    def test_ensure_build_scenes_template_file_upload_once_then_reuse(
+        self, monkeypatch, tmp_path
+    ):
+        template_file = tmp_path / "template.md"
+        template_file.write_text("template body", encoding="utf-8")
+        monkeypatch.setattr(hr_client, "_BUILD_SCENES_TEMPLATE_PATH", template_file)
+        monkeypatch.setenv("XAI_API_KEY", "test-key")
+
+        calls = {"count": 0}
+
+        def _fake_post(*args, **kwargs):
+            calls["count"] += 1
+            return TestResponsesClient._FakeHttpResponse({"id": "file_abc123"})
+
+        monkeypatch.setattr(hr_client.requests, "post", _fake_post)
+        session_state = tmp_path / "responses_session.json"
+
+        first = hr_client.ensure_build_scenes_template_file(
+            session_state_path=session_state
+        )
+        second = hr_client.ensure_build_scenes_template_file(
+            session_state_path=session_state
+        )
+
+        assert first["template_file_id"] == "file_abc123"
+        assert first["uploaded"] is True
+        assert second["template_file_id"] == "file_abc123"
+        assert second["uploaded"] is False
+        assert calls["count"] == 1
 
     def test_malformed_json_raises(self, monkeypatch):
         capture = {"raw_content": "{bad json"}
@@ -684,7 +794,77 @@ class TestCLI:
         content = log.read_text()
         assert "dry_run" in content
         assert "api_mode: responses" in content
-        assert "store: False" in content
+        assert "store: True" in content
+
+    def test_api_success_log_includes_previous_and_response_id(self, monkeypatch, tmp_path):
+        project = _make_project(tmp_path)
+        monkeypatch.setattr(hr_cli, "compose_prompt", lambda **_: ("sys", "user"))
+        monkeypatch.setattr(hr_cli, "write_phase_artifacts", lambda **_: True)
+
+        class _Raw:
+            id = "resp_current_002"
+            content = "{\"ok\": \"yes\"}"
+            previous_response_id_used = "resp_prev_001"
+
+        monkeypatch.setattr(
+            "harness_responses.client.call_responses_api",
+            lambda **_: (_Raw(), _make_valid_plan(9)),
+        )
+        monkeypatch.setattr(
+            sys, "argv",
+            [
+                "prog",
+                "--phase", "plan",
+                "--project-dir", str(project),
+                "--topic", "test",
+            ],
+        )
+        assert hr_cli.main() == 0
+        content = (project / "log" / "conversation.log").read_text(encoding="utf-8")
+        assert "store: True" in content
+        assert "previous_response_id: resp_prev_001" in content
+        assert "response_id: resp_current_002" in content
+
+    def test_build_scenes_includes_uploaded_template_file_reference(
+        self, monkeypatch, tmp_path
+    ):
+        project = _make_scene_project(tmp_path)
+        captured = {}
+
+        def _fake_compose_prompt(**kwargs):
+            captured["template_file_reference"] = kwargs.get("template_file_reference", "")
+            return ("sys", "user")
+
+        class _Raw:
+            id = "resp_scene_1"
+            content = "{\"ok\": \"yes\"}"
+            previous_response_id_used = None
+
+        monkeypatch.setattr(hr_cli, "compose_prompt", _fake_compose_prompt)
+        monkeypatch.setattr(hr_cli, "write_phase_artifacts", lambda **_: True)
+        monkeypatch.setattr(
+            "harness_responses.client.ensure_build_scenes_template_file",
+            lambda **_: {
+                "template_file_id": "file_template_001",
+                "template_hash": "hash",
+                "uploaded": False,
+            },
+        )
+        monkeypatch.setattr(
+            "harness_responses.client.call_responses_api",
+            lambda **_: (_Raw(), BuildScenesResponse(scene_body="title = Text('x')")),
+        )
+        monkeypatch.setattr(
+            sys, "argv",
+            [
+                "prog",
+                "--phase", "build_scenes",
+                "--project-dir", str(project),
+            ],
+        )
+        assert hr_cli.main() == 0
+        ref = captured.get("template_file_reference", "")
+        assert "file_template_001" in ref
 
     def test_semantic_validation_failure_returns_2(self, monkeypatch, tmp_path):
         project = _make_project(tmp_path)

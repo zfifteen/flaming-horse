@@ -44,10 +44,13 @@ def _append_conversation_log(
     system_prompt: str,
     user_prompt: str,
     response_id: Optional[str],
+    previous_response_id: Optional[str],
     status: str,
     api_mode: str,
     tools_enabled: bool,
     store: bool,
+    template_file_id: Optional[str] = None,
+    template_uploaded: Optional[bool] = None,
     retrieval_info: Optional[Dict[str, Any]] = None,
     assistant_response_content: Optional[str] = None,
     error_text: Optional[str] = None,
@@ -61,8 +64,14 @@ def _append_conversation_log(
         f"tools_enabled: {tools_enabled}",
         f"store: {store}",
     ]
+    if previous_response_id:
+        parts.append(f"previous_response_id: {previous_response_id}")
     if response_id:
         parts.append(f"response_id: {response_id}")
+    if template_file_id:
+        parts.append(f"template_file_id: {template_file_id}")
+    if template_uploaded is not None:
+        parts.append(f"template_uploaded: {template_uploaded}")
     if error_text:
         parts.append(f"error: {error_text}")
     parts.extend(
@@ -212,7 +221,7 @@ def main() -> int:
         temperature = 0.7
     temperature = max(0.0, min(2.0, temperature))
 
-    store = True  # use server-side threading via response_id / previous_response_id
+    store = True  # stateful conversation chaining via previous_response_id
     enable_web_search = False  # tools off by default
 
     log_dir = args.project_dir / "log"
@@ -222,14 +231,33 @@ def main() -> int:
     system_prompt = ""
     user_prompt = ""
     retrieval_info: Dict[str, Any] = {}
+    template_file_id: Optional[str] = None
+    template_uploaded: Optional[bool] = None
+    session_state_path = log_dir / "responses_session.json"
 
     try:
+        template_file_reference = ""
+        if args.phase == "build_scenes" and not args.dry_run:
+            from harness_responses.client import ensure_build_scenes_template_file
+
+            template_state = ensure_build_scenes_template_file(
+                session_state_path=session_state_path
+            )
+            template_file_id = template_state.get("template_file_id")
+            template_uploaded = bool(template_state.get("uploaded"))
+            if template_file_id:
+                template_file_reference = (
+                    "Use uploaded xAI file id "
+                    f"`{template_file_id}` as template context for scene-writing rules."
+                )
+
         system_prompt, user_prompt = compose_prompt(
             phase=args.phase,
             project_dir=args.project_dir,
             topic=args.topic or "",
             retry_context=args.retry_context or "",
             scene_file=args.scene_file,
+            template_file_reference=template_file_reference,
         )
         retrieval_info = consume_last_retrieval_info()
 
@@ -253,10 +281,13 @@ def main() -> int:
                 system_prompt=system_prompt,
                 user_prompt=user_prompt,
                 response_id=None,
+                previous_response_id=None,
                 status="dry_run",
                 api_mode="responses",
                 tools_enabled=enable_web_search,
                 store=store,
+                template_file_id=template_file_id,
+                template_uploaded=template_uploaded,
                 retrieval_info=retrieval_info or None,
             )
             return 0
@@ -274,12 +305,18 @@ def main() -> int:
             temperature=temperature,
             store=store,
             enable_web_search=enable_web_search,
-            session_state_path=log_dir / "responses_session.json",
+            session_state_path=session_state_path,
+            phase=args.phase,
         )
 
         response_id: Optional[str] = getattr(raw_response, "id", None)
         if response_id:
             print(f"   Response ID: {response_id}")
+        previous_response_id: Optional[str] = getattr(
+            raw_response,
+            "previous_response_id_used",
+            None,
+        )
 
         assistant_response_content = _stringify_response_content(raw_response)
         _append_conversation_log(
@@ -288,10 +325,13 @@ def main() -> int:
             system_prompt=system_prompt,
             user_prompt=user_prompt,
             response_id=response_id,
+            previous_response_id=previous_response_id,
             status="api_success",
             api_mode="responses",
             tools_enabled=enable_web_search,
             store=store,
+            template_file_id=template_file_id,
+            template_uploaded=template_uploaded,
             retrieval_info=retrieval_info or None,
             assistant_response_content=assistant_response_content,
         )
@@ -330,10 +370,13 @@ def main() -> int:
                     system_prompt=system_prompt,
                     user_prompt=user_prompt,
                     response_id=None,
+                    previous_response_id=None,
                     status="error",
                     api_mode="responses",
                     tools_enabled=enable_web_search,
                     store=store,
+                    template_file_id=template_file_id,
+                    template_uploaded=template_uploaded,
                     retrieval_info=retrieval_info or None,
                     error_text=str(exc),
                 )
