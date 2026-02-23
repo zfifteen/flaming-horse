@@ -1,0 +1,55 @@
+<!-- source: https://docs.manim.community/en/stable/reference/manim.animation.transform.ScaleInPlace.html -->
+
+# ScaleInPlace
+
+Qualified name: `manim.animation.transform.ScaleInPlace`
+
+class ScaleInPlace(*mobject=None*, **args*, *use_override=True*, ***kwargs*)[[source]](../_modules/manim/animation/transform.html#ScaleInPlace)
+:   Bases: [`ApplyMethod`](manim.animation.transform.ApplyMethod.html#manim.animation.transform.ApplyMethod "manim.animation.transform.ApplyMethod")
+
+    Animation that scales a mobject by a certain factor.
+
+    Examples
+
+    Example: ScaleInPlaceExample
+
+    [
+    ](./ScaleInPlaceExample-1.mp4)
+
+    ```python
+    from manim import *
+
+    class ScaleInPlaceExample(Scene):
+        def construct(self):
+            self.play(ScaleInPlace(Text("Hello World!"), 2))
+    ```
+
+    ```python
+    class ScaleInPlaceExample(Scene):
+        def construct(self):
+            self.play(ScaleInPlace(Text("Hello World!"), 2))
+    ```
+
+    Methods
+
+    Attributes
+
+    |  |  |
+    | --- | --- |
+    | `path_arc` |  |
+    | `path_func` |  |
+    | `run_time` |  |
+
+    Parameters:
+    :   - **mobject** ([*Mobject*](manim.mobject.mobject.Mobject.html#manim.mobject.mobject.Mobject "manim.mobject.mobject.Mobject"))
+        - **scale_factor** (*float*)
+
+    _original__init__(*mobject*, *scale_factor*, ***kwargs*)
+    :   Initialize self. See help(type(self)) for accurate signature.
+
+        Parameters:
+        :   - **mobject** ([*Mobject*](manim.mobject.mobject.Mobject.html#manim.mobject.mobject.Mobject "manim.mobject.mobject.Mobject"))
+            - **scale_factor** (*float*)
+
+        Return type:
+        :   None

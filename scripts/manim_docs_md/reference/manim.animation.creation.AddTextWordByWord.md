@@ -1,0 +1,34 @@
+<!-- source: https://docs.manim.community/en/stable/reference/manim.animation.creation.AddTextWordByWord.html -->
+
+# AddTextWordByWord
+
+Qualified name: `manim.animation.creation.AddTextWordByWord`
+
+class AddTextWordByWord(*mobject=None*, **args*, *use_override=True*, ***kwargs*)[[source]](../_modules/manim/animation/creation.html#AddTextWordByWord)
+:   Bases: [`Succession`](manim.animation.composition.Succession.html#manim.animation.composition.Succession "manim.animation.composition.Succession")
+
+    Show a [`Text`](manim.mobject.text.text_mobject.Text.html#manim.mobject.text.text_mobject.Text "manim.mobject.text.text_mobject.Text") word by word on the scene. Note: currently broken.
+
+    Methods
+
+    Attributes
+
+    |  |  |
+    | --- | --- |
+    | `run_time` |  |
+
+    Parameters:
+    :   - **text_mobject** ([*Text*](manim.mobject.text.text_mobject.Text.html#manim.mobject.text.text_mobject.Text "manim.mobject.text.text_mobject.Text"))
+        - **run_time** (*float*)
+        - **time_per_char** (*float*)
+
+    _original__init__(*text_mobject*, *run_time=None*, *time_per_char=0.06*, ***kwargs*)
+    :   Initialize self. See help(type(self)) for accurate signature.
+
+        Parameters:
+        :   - **text_mobject** ([*Text*](manim.mobject.text.text_mobject.Text.html#manim.mobject.text.text_mobject.Text "manim.mobject.text.text_mobject.Text"))
+            - **run_time** (*float*)
+            - **time_per_char** (*float*)
+
+        Return type:
+        :   None
