@@ -22,8 +22,11 @@ import harness_responses.cli as hr_cli
 import harness_responses.client as hr_client
 import harness_responses.parser as hr_parser
 import harness_responses.prompts as hr_prompts
+from harness_responses.collections import CollectionSearchResult
 from harness_responses.schemas.build_scenes import BuildScenesResponse
+from harness_responses.schemas.narration import NarrationResponse
 from harness_responses.schemas.plan import PlanResponse, SceneItem
+from harness_responses.schemas.scene_qc import SceneQcResponse
 from harness_responses.schemas.scene_repair import SceneRepairResponse
 from harness_responses.parser import SemanticValidationError
 from pydantic import BaseModel
@@ -116,6 +119,39 @@ def _make_scene_project(tmp_path: Path) -> Path:
     return project
 
 
+def _make_narration_project(tmp_path: Path) -> Path:
+    project = tmp_path / "narration_project"
+    project.mkdir()
+    state = {
+        "phase": "narration",
+        "plan_file": "plan.json",
+        "scenes": [{"id": "scene_01", "narration_key": "scene_01", "title": "Scene 1"}],
+        "current_scene_index": 0,
+    }
+    (project / "project_state.json").write_text(json.dumps(state), encoding="utf-8")
+    (project / "plan.json").write_text(
+        json.dumps(
+            {
+                "title": "Narration Test",
+                "description": "desc",
+                "target_duration_seconds": 300,
+                "scenes": [
+                    {
+                        "id": "scene_01",
+                        "narration_key": "scene_01",
+                        "title": "Scene 1",
+                        "description": "desc",
+                        "estimated_duration_seconds": 30,
+                        "visual_ideas": ["idea"],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    return project
+
+
 # ---------------------------------------------------------------------------
 # Schema validation tests
 # ---------------------------------------------------------------------------
@@ -126,29 +162,23 @@ class TestPlanSchema:
         assert plan.title == "Test Video"
         assert len(plan.scenes) == 9
 
-    def test_schema_requires_title(self):
-        with pytest.raises(ValidationError):
-            PlanResponse(
-                title="",
-                description="desc",
-                target_duration_seconds=300,
-                scenes=[_make_valid_scene()],
-            )
+    def test_schema_allows_empty_title_semantics_enforce_non_empty(self):
+        plan = PlanResponse(
+            title="",
+            description="desc",
+            target_duration_seconds=300,
+            scenes=[_make_valid_scene(i) for i in range(9)],
+        )
+        assert plan.title == ""
 
-    def test_scene_requires_visual_ideas(self):
-        with pytest.raises(ValidationError):
-            SceneItem(
-                title="Scene",
-                description="desc",
-                estimated_duration_seconds=30,
-                visual_ideas=[],
-            )
-
-    def test_schema_enforces_scene_count_bounds(self):
-        with pytest.raises(ValidationError):
-            _make_valid_plan(7)
-        with pytest.raises(ValidationError):
-            _make_valid_plan(13)
+    def test_schema_allows_empty_visual_ideas_semantics_enforce_non_empty(self):
+        scene = SceneItem(
+            title="Scene",
+            description="desc",
+            estimated_duration_seconds=30,
+            visual_ideas=[],
+        )
+        assert scene.visual_ideas == []
 
     def test_schema_enforces_duration_bounds(self):
         with pytest.raises(ValidationError):
@@ -280,14 +310,14 @@ class TestResponsesClient:
         ok: str
 
     class _FakeChat:
-        def __init__(self):
-            self.create_kwargs = None
+        def __init__(self, raw_content: str):
+            self.raw_content = raw_content
 
         def append(self, _msg):
             return None
 
-        def parse(self, schema):
-            return _MockResponse(), schema(ok="yes")
+        def sample(self):
+            return _MockResponse(self.raw_content)
 
     class _FakeChatFactory:
         def __init__(self, outer):
@@ -296,7 +326,8 @@ class TestResponsesClient:
         def create(self, model, **kwargs):
             self.outer["model"] = model
             self.outer["kwargs"] = kwargs
-            return TestResponsesClient._FakeChat()
+            raw_content = self.outer.get("raw_content", "{\"ok\":\"yes\"}")
+            return TestResponsesClient._FakeChat(raw_content)
 
     class _FakeClient:
         def __init__(self, *, api_key, _capture):
@@ -323,6 +354,7 @@ class TestResponsesClient:
         assert raw.id == "mock_response_id_123"
         assert "search_parameters" in capture["kwargs"]
         assert capture["kwargs"]["search_parameters"].mode == "on"
+        assert capture["kwargs"]["response_format"] == "json_object"
 
     def test_disable_web_search_omits_search_parameters(self, monkeypatch):
         capture = {}
@@ -342,6 +374,43 @@ class TestResponsesClient:
         )
         assert parsed.ok == "yes"
         assert "search_parameters" not in capture["kwargs"]
+        assert capture["kwargs"]["response_format"] == "json_object"
+
+    def test_malformed_json_raises(self, monkeypatch):
+        capture = {"raw_content": "{bad json"}
+        monkeypatch.setenv("XAI_API_KEY", "test-key")
+        monkeypatch.setattr(
+            "xai_sdk.sync.client.Client",
+            lambda api_key: TestResponsesClient._FakeClient(api_key=api_key, _capture=capture),
+        )
+        monkeypatch.setattr("xai_sdk.chat.system", lambda s: {"role": "system", "content": s})
+        monkeypatch.setattr("xai_sdk.chat.user", lambda s: {"role": "user", "content": s})
+
+        with pytest.raises(ValueError, match="Structured JSON validation failed"):
+            hr_client.call_responses_api(
+                system_prompt="sys",
+                user_prompt="usr",
+                schema=self._DummySchema,
+                enable_web_search=False,
+            )
+
+    def test_schema_invalid_json_raises(self, monkeypatch):
+        capture = {"raw_content": "{\"missing_ok\": true}"}
+        monkeypatch.setenv("XAI_API_KEY", "test-key")
+        monkeypatch.setattr(
+            "xai_sdk.sync.client.Client",
+            lambda api_key: TestResponsesClient._FakeClient(api_key=api_key, _capture=capture),
+        )
+        monkeypatch.setattr("xai_sdk.chat.system", lambda s: {"role": "system", "content": s})
+        monkeypatch.setattr("xai_sdk.chat.user", lambda s: {"role": "user", "content": s})
+
+        with pytest.raises(ValueError, match="Structured JSON validation failed"):
+            hr_client.call_responses_api(
+                system_prompt="sys",
+                user_prompt="usr",
+                schema=self._DummySchema,
+                enable_web_search=False,
+            )
 
     def test_write_phase_artifacts_plan(self, tmp_path):
         project = _make_project(tmp_path)
@@ -351,7 +420,7 @@ class TestResponsesClient:
     def test_write_phase_artifacts_unimplemented_phase_raises(self, tmp_path):
         project = _make_project(tmp_path)
         with pytest.raises(NotImplementedError):
-            hr_parser.write_phase_artifacts("narration", None, project)
+            hr_parser.write_phase_artifacts("review", None, project)
 
     def test_write_phase_artifacts_build_scenes(self, tmp_path):
         project = _make_scene_project(tmp_path)
@@ -371,6 +440,20 @@ class TestResponsesClient:
         content = (project / "scene_01.py").read_text(encoding="utf-8")
         assert "Fixed" in content
 
+    def test_write_phase_artifacts_narration(self, tmp_path):
+        project = _make_narration_project(tmp_path)
+        parsed = NarrationResponse(script={"scene_01": "Hello narration"})
+        assert hr_parser.write_phase_artifacts("narration", parsed, project) is True
+        content = (project / "narration_script.py").read_text(encoding="utf-8")
+        assert '"scene_01": "Hello narration"' in content
+
+    def test_write_phase_artifacts_scene_qc(self, tmp_path):
+        project = _make_scene_project(tmp_path)
+        parsed = SceneQcResponse(report_markdown="# Scene QC Report\n\nAll good.")
+        assert hr_parser.write_phase_artifacts("scene_qc", parsed, project) is True
+        content = (project / "scene_qc_report.md").read_text(encoding="utf-8")
+        assert "Scene QC Report" in content
+
 
 # ---------------------------------------------------------------------------
 # Prompt composition tests
@@ -389,7 +472,7 @@ class TestPromptComposition:
     def test_unknown_phase_raises(self, tmp_path):
         with pytest.raises(ValueError, match="not implemented"):
             hr_prompts.compose_prompt(
-                phase="narration",
+                phase="training",
                 topic="test",
                 project_dir=tmp_path,
             )
@@ -412,17 +495,72 @@ class TestPromptComposition:
         )
         assert "Retry context" not in user
 
-    def test_build_scenes_prompt_loads(self, tmp_path):
+    def test_build_scenes_prompt_loads(self, monkeypatch, tmp_path):
         project = _make_scene_project(tmp_path)
+        captured = {}
+
+        def _fake_search(query):
+            captured["query"] = query
+            return CollectionSearchResult(
+                query=query,
+                collection_id="collection_test",
+                limit=8,
+                chunks=["Text API docs"],
+            )
+
+        monkeypatch.setattr(
+            hr_prompts,
+            "search_manim_collection",
+            _fake_search,
+        )
         system, user = hr_prompts.compose_prompt(
             phase="build_scenes",
             project_dir=project,
         )
         assert "Build Scenes Phase" in system
         assert "Scene ID: scene_01" in user
+        info = hr_prompts.consume_last_retrieval_info()
+        assert info["phase"] == "build_scenes"
+        assert "Phase: build_scenes" in captured["query"]
+        assert "Current scene source:" in captured["query"]
+        assert "class Scene01(VoiceoverScene):" in captured["query"]
 
-    def test_scene_repair_prompt_loads(self, tmp_path):
+    def test_narration_prompt_loads(self, tmp_path):
+        project = _make_narration_project(tmp_path)
+        system, user = hr_prompts.compose_prompt(
+            phase="narration",
+            project_dir=project,
+        )
+        assert "voiceover writer" in system
+        assert "Narration Test" in user
+
+    def test_scene_qc_prompt_loads(self, tmp_path):
         project = _make_scene_project(tmp_path)
+        system, user = hr_prompts.compose_prompt(
+            phase="scene_qc",
+            project_dir=project,
+        )
+        assert "Scene QC Phase" in system
+        assert "Please review all scene files" in user
+
+    def test_scene_repair_prompt_loads(self, monkeypatch, tmp_path):
+        project = _make_scene_project(tmp_path)
+        captured = {}
+
+        def _fake_search(query):
+            captured["query"] = query
+            return CollectionSearchResult(
+                query=query,
+                collection_id="collection_test",
+                limit=8,
+                chunks=["repair docs chunk"],
+            )
+
+        monkeypatch.setattr(
+            hr_prompts,
+            "search_manim_collection",
+            _fake_search,
+        )
         _, user = hr_prompts.compose_prompt(
             phase="scene_repair",
             project_dir=project,
@@ -431,6 +569,10 @@ class TestPromptComposition:
         )
         assert "Current Scene ID" in user
         assert "boom" in user
+        assert "Phase: scene_repair" in captured["query"]
+        assert "Current scene source:" in captured["query"]
+        assert "Full error stacktrace/context:" in captured["query"]
+        assert "boom" in captured["query"]
 
 
 # ---------------------------------------------------------------------------
@@ -558,7 +700,9 @@ class TestCLI:
 class _MockResponse:
     """Minimal mock for xai_sdk Response."""
     id = "mock_response_id_123"
-    content = "mock content"
+
+    def __init__(self, content: str = "mock content"):
+        self.content = content
 
 
 # ---------------------------------------------------------------------------

@@ -32,10 +32,6 @@ PROJECTS_BASE_DIR="${PROJECTS_BASE_DIR:-projects}"
 PROJECT_DEFAULT_NAME="${PROJECT_DEFAULT_NAME:-default_video}"
 PHASE_RETRY_LIMIT="${PHASE_RETRY_LIMIT:-3}"
 PHASE_RETRY_BACKOFF_SECONDS="${PHASE_RETRY_BACKOFF_SECONDS:-2}"
-# FH_HARNESS: selects the harness implementation.
-#   "legacy"    (default) — existing harness/ path via python -m harness
-#   "responses" — new harness_responses/ path via python -m harness_responses
-FH_HARNESS="${FH_HARNESS:-legacy}"
 TARGET_PHASE=""
 RERENDER_FINAL=""
 
@@ -1047,7 +1043,7 @@ PY
   local retry_context_file
   retry_context_file="$(get_retry_context_file "$phase")"
   
-  echo "Using Python harness (${LLM_PROVIDER:-XAI} API, FH_HARNESS=${FH_HARNESS:-legacy})" | tee -a "$LOG_FILE"
+  echo "Using Python harness (xAI Responses API)" | tee -a "$LOG_FILE"
 
   local -a harness_args=(
     --phase "$phase"
@@ -1065,21 +1061,9 @@ PY
   fi
 
   export XAI_API_KEY="$XAI_API_KEY"
-  export MINIMAX_API_KEY="$MINIMAX_API_KEY"
-  export OLLAMA_API_KEY="${OLLAMA_API_KEY:-}"
-  export OLLAMA_BASE_URL="${OLLAMA_BASE_URL:-http://127.0.0.1:11434/v1}"
-  export OLLAMA_MODEL="${OLLAMA_MODEL:-qwen2.5-coder:7b}"
-  export LLM_PROVIDER="$LLM_PROVIDER"
-  if [[ "${FH_HARNESS:-legacy}" == "responses" ]]; then
-    echo "Using harness_responses (xAI Responses API)" | tee -a "$LOG_FILE"
-    $PYTHON_BIN -m harness_responses "${harness_args[@]}" \
-      > >(tee -a "$LOG_FILE") \
-      2> >(tee -a "$LOG_FILE" >&2)
-  else
-    $PYTHON_BIN -m harness "${harness_args[@]}" \
-      > >(tee -a "$LOG_FILE") \
-      2> >(tee -a "$LOG_FILE" >&2)
-  fi
+  $PYTHON_BIN -m harness_responses "${harness_args[@]}" \
+    > >(tee -a "$LOG_FILE") \
+    2> >(tee -a "$LOG_FILE" >&2)
 
   local exit_code=$?
 
@@ -1386,24 +1370,13 @@ invoke_scene_fix_agent() {
 Error details:
 ${error_stacktrace}"
 
-  if [[ "${FH_HARNESS:-legacy}" == "responses" ]]; then
-    echo "Using harness_responses (xAI Responses API) for scene repair" | tee -a "$LOG_FILE"
-    $PYTHON_BIN -m harness_responses \
-      --phase scene_repair \
-      --project-dir "$PROJECT_DIR" \
-      --scene-file "$scene_file" \
-      --retry-context "$retry_context" \
-      > >(tee -a "$LOG_FILE") \
-      2> >(tee -a "$LOG_FILE" >&2)
-  else
-    $PYTHON_BIN -m harness \
-      --phase scene_repair \
-      --project-dir "$PROJECT_DIR" \
-      --scene-file "$scene_file" \
-      --retry-context "$retry_context" \
-      > >(tee -a "$LOG_FILE") \
-      2> >(tee -a "$LOG_FILE" >&2)
-  fi
+  $PYTHON_BIN -m harness_responses \
+    --phase scene_repair \
+    --project-dir "$PROJECT_DIR" \
+    --scene-file "$scene_file" \
+    --retry-context "$retry_context" \
+    > >(tee -a "$LOG_FILE") \
+    2> >(tee -a "$LOG_FILE" >&2)
 
   local exit_code=$?
   return $exit_code

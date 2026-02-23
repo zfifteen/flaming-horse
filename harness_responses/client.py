@@ -1,11 +1,11 @@
 """
 xAI Responses API client for harness_responses.
 
-Uses xai_sdk (gRPC) with chat.parse() for API-enforced structured outputs.
+Uses xai_sdk (gRPC) with response_format JSON mode.
 No dependencies on harness/.
 
 Design:
-  Layer 1 (API-enforced): chat.parse() constrains structural output via Pydantic schema.
+  Layer 1 (API JSON mode): response_format=json_object constrains output to JSON.
   Layer 2 (semantic):     caller validates field-level business rules before artifact write.
 """
 
@@ -13,7 +13,7 @@ import os
 import time
 from typing import Any, Optional, Tuple, Type, TypeVar
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -23,6 +23,61 @@ _DEFAULT_MODEL = "grok-4-1-fast"
 # How many times to retry transient API failures
 _MAX_RETRIES = 3
 _RETRY_DELAY = 2.0
+
+
+def _extract_response_text(raw_response: Any) -> str:
+    """
+    Extract text payload from xai_sdk Response.content.
+
+    Handles common shapes:
+      - plain string
+      - list[str]
+      - list[dict] with "text"/"content"
+      - list[objects] with .text/.content
+    """
+    content = getattr(raw_response, "content", None)
+    if isinstance(content, str):
+        text = content.strip()
+        if text:
+            return text
+        raise ValueError("Response content is empty")
+
+    if isinstance(content, list):
+        chunks: list[str] = []
+        for item in content:
+            if isinstance(item, str):
+                if item.strip():
+                    chunks.append(item)
+                continue
+
+            if isinstance(item, dict):
+                text_val = item.get("text")
+                if isinstance(text_val, str) and text_val.strip():
+                    chunks.append(text_val)
+                    continue
+                content_val = item.get("content")
+                if isinstance(content_val, str) and content_val.strip():
+                    chunks.append(content_val)
+                    continue
+                continue
+
+            text_attr = getattr(item, "text", None)
+            if isinstance(text_attr, str) and text_attr.strip():
+                chunks.append(text_attr)
+                continue
+            content_attr = getattr(item, "content", None)
+            if isinstance(content_attr, str) and content_attr.strip():
+                chunks.append(content_attr)
+                continue
+
+        joined = "".join(chunks).strip()
+        if joined:
+            return joined
+        raise ValueError("Response content has no text payload")
+
+    if content is None:
+        raise ValueError("Response content is missing")
+    return str(content)
 
 
 def _resolve_model() -> str:
@@ -59,7 +114,7 @@ def call_responses_api(
     model: Optional[str] = None,
 ) -> Tuple[Any, T]:
     """
-    Call xAI Responses API using xai_sdk chat.parse() for structured output.
+    Call xAI Responses API using response_format JSON mode and Pydantic validation.
 
     Args:
         system_prompt: System role prompt.
@@ -97,6 +152,7 @@ def call_responses_api(
                 "temperature": temperature,
                 "max_tokens": max_tokens,
                 "store_messages": store,
+                "response_format": "json_object",
             }
             if enable_web_search:
                 create_kwargs["search_parameters"] = SearchParameters(
@@ -111,7 +167,14 @@ def call_responses_api(
             chat.append(sdk_system(system_prompt))
             chat.append(sdk_user(user_prompt))
 
-            raw_response, parsed = chat.parse(schema)
+            raw_response = chat.sample()
+            payload_text = _extract_response_text(raw_response)
+            try:
+                parsed = schema.model_validate_json(payload_text)
+            except ValidationError as exc:
+                raise ValueError(
+                    f"Structured JSON validation failed for schema {schema.__name__}: {exc}"
+                ) from exc
             return raw_response, parsed
 
         except Exception as exc:

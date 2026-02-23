@@ -17,7 +17,9 @@ from pathlib import Path
 from typing import Any
 
 from harness_responses.schemas.build_scenes import BuildScenesResponse
+from harness_responses.schemas.narration import NarrationResponse
 from harness_responses.schemas.plan import PlanResponse
+from harness_responses.schemas.scene_qc import SceneQcResponse
 from harness_responses.schemas.scene_repair import SceneRepairResponse
 
 # Semantic validation bounds (from plan manifest)
@@ -256,6 +258,93 @@ def validate_and_write_plan(
     return True
 
 
+def _looks_like_placeholder_narration(text: str) -> bool:
+    stripped = text.strip()
+    if not stripped:
+        return True
+    if re.fullmatch(r"[\.\u2026,\-_=~`'\"*#\s]+", stripped):
+        return True
+    return False
+
+
+def validate_and_write_narration(
+    parsed: NarrationResponse,
+    project_dir: Path,
+    raw_response: Any = None,
+) -> bool:
+    content_repr = parsed.model_dump()
+    script_dict = parsed.script
+
+    if not isinstance(script_dict, dict) or not script_dict:
+        _fail_with_diag(
+            project_dir,
+            raw_response,
+            content_repr,
+            "narration.script is required and must be a non-empty object",
+        )
+
+    for key, value in script_dict.items():
+        if not isinstance(key, str) or not key.strip():
+            _fail_with_diag(
+                project_dir,
+                raw_response,
+                content_repr,
+                "narration.script keys must be non-empty strings",
+            )
+        if not isinstance(value, str) or not value.strip():
+            _fail_with_diag(
+                project_dir,
+                raw_response,
+                content_repr,
+                f"narration.script[{key!r}] must be a non-empty string",
+            )
+        if _looks_like_placeholder_narration(value):
+            _fail_with_diag(
+                project_dir,
+                raw_response,
+                content_repr,
+                f"narration.script[{key!r}] must contain real narration text",
+            )
+
+    lines = [
+        "# Voiceover script",
+        "# This file is imported by scene files as: from narration_script import SCRIPT",
+        "",
+        "SCRIPT = {",
+    ]
+    for key, value in script_dict.items():
+        lines.append(f"    {json.dumps(key)}: {json.dumps(value)},")
+    lines.append("}")
+    lines.append("")
+    narration_code = "\n".join(lines)
+
+    narration_path = project_dir / "narration_script.py"
+    narration_path.write_text(narration_code, encoding="utf-8")
+    print(f"✅ Wrote {narration_path}")
+    return True
+
+
+def validate_and_write_scene_qc(
+    parsed: SceneQcResponse,
+    project_dir: Path,
+    raw_response: Any = None,
+) -> bool:
+    content_repr = parsed.model_dump()
+    report = parsed.report_markdown
+    if not isinstance(report, str) or not report.strip():
+        _fail_with_diag(
+            project_dir,
+            raw_response,
+            content_repr,
+            "scene_qc.report_markdown is required and must be a non-empty string",
+        )
+
+    report_path = project_dir / "scene_qc_report.md"
+    report_path.write_text(report.strip(), encoding="utf-8")
+    print(f"✅ Wrote {report_path}")
+    return True
+
+
 def _normalize_and_validate_scene_body(
     phase: str,
     scene_body: str,
@@ -415,8 +504,12 @@ def write_phase_artifacts(
     """Dispatch to phase-specific artifact writer."""
     if phase == "plan":
         return validate_and_write_plan(parsed, project_dir, raw_response)
+    if phase == "narration":
+        return validate_and_write_narration(parsed, project_dir, raw_response)
     if phase == "build_scenes":
         return validate_and_write_build_scenes(parsed, project_dir, raw_response)
+    if phase == "scene_qc":
+        return validate_and_write_scene_qc(parsed, project_dir, raw_response)
     if phase == "scene_repair":
         return validate_and_write_scene_repair(parsed, project_dir, raw_response)
 

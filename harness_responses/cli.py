@@ -3,7 +3,9 @@ Command-line interface for harness_responses.
 
 Supports phases implemented in this harness:
 - plan
+- narration
 - build_scenes
+- scene_qc
 - scene_repair
 Exit codes match legacy harness contract: 0=success, 1=recoverable/phase failure, 2=config error.
 """
@@ -14,13 +16,13 @@ import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
+from typing import Any, Dict, Optional
 
 from harness_responses.parser import SemanticValidationError, write_phase_artifacts
-from harness_responses.prompts import compose_prompt
+from harness_responses.prompts import compose_prompt, consume_last_retrieval_info
 
 # Phases implemented in Phase 1
-_IMPLEMENTED_PHASES = ["plan", "build_scenes", "scene_repair"]
+_IMPLEMENTED_PHASES = ["plan", "narration", "build_scenes", "scene_qc", "scene_repair"]
 
 
 def _utc_timestamp() -> str:
@@ -46,6 +48,8 @@ def _append_conversation_log(
     api_mode: str,
     tools_enabled: bool,
     store: bool,
+    retrieval_info: Optional[Dict[str, Any]] = None,
+    assistant_response_content: Optional[str] = None,
     error_text: Optional[str] = None,
 ) -> None:
     parts = [
@@ -72,8 +76,55 @@ def _append_conversation_log(
             "",
         ]
     )
+    if retrieval_info:
+        parts.extend(
+            [
+                "----- COLLECTIONS RETRIEVAL -----",
+                json.dumps(retrieval_info, indent=2, default=str),
+                "",
+            ]
+        )
+    if assistant_response_content is not None:
+        parts.extend(
+            [
+                "----- ASSISTANT RESPONSE (RAW CONTENT) -----",
+                assistant_response_content,
+                "",
+            ]
+        )
     with open(log_path, "a", encoding="utf-8") as f:
         f.write("\n".join(parts) + "\n")
+
+
+def _stringify_response_content(raw_response: Any) -> str:
+    content = getattr(raw_response, "content", None)
+    if content is None:
+        return ""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        chunks: list[str] = []
+        for item in content:
+            if isinstance(item, str):
+                chunks.append(item)
+                continue
+            if isinstance(item, dict):
+                text = item.get("text")
+                if isinstance(text, str):
+                    chunks.append(text)
+                    continue
+                body = item.get("content")
+                if isinstance(body, str):
+                    chunks.append(body)
+                    continue
+                chunks.append(json.dumps(item, default=str))
+                continue
+            chunks.append(str(item))
+        return "".join(chunks)
+    try:
+        return json.dumps(content, default=str)
+    except Exception:
+        return str(content)
 
 
 def _get_schema_for_phase(phase: str):
@@ -81,9 +132,15 @@ def _get_schema_for_phase(phase: str):
     if phase == "plan":
         from harness_responses.schemas.plan import PlanResponse
         return PlanResponse
+    if phase == "narration":
+        from harness_responses.schemas.narration import NarrationResponse
+        return NarrationResponse
     if phase == "build_scenes":
         from harness_responses.schemas.build_scenes import BuildScenesResponse
         return BuildScenesResponse
+    if phase == "scene_qc":
+        from harness_responses.schemas.scene_qc import SceneQcResponse
+        return SceneQcResponse
     if phase == "scene_repair":
         from harness_responses.schemas.scene_repair import SceneRepairResponse
         return SceneRepairResponse
@@ -164,6 +221,7 @@ def main() -> int:
 
     system_prompt = ""
     user_prompt = ""
+    retrieval_info: Dict[str, Any] = {}
 
     try:
         system_prompt, user_prompt = compose_prompt(
@@ -173,6 +231,7 @@ def main() -> int:
             retry_context=args.retry_context or "",
             scene_file=args.scene_file,
         )
+        retrieval_info = consume_last_retrieval_info()
 
         if args.dry_run:
             print("🔍 DRY RUN MODE — harness_responses")
@@ -198,6 +257,7 @@ def main() -> int:
                 api_mode="responses",
                 tools_enabled=enable_web_search,
                 store=store,
+                retrieval_info=retrieval_info or None,
             )
             return 0
 
@@ -220,6 +280,7 @@ def main() -> int:
         if response_id:
             print(f"   Response ID: {response_id}")
 
+        assistant_response_content = _stringify_response_content(raw_response)
         _append_conversation_log(
             conversation_log,
             phase=args.phase,
@@ -230,6 +291,8 @@ def main() -> int:
             api_mode="responses",
             tools_enabled=enable_web_search,
             store=store,
+            retrieval_info=retrieval_info or None,
+            assistant_response_content=assistant_response_content,
         )
 
         print(f"📝 Validating and writing artifacts for phase: {args.phase}")
@@ -270,6 +333,7 @@ def main() -> int:
                     api_mode="responses",
                     tools_enabled=enable_web_search,
                     store=store,
+                    retrieval_info=retrieval_info or None,
                     error_text=str(exc),
                 )
         except Exception:
