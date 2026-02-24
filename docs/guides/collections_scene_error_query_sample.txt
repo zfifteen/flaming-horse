@@ -1,0 +1,594 @@
+===== QUERY SENT TO COLLECTIONS =====
+Phase: scene_repair
+Scene ID: scene_01
+Current scene source:
+```python
+from pathlib import Path
+
+from manim import *
+import numpy as np
+from manim_voiceover_plus import VoiceoverScene
+
+from flaming_horse_voice import get_speech_service
+from flaming_horse.scene_helpers import (
+    safe_position,
+    harmonious_color,
+    polished_fade_in,
+    adaptive_title_position,
+    safe_layout,
+)
+from narration_script import SCRIPT
+
+
+# LOCKED CONFIGURATION (DO NOT MODIFY)
+config.frame_height = 10
+config.frame_width = 10 * 16 / 9
+config.pixel_height = 1440
+config.pixel_width = 2560
+
+
+def clamp_text_width(text_obj, max_width=6.0):
+    """Clamp text width deterministically for scene readability."""
+    text_obj.set_max_width(max_width)
+    if text_obj.width > max_width:
+        text_obj.scale_to_fit_width(max_width)
+    return text_obj
+
+
+class Scene01(VoiceoverScene):
+    def construct(self):
+        ref_path = Path("assets/voice_ref/ref.wav")
+        if not ref_path.exists():
+            raise FileNotFoundError("Run precache_voice.sh before building.")
+
+        self.set_speech_service(get_speech_service(Path(__file__).resolve().parent))
+
+        with self.voiceover(text=SCRIPT["scene_01"]) as tracker:
+            # SLOT_START:scene_body
+            title = Text('Opening: Welcome to the Matrix', font_size=60, weight='BOLD', color=GREEN); title.move_to(UP * 2.8); self.play(FadeIn(title), run_time=min(2.0, tracker.duration * 0.08)); drop1 = Text('101010', font_size=36, color=GREEN); drop1.move_to(UP * 3.8 + LEFT * 4); drop1.rotate(0.12); drop2 = Text('MATRIX', font_size=36, color=GREEN); drop2.move_to(UP * 3.8 + LEFT * 1); drop2.rotate(0.10); drop3 = Text('010101', font_size=36, color=GREEN); drop3.move_to(UP * 3.8 + RIGHT * 1.5); drop3.rotate(0.11); drop4 = Text('WAKEUP', font_size=36, color=GREEN); drop4.move_to(UP * 3.8 + RIGHT * 4); drop4.rotate(0.09); drops = VGroup(drop1, drop2, drop3, drop4); drops.scale(0.75); self.play(LaggedStart(FadeIn(drop1), FadeIn(drop2), FadeIn(drop3), FadeIn(drop4), lag_ratio=0.25), run_time=min(3.0, tracker.duration * 0.12)); self.play(LaggedStart(drop1.animate.shift(DOWN * 7 + RIGHT * 0.4), drop2.animate.shift(DOWN * 7 + LEFT * 0.2), drop3.animate.shift(DOWN * 7 + LEFT * 0.6), drop4.animate.shift(DOWN * 7 + RIGHT * 0.8), lag_ratio=0.08), run_time=min(4.5, tracker.duration * 0.18)); silhouette_body = Rectangle(width=1.0, height=2.1, color=BLACK, fill_opacity=1); silhouette_head = Circle(radius=0.4, color=BLACK, fill_opacity=1).shift(UP * 1.15); silhouette_leg1 = Rectangle(width=0.4, height=1.0, color=BLACK, fill_opacity=1).shift(DOWN * 0.85 + LEFT * 0.3); silhouette_leg2 = Rectangle(width=0.4, height=1.0, color=BLACK, fill_opacity=1).shift(DOWN * 0.85 + RIGHT * 0.3); silhouette = VGroup(silhouette_body, silhouette_head, silhouette_leg1, silhouette_leg2); silhouette.move_to(LEFT * 3.2 + DOWN * 0.2); self.play(FadeIn(silhouette), run_time=min(1.5, tracker.duration * 0.07)); bullet1 = Text('Sci-fi action (1999)', font_size=36, color=WHITE); bullet1.move_to(UP * 1.4 + RIGHT * 2.2); bullet2 = Text('Reality as simulation', font_size=36, color=WHITE); bullet2.next_to(bullet1, DOWN, buff=0.2); bullet3 = Text('Philosophy of truth', font_size=36, color=WHITE); bullet3.next_to(bullet2, DOWN, buff=0.2); self.play(LaggedStart(Write(bullet1), Write(bullet2), Write(bullet3), lag_ratio=0.45), run_time=min(6.0, tracker.duration * 0.22)); self.play(Indicate(bullet1), run_time=min(0.8, tracker.duration * 0.03)); self.play(Indicate(bullet2), run_time=min(0.8, tracker.duration * 0.03)); self.play(Indicate(bullet3), run_time=min(0.8, tracker.duration * 0.03)); self.wait(max(0.8, tracker.duration * 0.04))
+            # SLOT_END:scene_body
+
+```
+
+Full error stacktrace:
+```text
+Traceback (most recent call last) ────────────────────────────────╮
+│ /Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/site-packages/manim/cli/render │
+│ /commands.py:125 in render                                                                       │
+│                                                                                                  │
+│   122 │   │   │   try:                                                                           │
+│   123 │   │   │   │   with tempconfig({}):                                                       │
+│   124 │   │   │   │   │   scene = SceneClass()                                                   │
+│ ❱ 125 │   │   │   │   │   scene.render()                                                         │
+│   126 │   │   │   except Exception:                                                              │
+│   127 │   │   │   │   error_console.print_exception()                                            │
+│   128 │   │   │   │   sys.exit(1)                                                                │
+│                                                                                                  │
+│ /Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/site-packages/manim/scene/scen │
+│ e.py:259 in render                                                                               │
+│                                                                                                  │
+│    256 │   │   """                                                                               │
+│    257 │   │   self.setup()                                                                      │
+│    258 │   │   try:                                                                              │
+│ ❱  259 │   │   │   self.construct()                                                              │
+│    260 │   │   except EndSceneEarlyException:                                                    │
+│    261 │   │   │   pass                                                                          │
+│    262 │   │   except RerunSceneException:                                                       │
+│                                                                                                  │
+│ /Users/velocityworks/IdeaProjects/flaming-horse/generated/smoke-test/scene_01.py:43 in construct │
+│                                                                                                  │
+│   40 │   │                                                                                       │
+│   41 │   │   with self.voiceover(text=SCRIPT["scene_01"]) as tracker:                            │
+│   42 │   │   │   # SLOT_START:scene_body                                                         │
+│ ❱ 43 │   │   │   title = Text('Opening: Welcome to the Matrix', font_size=60, weight='BOLD',     │
+│   44 │   │   │   # SLOT_END:scene_body                                                           │
+│   45                                                                                             │
+│                                                                                                  │
+│ /Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/site-packages/manim/mobject/te │
+│ xt/text_mobject.py:516 in __init__                                                               │
+│                                                                                                  │
+│    513 │   │   parsed_color: ManimColor = ManimColor(color) if color else VMobject().color       │
+│    514 │   │   file_name = self._text2svg(parsed_color.to_hex())                                 │
+│    515 │   │   PangoUtils.remove_last_M(file_name)                                               │
+│ ❱  516 │   │   super().__init__(                                                                 │
+│    517 │   │   │   file_name,                                                                    │
+│    518 │   │   │   fill_opacity=fill_opacity,                                                    │
+│    519 │   │   │   stroke_width=stroke_width,                                                    │
+│                                                                                                  │
+│ /Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/site-packages/manim/mobject/sv │
+│ g/svg_mobject.py:115 in __init__                                                                 │
+│                                                                                                  │
+│   112 │   │   use_svg_cache: bool = True,                                                        │
+│   113 │   │   **kwargs: Any,                                                                     │
+│   114 │   ):                                                                                     │
+│ ❱ 115 │   │   super().__init__(color=None, stroke_color=None, fill_color=None, **kwargs)         │
+│   116 │   │                                                                                      │
+│   117 │   │   # process keyword arguments                                                        │
+│   118 │   │   self.file_name = Path(file_name) if file_name is not None else None                │
+│                                                                                                  │
+│ /Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/site-packages/manim/mobject/ty │
+│ pes/vectorized_mobject.py:160 in __init__                                                        │
+│                                                                                                  │
+│    157 │   │   │   0, 1, n_points_per_cubic_curve                                                │
+│    158 │   │   )                                                                                 │
+│    159 │   │   self.cap_style: CapStyleType = cap_style                                          │
+│ ❱  160 │   │   super().__init__(**kwargs)                                                        │
+│    161 │   │   self.submobjects: list[VMobject]                                                  │
+│    162 │   │                                                                                     │
+│    163 │   │   # TODO: Find where color overwrites are happening and remove the color doubling   │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+TypeError: Mobject.__init__() got an unexpected keyword argument 'style'
+```
+
+Find official Manim CE docs/chunks to fix this exact failure.
+===== END QUERY =====
+
+HIT_COUNT=8
+COLLECTION_ID=collection_096219fb-a4b3-41fc-bfb9-2f796cf5377b
+LIMIT=8
+ERROR=''
+
+===== BEGIN RETURNED CHUNK 1 =====
+
+general.md
+<!-- source: https://docs.manim.community/en/stable/faq/general.html -->
+
+# FAQ: General Usage
+
+## Why does Manim say that “there are no scenes inside that module”?
+
+There are two main reasons why this error appears: if you have edited
+the file containing your `Scene` class and forgot to save it, or if you
+have accidentally passed the name of a wrong file to `manim`, this is
+a likely outcome. Check that you have spelled everything correctly.
+
+Otherwise, you are likely mixing up Manim versions. See [this FAQ answer](installation.html#different-versions)
+for an explanation regarding why there are different versions. Under the
+assumption that you are trying to use the `manim` executable from the terminal to run
+a scene that has been written for the community version (i.e., there is
+`from manim import *`, or more specifically `from manim import Scene`),
+then this error indicates that the `manim` executable has been overwritten
+by the one provided by `manimgl` (unfortunately, both `manim` and `manimgl`
+provide a `manim` executable).
+
+You can check whether this is the case by running `manim --version`, the output of
+the community maintained version starts with `Manim Community v...`. If this is not
+the case, you are running `manimgl`.
+
+You can resolve this by either of the following steps:
+
+- Un- and reinstalling `manim`,
+- using the `manimce` executable in place of the `manim` one,
+- or replacing the call to the executable with a direct call to the
+  Python module via `python -m manim`.
+
+---
+
+## No matter what code I put in my file, Manim only renders a black frame! Why?
+
+If you are using the usual pattern to write a `Scene`, i.e.,
+
+```python
+class MyAwesomeScene(Scene):
+    def construct(self):
+        ...
+        # your animation code
+```
+
+then double check whether you have spelled `construct` correctly.
+If the method containing your code is not called `construct` (or
+if you are not calling a different, custom method from `construct`),
+Manim will not call your method and simply output a black frame.
+
+---
+
+## What are the default measurements for Manim’s scene?
+
+The scene measures 8 units in height and has a default ratio of 16:9,
+which means that it measures \(8 \cdot 16 / 9 = 14 + 2/9\) units in width.
+The origin is in the center of the scene, which means that, for example, the
+upper left corner of the scene has coordinates `[-7-1/9, 4, 0]`.
+
+---
+
+## How do I find out which keyword arguments I can pass when creating a `Mobject`?
+
+Let us consider a specific example, like the [`Circle`](../reference/manim.mobject.geometry.arc.Circle.html#manim.mobject.geometry.arc.Circle "manim.mobject.geometry.arc.Circle") class. When looking
+at its documentation page, only two specific keyword arguments are listed
+(`radius`, and `color`). Besides these concrete arguments, there is also a
+catchall `**kwargs` argument which captures all other arguments that are passed
+
+===== END RETURNED CHUNK 1 =====
+
+===== BEGIN RETURNED CHUNK 2 =====
+
+index.md
+<!-- source: https://docs.manim.community/en/stable/faq/index.html -->
+
+# Frequently Asked Questions
+
+Table of Contents
+
+- [FAQ: General Usage](general.html)
+  - [Why does Manim say that “there are no scenes inside that module”?](general.html#why-does-manim-say-that-there-are-no-scenes-inside-that-module)
+  - [No matter what code I put in my file, Manim only renders a black frame! Why?](general.html#no-matter-what-code-i-put-in-my-file-manim-only-renders-a-black-frame-why)
+  - [What are the default measurements for Manim’s scene?](general.html#what-are-the-default-measurements-for-manim-s-scene)
+  - [How do I find out which keyword arguments I can pass when creating a `Mobject`?](general.html#how-do-i-find-out-which-keyword-arguments-i-can-pass-when-creating-a-mobject)
+  - [Can Manim render a video with transparent background?](general.html#can-manim-render-a-video-with-transparent-background)
+  - [I have watched a video where a creator ran command X, but it does not work for me. Why?](general.html#i-have-watched-a-video-where-a-creator-ran-command-x-but-it-does-not-work-for-me-why)
+  - [When using `Tex` or `MathTex`, some letters are missing. How can I fix this?](general.html#when-using-tex-or-mathtex-some-letters-are-missing-how-can-i-fix-this)
+  - [I want to translate some code from `manimgl` to `manim`, what do I do with `CONFIG` dictionaries?](general.html#i-want-to-translate-some-code-from-manimgl-to-manim-what-do-i-do-with-config-dictionaries)
+  - [My installation does not support converting PDF to SVG, help?](general.html#my-installation-does-not-support-converting-pdf-to-svg-help)
+  - [Where can I find more resources for learning Manim?](general.html#where-can-i-find-more-resources-for-learning-manim)
+- [FAQ: Getting Help](help.html)
+  - [How do I animate X? Why do I get error Y? Can someone help me?](help.html#how-do-i-animate-x-why-do-i-get-error-y-can-someone-help-me)
+  - [What should I do if nobody answers my question?](help.html#what-should-i-do-if-nobody-answers-my-question)
+  - [The library does not behave as documented, or something broke in a new release. What should I do?](help.html#the-library-does-not-behave-as-documented-or-something-broke-in-a-new-release-what-should-i-do)
+  - [I have an idea for a really cool feature that should be implemented, where should I share my idea?](help.html#i-have-an-idea-for-a-really-cool-feature-that-should-be-implemented-where-should-i-share-my-idea)
+- [FAQ: Installation](installation.html)
+
+===== END RETURNED CHUNK 2 =====
+
+===== BEGIN RETURNED CHUNK 3 =====
+
+_manifest.txt
+e.zoomed_scene.md
+reference/manim.typing.md
+reference/manim.utils.bezier.md
+reference/manim.utils.color.AS2700.md
+reference/manim.utils.color.BS381.md
+reference/manim.utils.color.DVIPSNAMES.md
+reference/manim.utils.color.SVGNAMES.md
+reference/manim.utils.color.X11.md
+reference/manim.utils.color.XKCD.md
+reference/manim.utils.color.core.HSV.md
+reference/manim.utils.color.core.ManimColor.md
+reference/manim.utils.color.core.RGBA.md
+reference/manim.utils.color.core.RandomColorGenerator.md
+reference/manim.utils.color.core.md
+reference/manim.utils.color.manim_colors.md
+reference/manim.utils.color.md
+reference/manim.utils.commands.VideoMetadata.md
+reference/manim.utils.commands.md
+reference/manim.utils.config_ops.DictAsObject.md
+reference/manim.utils.config_ops.md
+reference/manim.utils.debug.md
+reference/manim.utils.deprecation.md
+reference/manim.utils.docbuild.autoaliasattr_directive.AliasAttrDocumenter.md
+reference/manim.utils.docbuild.autoaliasattr_directive.md
+reference/manim.utils.docbuild.autocolor_directive.ManimColorModuleDocumenter.md
+reference/manim.utils.docbuild.autocolor_directive.md
+reference/manim.utils.docbuild.manim_directive.ManimDirective.md
+reference/manim.utils.docbuild.manim_directive.SetupMetadata.md
+reference/manim.utils.docbuild.manim_directive.SkipManimNode.md
+reference/manim.utils.docbuild.manim_directive.md
+reference/manim.utils.docbuild.md
+reference/manim.utils.docbuild.module_parsing.md
+reference/manim.utils.hashing.md
+reference/manim.utils.images.md
+reference/manim.utils.ipython_magic.ManimMagic.md
+reference/manim.utils.ipython_magic.md
+reference/manim.utils.iterables.md
+reference/manim.utils.paths.md
+reference/manim.utils.rate_functions.RateFunction.md
+reference/manim.utils.rate_functions.md
+reference/manim.utils.simple_functions.Comparable.md
+reference/manim.utils.simple_functions.md
+reference/manim.utils.sounds.md
+reference/manim.utils.space_ops.md
+reference/manim.utils.testing._frames_testers.md
+reference/manim.utils.testing._show_diff.md
+reference/manim.utils.testing._test_class_makers.DummySceneFileWriter.md
+reference/manim.utils.testing._test_class_makers.md
+reference/manim.utils.testing.md
+reference/manim.utils.tex.TexTemplate.md
+reference/manim.utils.tex.md
+reference/manim.utils.tex_file_writing.md
+reference/manim.utils.tex_templates.TexFontTemplates.md
+reference/manim.utils.tex_templates.TexTemplateLibrary.md
+reference/manim.utils.tex_templates.md
+reference_index/animations.md
+reference_index/cameras.md
+reference_index/configuration.md
+reference_index/mobjects.md
+reference_index/scenes.md
+reference_index/utilities_misc.md
+tutorials/building_blocks.md
+tutorials/index.md
+tutorials/output_and_config.md
+tutorials/quickstart.md
+tutorials_guides.md
+
+===== END RETURNED CHUNK 3 =====
+
+===== BEGIN RETURNED CHUNK 4 =====
+
+manim.scene.scene.Scene.md
+) | Removes mobjects in the passed list of mobjects from the scene and the foreground, by removing them from "mobjects" and "foreground_mobjects" |
+    | [`remove_foreground_mobject`](#manim.scene.scene.Scene.remove_foreground_mobject "manim.scene.scene.Scene.remove_foreground_mobject") | Removes a single mobject from the foreground, and internally from the list foreground_mobjects. |
+    | [`remove_foreground_mobjects`](#manim.scene.scene.Scene.remove_foreground_mobjects "manim.scene.scene.Scene.remove_foreground_mobjects") | Removes mobjects from the foreground, and internally from the list foreground_mobjects. |
+    | [`remove_updater`](#manim.scene.scene.Scene.remove_updater "manim.scene.scene.Scene.remove_updater") | Remove an update function from the scene. |
+    | [`render`](#manim.scene.scene.Scene.render "manim.scene.scene.Scene.render") | Renders this Scene. |
+    | [`replace`](#manim.scene.scene.Scene.replace "manim.scene.scene.Scene.replace") | Replace one mobject in the scene with another, preserving draw order. |
+    | [`restructure_mobjects`](#manim.scene.scene.Scene.restructure_mobjects "manim.scene.scene.Scene.restructure_mobjects") | tl:wr |
+    | `set_key_function` |  |
+    | [`setup`](#manim.scene.scene.Scene.setup "manim.scene.scene.Scene.setup") | This is meant to be implemented by any scenes which are commonly subclassed, and have some common setup involved before the construct method is called. |
+    | [`should_update_mobjects`](#manim.scene.scene.Scene.should_update_mobjects "manim.scene.scene.Scene.should_update_mobjects") | Returns True if the mobjects of this scene should be updated. |
+    | [`tear_down`](#manim.scene.scene.Scene.tear_down "manim.scene.scene.Scene.tear_down") | This is meant to be implemented by any scenes which are commonly subclassed, and have some common method to be invoked before the scene ends. |
+    | `update_meshes` |  |
+    | [`update_mobjects`](#manim.scene.scene.Scene.update_mobjects "manim.scene.scene.Scene.update_mobjects") | Begins updating all mobjects in the Scene. |
+    | [`update_self`](#manim.scene.scene.Scene.update_self "manim.scene.scene.Scene.update_self") | Run all scene updater functions. |
+    | `update_to_time` |  |
+    | `validate_run_time` |  |
+    | [`wait`](#manim.scene.scene.Scene.wait "manim.scene.scene.Scene.wait") | Plays a "no operation" animation. |
+    | [`wait_until`](#manim.scene.scene.Scene.wait_until "manim.scene.scene.Scene.wait_until") | Wait until a condition is satisfied, up to a given maximum duration. |
+
+    Attributes
+
+    |  |  |
+    | --- | --- |
+    | `camera` |  |
+    | [`time`](#manim.scene.scene.Scene.time "manim.scene.scene.Scene.time") | The time since the start of the scene. |
+
+    Parameters:
+    :   - **renderer** (*CairoRenderer* *|* *OpenGLRenderer* *|* *None*)
+        - **camera_class** (*type**[*[*Camera*](manim.camera.camera.Camera.html#manim.camera.camera.Camera "manim.camera.camera.Camera")*]*)
+        - **always_update_mobjects** (*bool*)
+        - **random_seed** (*int* *|* *None*)
+        -
+
+===== END RETURNED CHUNK 4 =====
+
+===== BEGIN RETURNED CHUNK 5 =====
+
+manim.utils.ipython_magic.ManimMagic.md
+Create a configurable given a config config.
+
+    Parameters:
+    :   - **config** (*Config*) – If this is empty, default values are used. If config is a
+          `Config` instance, it will be used to configure the
+          instance.
+        - **parent** (*Configurable instance**,* *optional*) – The parent Configurable instance of this object.
+        - **shell** (*InteractiveShell*)
+
+    Notes
+
+    Subclasses of Configurable must call the `__init__()` method of
+    `Configurable` *before* doing anything else and using
+    `super()`:
+
+    ```python
+    class MyConfigurable(Configurable):
+        def __init__(self, config=None):
+            super(MyConfigurable, self).__init__(config=config)
+            # Then any other code you need to finish initialization.
+    ```
+
+    This ensures that instances will be configured properly.
+
+    Methods
+
+    |  |  |
+    | --- | --- |
+    | `add_additional_args` |  |
+    | [`manim`](#manim.utils.ipython_magic.ManimMagic.manim "manim.utils.ipython_magic.ManimMagic.manim") | Render Manim scenes contained in IPython cells. |
+
+    Attributes
+
+    |  |  |
+    | --- | --- |
+    | `config` | A trait whose value must be an instance of a specified class. |
+    | `cross_validation_lock` | A contextmanager for running a block with our cross validation lock set to True. |
+    | `magics` |  |
+    | `options_table` |  |
+    | `parent` | A trait whose value must be an instance of a specified class. |
+    | `registered` |  |
+    | `shell` |  |
+
+    manim(*line*, *cell=None*, *local_ns=None*)[[source]](../_modules/manim/utils/ipython_magic.html#ManimMagic.manim)
+    :   Render Manim scenes contained in IPython cells.
+        Works as a line or cell magic.
+
+        Hint
+
+        This line and cell magic works best when used in a JupyterLab
+        environment: while all of the functionality is available for
+        classic Jupyter notebooks as well, it is possible that videos
+        sometimes don’t update on repeated execution of the same cell
+        if the scene name stays the same.
+
+        This problem does not occur when using JupyterLab.
+
+        Please refer to <https://jupyter.org/> for more information about JupyterLab
+        and Jupyter notebooks.
+
+        Usage in line mode:
+
+        ```python
+        %manim [CLI options] MyAwesomeScene
+        ```
+
+        Usage in cell mode:
+
+        ```python
+        %%manim [CLI options] MyAwesomeScene
+
+        class MyAweseomeScene(Scene):
+            def construct(self):
+                ...
+        ```
+
+        Run `%manim --help` and `%manim render --help` for possible command line interface options.
+
+        Note
+
+        The maximal width of the rendered videos that are displayed in the notebook can be
+        configured via the `media_width` configuration option. The default is set to `25vw`,
+        which is 25% of your current viewport width. To allow the output to become as large
+        as possible, set `config.media_width = "100%"`.
+
+        The `media_embed` option will embed the image/video output in the notebook. This is
+
+===== END RETURNED CHUNK 5 =====
+
+===== BEGIN RETURNED CHUNK 6 =====
+
+manim.scene.scene.Scene.md
+of mobjects (“mobjects”, “foreground_mobjects” etc) to remove from.
+            - **extract_families** (*bool*) – Whether the mobject’s families should be recursively extracted.
+
+        Returns:
+        :   The Scene mobject with restructured Mobjects.
+
+        Return type:
+        :   [Scene](#manim.scene.scene.Scene "manim.scene.scene.Scene")
+
+    setup()[[source]](../_modules/manim/scene/scene.html#Scene.setup)
+    :   This is meant to be implemented by any scenes which
+        are commonly subclassed, and have some common setup
+        involved before the construct method is called.
+
+        Return type:
+        :   None
+
+    should_update_mobjects()[[source]](../_modules/manim/scene/scene.html#Scene.should_update_mobjects)
+    :   Returns True if the mobjects of this scene should be updated.
+
+        In particular, this checks whether
+
+        - the `always_update_mobjects` attribute of [`Scene`](#manim.scene.scene.Scene "manim.scene.scene.Scene")
+          is set to `True`,
+        - the [`Scene`](#manim.scene.scene.Scene "manim.scene.scene.Scene") itself has time-based updaters attached,
+        - any mobject in this [`Scene`](#manim.scene.scene.Scene "manim.scene.scene.Scene") has time-based updaters attached.
+
+        This is only called when a single Wait animation is played.
+
+        Return type:
+        :   bool
+
+    tear_down()[[source]](../_modules/manim/scene/scene.html#Scene.tear_down)
+    :   This is meant to be implemented by any scenes which
+        are commonly subclassed, and have some common method
+        to be invoked before the scene ends.
+
+        Return type:
+        :   None
+
+    property time: float
+    :   The time since the start of the scene.
+
+    update_mobjects(*dt*)[[source]](../_modules/manim/scene/scene.html#Scene.update_mobjects)
+    :   Begins updating all mobjects in the Scene.
+
+        Parameters:
+        :   **dt** (*float*) – Change in time between updates. Defaults (mostly) to 1/frames_per_second
+
+        Return type:
+        :   None
+
+    update_self(*dt*)[[source]](../_modules/manim/scene/scene.html#Scene.update_self)
+    :   Run all scene updater functions.
+
+        Among all types of update functions (mobject updaters, mesh updaters,
+        scene updaters), scene update functions are called last.
+
+        Parameters:
+        :   **dt** (*float*) – Scene time since last update.
+
+        Return type:
+        :   None
+
+        See also
+
+        [`Scene.add_updater()`](#manim.scene.scene.Scene.add_updater "manim.scene.scene.Scene.add_updater"), [`Scene.remove_updater()`](#manim.scene.scene.Scene.remove_updater "manim.scene.scene.Scene.remove_updater")
+
+    wait(*duration=1.0*, *stop_condition=None*, *frozen_frame=None*)[[source]](../_modules/manim/scene/scene.html#Scene.wait)
+    :   Plays a “no operation” animation.
+
+        Parameters:
+        :   - **duration** (*float*) – The run time of the animation.
+            - **stop_condition** (*Callable**[**[**]**,* *bool**]* *|* *None*) – A function without positional arguments that is evaluated
+
+===== END RETURNED CHUNK 6 =====
+
+===== BEGIN RETURNED CHUNK 7 =====
+
+deep_dive.md
+is handled by the `%%manim` magic command, which is implemented in the
+`manim.utils.ipython_magic` module. There is
+[`some documentation`](../reference/manim.utils.ipython_magic.ManimMagic.html#manim.utils.ipython_magic.ManimMagic.manim "manim.utils.ipython_magic.ManimMagic.manim") available for the magic command,
+and the code creating the scene class and calling its render method is located
+[here](https://github.com/ManimCommunity/manim/blob/ac1ee9a683ce8b92233407351c681f7d71a4f2db/manim/utils/ipython_magic.py#L137-L138).
+
+Now that we know that either way, a [`Scene`](../reference/manim.scene.scene.Scene.html#manim.scene.scene.Scene "manim.scene.scene.Scene") object is created, let us investigate
+what Manim does when that happens. When instantiating our scene object
+
+```python
+scene = ToyExample()
+```
+
+the `Scene.__init__` method is called, given that we did not implement our own initialization
+method. Inspecting the corresponding code (see
+[here](https://github.com/ManimCommunity/manim/blob/main/manim/scene/scene.py))
+reveals that `Scene.__init__` first sets several attributes of the scene objects that do not
+depend on any configuration options set in `config`. Then the scene inspects the value of
+`config.renderer`, and based on its value, either instantiates a `CairoRenderer` or an
+`OpenGLRenderer` object and assigns it to its `renderer` attribute.
+
+The scene then asks its renderer to initialize the scene by calling
+
+```python
+self.renderer.init_scene(self)
+```
+
+Inspecting both the default Cairo renderer and the OpenGL renderer shows that the `init_scene`
+method effectively makes the renderer instantiate a [`SceneFileWriter`](../reference/manim.scene.scene_file_writer.SceneFileWriter.html#manim.scene.scene_file_writer.SceneFileWriter "manim.scene.scene_file_writer.SceneFileWriter") object, which
+basically is Manim’s interface to `libav` (FFMPEG) and actually writes the movie file. The Cairo
+renderer (see the implementation [here](https://github.com/ManimCommunity/manim/blob/main/manim/renderer/cairo_renderer.py)) does not require any further initialization. The OpenGL renderer
+does some additional setup to enable the realtime rendering preview window, which we do not go
+into detail further here.
+
+Warning
+
+Currently, there is a lot of interplay between a scene and its renderer. This is a flaw
+in Manim’s current architecture, and we are working on reducing this interdependency to
+achieve a less convoluted code flow.
+
+After the renderer has been instantiated and initialized its file writer, the scene populates
+further initial attributes (notable mention: the `mobjects` attribute which keeps track
+of the mobjects that have been added to the scene). It is then done with its instantiation
+and ready to be rendered.
+
+The rest of this article is concerned with the last line in our toy example script:
+
+```python
+scene.render()
+```
+
+===== END RETURNED CHUNK 7 =====
+
+===== BEGIN RETURNED CHUNK 8 =====
+
+deep_dive.md
+[`ReplacementTransform`](../reference/manim.animation.transform.ReplacementTransform.html#manim.animation.transform.ReplacementTransform "manim.animation.transform.ReplacementTransform") has been written. The initialization of
+the [`Dot`](../reference/manim.mobject.geometry.arc.Dot.html#manim.mobject.geometry.arc.Dot "manim.mobject.geometry.arc.Dot") happens analogous to the initialization of `blue_circle`,
+which has been discussed above. The [`Mobject.add_updater()`](../reference/manim.mobject.mobject.Mobject.html#manim.mobject.mobject.Mobject.add_updater "manim.mobject.mobject.Mobject.add_updater") call literally
+just attaches a function to the `updaters` attribute of the `small_dot`. And
+the remaining [`Scene.play()`](../reference/manim.scene.scene.Scene.html#manim.scene.scene.Scene.play "manim.scene.scene.Scene.play") and [`Scene.wait()`](../reference/manim.scene.scene.Scene.html#manim.scene.scene.Scene.wait "manim.scene.scene.Scene.wait") calls follow the
+exact same procedure as discussed in the render loop section above; each such call
+produces a corresponding partial movie file.
+
+Once the [`Scene.construct()`](../reference/manim.scene.scene.Scene.html#manim.scene.scene.Scene.construct "manim.scene.scene.Scene.construct") method has been fully processed (and thus all
+of the corresponding partial movie files have been written), the
+scene calls its cleanup method [`Scene.tear_down()`](../reference/manim.scene.scene.Scene.html#manim.scene.scene.Scene.tear_down "manim.scene.scene.Scene.tear_down"), and then
+asks its renderer to finish the scene. The renderer, in turn, asks
+its scene file writer to wrap things up by calling [`SceneFileWriter.finish()`](../reference/manim.scene.scene_file_writer.SceneFileWriter.html#manim.scene.scene_file_writer.SceneFileWriter.finish "manim.scene.scene_file_writer.SceneFileWriter.finish"),
+which triggers the combination of the partial movie files into the final product.
+
+And there you go! This is a more or less detailed description of how Manim works
+under the hood. While we did not discuss every single line of code in detail
+in this walkthrough, it should still give you a fairly good idea of how the general
+structural design of the library and at least the Cairo rendering flow in particular
+looks like.
+
+===== END RETURNED CHUNK 8 =====

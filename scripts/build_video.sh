@@ -34,6 +34,7 @@ PHASE_RETRY_LIMIT="${PHASE_RETRY_LIMIT:-3}"
 PHASE_RETRY_BACKOFF_SECONDS="${PHASE_RETRY_BACKOFF_SECONDS:-2}"
 TARGET_PHASE=""
 RERENDER_FINAL=""
+RESUME_BUILD=""
 
 PHASE_SEQUENCE=(
   "init"
@@ -58,10 +59,11 @@ export TOKENIZERS_PARALLELISM
 
 usage() {
   cat <<EOF
-Usage: $0 [project_dir] [--topic "<video topic>"] [--phase <target_phase>] [--skip-precache] [--rerender-final]
+Usage: $0 [project_dir] [--topic "<video topic>"] [--phase <target_phase>] [--skip-precache] [--rerender-final] [--resume]
   --phase stops after the specified phase has completed.
   --skip-precache skips voice precaching, using existing cache (for re-rendering without API calls).
   --rerender-final resets to precache_voiceovers and forces fresh voice cache generation (no scene regeneration).
+  --resume clears human-review pause flags before continuing.
 
 Recommended user entrypoint:
   ./scripts/create_video.sh <project_name> --topic "<video topic>" [--phase <target_phase>]
@@ -110,6 +112,10 @@ while [[ ${#} -gt 0 ]]; do
       ;;
     --rerender-final)
       RERENDER_FINAL="1"
+      shift
+      ;;
+    --resume)
+      RESUME_BUILD="1"
       shift
       ;;
     -h|--help)
@@ -509,6 +515,40 @@ with open("${STATE_FILE}", "w") as f:
 PY
 }
 
+prepare_resume() {
+  [[ -n "${RESUME_BUILD}" ]] || return 0
+
+  echo "→ --resume enabled; clearing human-review pause flags." | tee -a "$LOG_FILE"
+
+  $PYTHON_BIN - <<PY
+import json
+from datetime import datetime, UTC
+from pathlib import Path
+
+state_path = Path("${STATE_FILE}")
+with state_path.open("r", encoding="utf-8") as f:
+    state = json.load(f)
+
+state.setdefault("flags", {})["needs_human_review"] = False
+state["updated_at"] = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+with state_path.open("w", encoding="utf-8") as f:
+    json.dump(state, f, indent=2)
+
+plan_path = Path("${PROJECT_DIR}") / "plan.json"
+if plan_path.exists():
+    try:
+        with plan_path.open("r", encoding="utf-8") as f:
+            plan = json.load(f)
+        if isinstance(plan, dict):
+            plan["needs_human_review"] = False
+            with plan_path.open("w", encoding="utf-8") as f:
+                json.dump(plan, f, indent=2)
+    except Exception:
+        pass
+PY
+}
+
 is_retryable_phase() {
   local phase="$1"
   case "$phase" in
@@ -849,6 +889,7 @@ validate_voiceover_sync() {
     --scene-file "$scene_file" \
     --project-dir "$PROJECT_DIR" \
     --min-ratio 0.90 \
+    --auto-adjust \
     > >(tee -a "$LOG_FILE") \
     2> >(tee -a "$LOG_FILE" >&2)
   local timing_status=${PIPESTATUS[0]}
@@ -1043,7 +1084,7 @@ PY
   local retry_context_file
   retry_context_file="$(get_retry_context_file "$phase")"
   
-  echo "Using Python harness (${LLM_PROVIDER:-XAI} API)" | tee -a "$LOG_FILE"
+  echo "Using Python harness (xAI Responses API)" | tee -a "$LOG_FILE"
 
   local -a harness_args=(
     --phase "$phase"
@@ -1061,12 +1102,7 @@ PY
   fi
 
   export XAI_API_KEY="$XAI_API_KEY"
-  export MINIMAX_API_KEY="$MINIMAX_API_KEY"
-  export OLLAMA_API_KEY="${OLLAMA_API_KEY:-}"
-  export OLLAMA_BASE_URL="${OLLAMA_BASE_URL:-http://127.0.0.1:11434/v1}"
-  export OLLAMA_MODEL="${OLLAMA_MODEL:-qwen2.5-coder:7b}"
-  export LLM_PROVIDER="$LLM_PROVIDER"
-  $PYTHON_BIN -m harness "${harness_args[@]}" \
+  $PYTHON_BIN -m harness_responses "${harness_args[@]}" \
     > >(tee -a "$LOG_FILE") \
     2> >(tee -a "$LOG_FILE" >&2)
 
@@ -1375,7 +1411,7 @@ invoke_scene_fix_agent() {
 Error details:
 ${error_stacktrace}"
 
-  $PYTHON_BIN -m harness \
+  $PYTHON_BIN -m harness_responses \
     --phase scene_repair \
     --project-dir "$PROJECT_DIR" \
     --scene-file "$scene_file" \
@@ -2942,6 +2978,10 @@ main() {
   echo "════════════════════════════════════════════════════════════════" | tee -a "$LOG_FILE"
 
   if ! prepare_rerender_final; then
+    exit 1
+  fi
+
+  if ! prepare_resume; then
     exit 1
   fi
   

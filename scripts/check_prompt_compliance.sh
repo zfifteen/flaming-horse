@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Prompt Compliance Checker
-# Validates that all LLM prompts are in harness/prompts/
+# Validates that all LLM prompts are in harness_responses/prompts/
 # Exit code 0 = compliant, 1 = infractions found
 
 set -euo pipefail
@@ -26,8 +26,8 @@ PYTHON_PROMPTS=$(grep -r "user_prompt.*=.*f\"\"\"" \
     --include="*.py" \
     --exclude-dir=".git" \
     --exclude-dir="__pycache__" \
-    --exclude-dir="harness/prompts" \
-    harness/ scripts/ 2>/dev/null || true)
+    --exclude-dir="harness_responses/prompts" \
+    harness_responses/ scripts/ 2>/dev/null || true)
 
 if [[ -n "$PYTHON_PROMPTS" ]]; then
     echo -e "${RED}✗ FAIL: Found embedded prompts in Python files:${NC}"
@@ -44,8 +44,8 @@ YOU_ARE_PROMPTS=$(grep -rn "You are.*\(creating\|writing\|generating\|repair\)" 
     --include="*.py" \
     --exclude-dir=".git" \
     --exclude-dir="__pycache__" \
-    --exclude-dir="harness/prompts" \
-    harness/ scripts/ 2>/dev/null || true)
+    --exclude-dir="harness_responses/prompts" \
+    harness_responses/ scripts/ 2>/dev/null || true)
 
 if [[ -n "$YOU_ARE_PROMPTS" ]]; then
     echo -e "${RED}✗ FAIL: Found 'You are' prompt patterns in code:${NC}"
@@ -62,8 +62,8 @@ PLEASE_PROMPTS=$(grep -rn "\"\"\"Please.*\(create\|write\|generate\|review\|repa
     --include="*.py" \
     --exclude-dir=".git" \
     --exclude-dir="__pycache__" \
-    --exclude-dir="harness/prompts" \
-    harness/ scripts/ 2>/dev/null || true)
+    --exclude-dir="harness_responses/prompts" \
+    harness_responses/ scripts/ 2>/dev/null || true)
 
 if [[ -n "$PLEASE_PROMPTS" ]]; then
     echo -e "${YELLOW}⚠ WARNING: Found 'Please' instruction patterns:${NC}"
@@ -90,32 +90,24 @@ echo ""
 # Check 5: Verify pipeline-ordered prompt structure exists
 echo "Check 5: Verifying pipeline-ordered prompt structure..."
 REQUIRED_DIRS=(
-  "harness/prompts/00_plan"
-  "harness/prompts/01_review"
-  "harness/prompts/02_narration"
-  "harness/prompts/04_build_scenes"
-  "harness/prompts/05_scene_qc"
-  "harness/prompts/06_scene_repair"
-  "harness/prompts/07_precache_voiceovers"
-  "harness/prompts/08_final_render"
-  "harness/prompts/09_assemble"
-  "harness/prompts/10_complete"
+  "harness_responses/prompts/plan"
+  "harness_responses/prompts/narration"
+  "harness_responses/prompts/build_scenes"
+  "harness_responses/prompts/scene_qc"
+  "harness_responses/prompts/scene_repair"
 )
 
 REQUIRED_FILES=(
-  "harness/prompts/INDEX.md"
-  "harness/prompts/README.md"
-  "harness/prompts/_shared/core_rules.md"
-  "harness/prompts/00_plan/system.md"
-  "harness/prompts/00_plan/user.md"
-  "harness/prompts/02_narration/system.md"
-  "harness/prompts/02_narration/user.md"
-  "harness/prompts/04_build_scenes/system.md"
-  "harness/prompts/04_build_scenes/user.md"
-  "harness/prompts/05_scene_qc/system.md"
-  "harness/prompts/05_scene_qc/user.md"
-  "harness/prompts/06_scene_repair/system.md"
-  "harness/prompts/06_scene_repair/user.md"
+  "harness_responses/prompts/plan/system.md"
+  "harness_responses/prompts/plan/user.md"
+  "harness_responses/prompts/narration/system.md"
+  "harness_responses/prompts/narration/user.md"
+  "harness_responses/prompts/build_scenes/system.md"
+  "harness_responses/prompts/build_scenes/user.md"
+  "harness_responses/prompts/scene_qc/system.md"
+  "harness_responses/prompts/scene_qc/user.md"
+  "harness_responses/prompts/scene_repair/system.md"
+  "harness_responses/prompts/scene_repair/user.md"
 )
 
 for d in "${REQUIRED_DIRS[@]}"; do
