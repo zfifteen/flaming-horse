@@ -11,10 +11,15 @@ import re
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
-from harness_responses.collections import CollectionSearchResult, search_manim_collection
-
 PROMPTS_DIR = Path(__file__).parent / "prompts"
 TEMPLATES_DIR = Path(__file__).parent / "templates"
+
+
+# Stub for backward compatibility - retrieval now happens server-side via collections_search tool
+def consume_last_retrieval_info() -> Dict[str, Any]:
+    """Return empty retrieval info (retrieval now handled by collections_search tool)."""
+    return {}
+
 
 PHASE_DIRS: Dict[str, str] = {
     "plan": "plan",
@@ -26,33 +31,6 @@ PHASE_DIRS: Dict[str, str] = {
 
 PLACEHOLDER_RE = re.compile(r"{{\s*([A-Za-z0-9_]+)\s*}}")
 DEFAULT_SPEECH_WPM = 150
-_LAST_RETRIEVAL_INFO: Dict[str, Any] = {}
-_MAX_RETRY_CONTEXT_CHARS = 6000
-
-
-def consume_last_retrieval_info() -> Dict[str, Any]:
-    """Return and clear retrieval metadata from the latest prompt composition."""
-    global _LAST_RETRIEVAL_INFO
-    out = dict(_LAST_RETRIEVAL_INFO)
-    _LAST_RETRIEVAL_INFO = {}
-    return out
-
-
-def _record_retrieval_info(phase: str, result: Optional[CollectionSearchResult]) -> None:
-    global _LAST_RETRIEVAL_INFO
-    if result is None:
-        _LAST_RETRIEVAL_INFO = {}
-        return
-    _LAST_RETRIEVAL_INFO = {
-        "phase": phase,
-        "query": result.query,
-        "collection_id": result.collection_id,
-        "limit": result.limit,
-        "hit_count": result.hit_count,
-        "error": result.error,
-        "chunks": result.chunks,
-        "reference_section": result.formatted_reference,
-    }
 
 
 def _extract_error_tokens(text: str) -> list[str]:
@@ -82,47 +60,6 @@ def _extract_error_tokens(text: str) -> list[str]:
     return unique[:12]
 
 
-def _build_reference_query(
-    *,
-    phase: str,
-    scene_id: str,
-    narration_key: str,
-    scene_title: str,
-    scene_source: str,
-    scene_details: str,
-    scene_narration: str,
-    retry_context: str,
-) -> str:
-    query_parts: list[str] = []
-    query_parts.append(f"Phase: {phase}")
-    if scene_id:
-        query_parts.append(f"Scene ID: {scene_id}")
-    if narration_key:
-        query_parts.append(f"Narration key: {narration_key}")
-    if scene_title and scene_title != "Unknown":
-        query_parts.append(f"Scene title: {scene_title}")
-    if scene_source:
-        query_parts.append("Current scene source:\n```python\n" + scene_source + "\n```")
-    if scene_details and scene_details != "N/A":
-        query_parts.append(f"Scene details: {scene_details}")
-
-    retry = (retry_context or "").strip()
-    if retry:
-        query_parts.append("Full error stacktrace/context:\n```text\n" + retry + "\n```")
-        tokens = _extract_error_tokens(retry)
-        if tokens:
-            query_parts.append("Failing API symbols/tokens: " + ", ".join(tokens))
-
-    narration = (scene_narration or "").strip()
-    if narration:
-        query_parts.append("Narration intent:\n" + narration[:800])
-
-    query_parts.append(
-        "Find official Manim CE usage patterns and correct API signatures for this failure."
-    )
-    return "\n\n".join(query_parts)
-
-
 def _read_file(path: Path) -> str:
     """Read a file; fail fast if missing."""
     if not path.exists():
@@ -145,7 +82,9 @@ def _render(template_text: str, values: Dict[str, Any]) -> str:
     return rendered.replace(left_esc, "{{").replace(right_esc, "}}")
 
 
-def _resolve_project_file(project_dir: Path, configured_name: Any, default_name: str) -> Path:
+def _resolve_project_file(
+    project_dir: Path, configured_name: Any, default_name: str
+) -> Path:
     if isinstance(configured_name, str) and configured_name.strip():
         return project_dir / configured_name
     return project_dir / default_name
@@ -240,13 +179,7 @@ def _format_duration(seconds: int) -> str:
 
 
 def _truncate_retry_context(text: str) -> str:
-    value = (text or "").strip()
-    if len(value) <= _MAX_RETRY_CONTEXT_CHARS:
-        return value
-    head = value[:_MAX_RETRY_CONTEXT_CHARS]
-    return (
-        f"{head}\n\n[retry context truncated to {_MAX_RETRY_CONTEXT_CHARS} chars]"
-    )
+    return (text or "").strip()
 
 
 def _compose_plan_prompt(topic: str, retry_context: str) -> Tuple[str, str]:
@@ -260,8 +193,6 @@ def _compose_plan_prompt(topic: str, retry_context: str) -> Tuple[str, str]:
             user_prompt.rstrip()
             + f"\n\nRetry context (previous attempt failed):\n{retry_context}\n"
         )
-    retrieval = search_manim_collection(user_prompt)
-    _record_retrieval_info("plan", retrieval)
     return system_prompt, user_prompt
 
 
@@ -356,21 +287,8 @@ def _compose_build_scenes_prompt(
         if retry_context
         else ""
     )
-    ref_query = _build_reference_query(
-        phase="build_scenes",
-        scene_id=str(values.get("scene_id", "")),
-        narration_key=str(values.get("narration_key", "")),
-        scene_title=str(values.get("scene_title", "")),
-        scene_source=_read_file(project_dir / str(values.get("scene_file_name", ""))),
-        scene_details=str(values.get("scene_details", "")),
-        scene_narration=str(values.get("scene_narration", "")),
-        retry_context=retry_context,
-    )
-    retrieval = search_manim_collection(ref_query)
-    _record_retrieval_info("build_scenes", retrieval)
-    values["reference_section"] = retrieval.formatted_reference
-
     system_prompt = _render(_read_file(phase_dir / "system.md"), values)
+
     user_prompt = _render(_read_file(phase_dir / "user.md"), values)
     return system_prompt, user_prompt
 
@@ -403,8 +321,6 @@ def _compose_narration_prompt(
     }
     system_prompt = _render(_read_file(phase_dir / "system.md"), values)
     user_prompt = _render(_read_file(phase_dir / "user.md"), values)
-    retrieval = search_manim_collection(user_prompt)
-    _record_retrieval_info("narration", retrieval)
     return system_prompt, user_prompt
 
 
@@ -412,7 +328,6 @@ def _compose_scene_qc_prompt(
     state: Dict[str, Any],
     project_dir: Path,
 ) -> Tuple[str, str]:
-    _record_retrieval_info("scene_qc", None)
     phase_dir = PROMPTS_DIR / PHASE_DIRS["scene_qc"]
     scenes = state.get("scenes", [])
     scene_files_content = []
@@ -448,25 +363,12 @@ def _compose_scene_repair_prompt(
     broken_file_content = _read_file(scene_file)
     values = _build_scene_prompt_values(state, project_dir)
     retry_context = _truncate_retry_context(retry_context)
-    ref_query = _build_reference_query(
-        phase="scene_repair",
-        scene_id=str(values.get("scene_id", "")),
-        narration_key=str(values.get("narration_key", "")),
-        scene_title=str(values.get("scene_title", "")),
-        scene_source=broken_file_content,
-        scene_details=str(values.get("scene_details", "")),
-        scene_narration=str(values.get("scene_narration", "")),
-        retry_context=retry_context,
-    )
-    retrieval = search_manim_collection(ref_query)
-    _record_retrieval_info("scene_repair", retrieval)
 
     values.update(
         {
             "broken_file_name": scene_file.name,
             "broken_file_content": broken_file_content,
             "retry_context": retry_context or "Unknown error",
-            "reference_section": retrieval.formatted_reference,
         }
     )
     system_prompt = _render(_read_file(phase_dir / "system.md"), values)
@@ -500,8 +402,6 @@ def compose_prompt(
             f"Phase '{phase}' is not implemented in harness_responses. "
             f"Implemented phases: {', '.join(PHASE_DIRS)}"
         )
-
-    _record_retrieval_info(phase, None)
 
     if phase == "plan":
         return _compose_plan_prompt(topic, retry_context)

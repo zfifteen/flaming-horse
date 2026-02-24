@@ -84,7 +84,7 @@ def _extract_chunks(search_response: Any) -> list[str]:
     return chunks
 
 
-def search_manim_collection(query: str, limit: int = 8) -> CollectionSearchResult:
+def search_manim_collection(query: str, limit: int = 10) -> CollectionSearchResult:
     """
     Search Manim reference collection and return a structured result.
 

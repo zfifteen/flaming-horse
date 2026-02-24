@@ -323,3 +323,10 @@ If you detect drift between docs and runtime behavior:
 4. Do not silently persist new preferences.
 5. Do not proceed through unresolved instruction conflicts.
 6. Stop and ask when AGENTS and runtime behavior diverge in execution-relevant ways.
+7. NEVER gold-plate or implement functionality the user did not ask for.
+- Implement only the exact behavior requested.
+- Do not add persistence/caching/guardrails/fallbacks unless explicitly asked.
+- NEVER generalize “in case we might need it.”
+- NEVER add architectural extras beyond the smallest change that satisfies the request.
+- ALWAYS use a direct, scoped implementation.
+- NEVER “future-proof” or add enhancements.

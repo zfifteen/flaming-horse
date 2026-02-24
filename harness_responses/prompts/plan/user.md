@@ -12,7 +12,6 @@ Each scene must include:
 - description (string)
 - estimated_duration_seconds (positive integer)
 - visual_ideas (array of strings, concrete and topic-specific)
-- use natural language describing how to render and manipulate Manim objects as per the Manim documentation 
 
 Planning constraints:
 - no empty fields
