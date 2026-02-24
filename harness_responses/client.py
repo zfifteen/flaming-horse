@@ -10,6 +10,7 @@ Design:
 """
 
 import os
+import sys
 import time
 import json
 import hashlib
@@ -312,7 +313,15 @@ def call_responses_api(
         system as sdk_system,
         user as sdk_user,
     )
-    from xai_sdk.tools import collections_search
+    collections_search = None
+    try:
+        from xai_sdk.tools import collections_search as _collections_search
+    except ModuleNotFoundError as exc:
+        missing_name = getattr(exc, "name", "")
+        if missing_name != "xai_sdk.tools" and "xai_sdk.tools" not in str(exc):
+            raise
+    else:
+        collections_search = _collections_search
 
     api_key = _resolve_api_key()
     resolved_model = model or _resolve_model()
@@ -358,9 +367,16 @@ def call_responses_api(
                 "XAI_COLLECTION_ID",
                 _DEFAULT_XAI_COLLECTION_ID,
             )
-            create_kwargs["tools"] = create_kwargs.get("tools", []) + [
-                collections_search(collection_ids=[collection_id])
-            ]
+            if collections_search is not None:
+                create_kwargs["tools"] = create_kwargs.get("tools", []) + [
+                    collections_search(collection_ids=[collection_id])
+                ]
+            else:
+                print(
+                    "⚠️  xai_sdk.tools unavailable; continuing without collections_search "
+                    "(install/upgrade xai-sdk with tools support).",
+                    file=sys.stderr,
+                )
 
             chat = client.chat.create(
                 resolved_model,

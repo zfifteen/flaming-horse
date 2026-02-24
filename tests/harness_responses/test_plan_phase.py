@@ -11,6 +11,7 @@ Covers:
 """
 
 import json
+import builtins
 import runpy
 import sys
 from pathlib import Path
@@ -389,6 +390,36 @@ class TestResponsesClient:
         assert capture["kwargs"]["store_messages"] is True
         assert "previous_response_id" not in capture["kwargs"]
         assert len(capture["appended_messages"]) == 2
+
+    def test_missing_tools_module_does_not_crash(self, monkeypatch):
+        capture = {}
+        monkeypatch.setenv("XAI_API_KEY", "test-key")
+        monkeypatch.setattr(
+            "xai_sdk.sync.client.Client",
+            lambda api_key: TestResponsesClient._FakeClient(api_key=api_key, _capture=capture),
+        )
+        monkeypatch.setattr("xai_sdk.chat.system", lambda s: {"role": "system", "content": s})
+        monkeypatch.setattr("xai_sdk.chat.user", lambda s: {"role": "user", "content": s})
+
+        original_import = builtins.__import__
+
+        def _fake_import(name, globals_dict=None, locals_dict=None, fromlist=(), level=0):
+            if name == "xai_sdk.tools" or (
+                name == "xai_sdk" and "tools" in fromlist
+            ):
+                raise ModuleNotFoundError("No module named 'xai_sdk.tools'")
+            return original_import(name, globals_dict, locals_dict, fromlist, level)
+
+        monkeypatch.setattr(builtins, "__import__", _fake_import)
+
+        _, parsed = hr_client.call_responses_api(
+            system_prompt="sys",
+            user_prompt="usr",
+            schema=self._DummySchema,
+            enable_web_search=False,
+        )
+        assert parsed.ok == "yes"
+        assert "tools" not in capture["kwargs"]
 
     def test_previous_response_id_used_when_session_pointer_exists(
         self, monkeypatch, tmp_path
