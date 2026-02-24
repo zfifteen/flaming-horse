@@ -25,6 +25,8 @@ T = TypeVar("T", bound=BaseModel)
 # Default model for harness_responses (override via XAI_MODEL or AGENT_MODEL env vars)
 _DEFAULT_MODEL = "grok-4-1-fast"
 _DEFAULT_XAI_BASE_URL = "https://api.x.ai/v1"
+# Manim CE documentation collection.
+_DEFAULT_XAI_COLLECTION_ID = "collection_096219fb-a4b3-41fc-bfb9-2f796cf5377b"
 _BUILD_SCENES_TEMPLATE_PATH = (
     Path(__file__).parent / "prompts" / "build_scenes" / "user.md"
 )
@@ -354,9 +356,9 @@ def call_responses_api(
                 )
             collection_id = os.getenv(
                 "XAI_COLLECTION_ID",
-                "collection_096219fb-a4b3-41fc-bfb9-2f796cf5377b",
+                _DEFAULT_XAI_COLLECTION_ID,
             )
-            create_kwargs["tools"] = [
+            create_kwargs["tools"] = create_kwargs.get("tools", []) + [
                 collections_search(collection_ids=[collection_id])
             ]
 

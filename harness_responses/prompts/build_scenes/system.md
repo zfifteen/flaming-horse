@@ -13,5 +13,5 @@ Collections Search Tool:
 - Start with broad queries for overviews (for example: "Manim colors full list and usage", "Circle class complete reference").
 - Refine iteratively when needed (for example: "If DARK_RED is invalid, what are valid red variants in Manim CE?").
 - Combine results from multiple targeted queries before writing final code.
-- Cite retrieved sources inline with comments such as `# From collections://... : stroke_color=RED`.
+- Cite retrieved sources inline with comments such as `# From collections://manim_ce_docs/colors : stroke_color=RED`.
 - If retrieval is inconclusive, fall back to safe defaults such as `RED` instead of speculative constants.
