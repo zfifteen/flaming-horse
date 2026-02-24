@@ -66,7 +66,11 @@ def _read_session_state_pointer(
     if not raw:
         return None, None
     stored_model = raw.get("model")
-    if isinstance(stored_model, str) and stored_model.strip() and stored_model != expected_model:
+    if (
+        isinstance(stored_model, str)
+        and stored_model.strip()
+        and stored_model != expected_model
+    ):
         return None, f"model mismatch ({stored_model} != {expected_model})"
     response_id = raw.get("last_response_id")
     if not isinstance(response_id, str) or not response_id.strip():
@@ -82,11 +86,13 @@ def _write_session_state(
     phase: Optional[str] = None,
 ) -> None:
     payload = _read_session_payload(session_state_path)
-    payload.update({
-        "model": model,
-        "updated_at": _utc_now(),
-        "last_response_id": last_response_id,
-    })
+    payload.update(
+        {
+            "model": model,
+            "updated_at": _utc_now(),
+            "last_response_id": last_response_id,
+        }
+    )
     if phase:
         payload["phase"] = phase
     _write_session_payload(session_state_path, payload)
@@ -135,7 +141,9 @@ def _upload_file_to_xai(*, api_key: str, filename: str, content: str) -> str:
             raise RuntimeError(f"xAI files upload returned no id: {body}")
         except Exception as exc:
             last_error = exc
-    raise RuntimeError(f"Failed to upload file to xAI Files: {last_error}") from last_error
+    raise RuntimeError(
+        f"Failed to upload file to xAI Files: {last_error}"
+    ) from last_error
 
 
 def ensure_build_scenes_template_file(
@@ -253,11 +261,7 @@ def _extract_response_text(raw_response: Any) -> str:
 
 def _resolve_model() -> str:
     """Resolve model name from environment variables."""
-    raw = (
-        os.getenv("XAI_MODEL")
-        or os.getenv("AGENT_MODEL")
-        or _DEFAULT_MODEL
-    )
+    raw = os.getenv("XAI_MODEL") or os.getenv("AGENT_MODEL") or _DEFAULT_MODEL
     # Strip provider prefix if present (e.g. "xai/grok-..." → "grok-...")
     return raw.removeprefix("xai/").removeprefix("minimax/")
 
@@ -310,9 +314,13 @@ def call_responses_api(
         system as sdk_system,
         user as sdk_user,
     )
+    from xai_sdk.tools import collections_search
 
     api_key = _resolve_api_key()
     resolved_model = model or _resolve_model()
+    collection_id = os.getenv(
+        "XAI_COLLECTION_ID", "collection_096219fb-a4b3-41fc-bfb9-2f796cf5377b"
+    )
 
     print(f"🤖 harness_responses using:")
     print(f"   Model: {resolved_model}")
@@ -357,6 +365,11 @@ def call_responses_api(
                     mode="on",
                 )
 
+            # Enable collections_search tool for Manim doc lookup
+            create_kwargs["tools"] = [
+                collections_search(collection_ids=[collection_id])
+            ]
+
             chat = client.chat.create(
                 resolved_model,
                 **create_kwargs,
@@ -380,7 +393,11 @@ def call_responses_api(
                     f"Structured JSON validation failed for schema {schema.__name__}: {exc}"
                 ) from exc
             response_id: Optional[str] = getattr(raw_response, "id", None)
-            if session_state_path is not None and isinstance(response_id, str) and response_id.strip():
+            if (
+                session_state_path is not None
+                and isinstance(response_id, str)
+                and response_id.strip()
+            ):
                 _write_session_state(
                     session_state_path,
                     model=resolved_model,
@@ -395,10 +412,13 @@ def call_responses_api(
             if previous_response_id and not attempted_reset_from_invalid_previous:
                 err_str = str(exc).lower()
                 pointer_invalid = any(
-                    kw in err_str for kw in ("previous_response_id", "not found", "invalid")
+                    kw in err_str
+                    for kw in ("previous_response_id", "not found", "invalid")
                 )
                 if pointer_invalid:
-                    print("⚠️  previous_response_id invalid; retrying without conversation pointer")
+                    print(
+                        "⚠️  previous_response_id invalid; retrying without conversation pointer"
+                    )
                     previous_response_id = None
                     attempted_reset_from_invalid_previous = True
                     if session_state_path is not None:
@@ -412,12 +432,10 @@ def call_responses_api(
             )
             if not is_transient or attempt == _MAX_RETRIES - 1:
                 raise
-            wait = _RETRY_DELAY * (2 ** attempt)
+            wait = _RETRY_DELAY * (2**attempt)
             print(f"⚠️  Transient error (attempt {attempt + 1}/{_MAX_RETRIES}): {exc}")
             print(f"⚠️  Retrying in {wait}s...")
             time.sleep(wait)
 
     # Should never reach here, but satisfies type checker
-    raise RuntimeError(
-        f"Failed after {_MAX_RETRIES} attempts"
-    ) from last_exc
+    raise RuntimeError(f"Failed after {_MAX_RETRIES} attempts") from last_exc
