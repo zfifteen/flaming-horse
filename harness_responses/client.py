@@ -310,6 +310,7 @@ def call_responses_api(
         system as sdk_system,
         user as sdk_user,
     )
+    from xai_sdk.tools import collections_search
 
     api_key = _resolve_api_key()
     resolved_model = model or _resolve_model()
@@ -351,6 +352,13 @@ def call_responses_api(
                     sources=[web_source()],
                     mode="on",
                 )
+            collection_id = os.getenv(
+                "XAI_COLLECTION_ID",
+                "collection_096219fb-a4b3-41fc-bfb9-2f796cf5377b",
+            )
+            create_kwargs["tools"] = [
+                collections_search(collection_ids=[collection_id])
+            ]
 
             chat = client.chat.create(
                 resolved_model,
