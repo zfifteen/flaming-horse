@@ -452,6 +452,66 @@ class TestResponsesClient:
         assert data["phase"] == "narration"
         assert "history" not in data
 
+    def test_build_scenes_with_phase_chain_sends_user_only(self, monkeypatch, tmp_path):
+        capture = {}
+        session_state = tmp_path / "responses_session.json"
+        session_state.write_text(
+            json.dumps(
+                {
+                    "model": "grok-4-1-fast",
+                    "updated_at": "2026-01-01T00:00:00+00:00",
+                    "last_response_id": "resp_prev_build_001",
+                    "phase": "build_scenes",
+                }
+            ),
+            encoding="utf-8",
+        )
+        monkeypatch.setenv("XAI_API_KEY", "test-key")
+        monkeypatch.setattr(
+            "xai_sdk.sync.client.Client",
+            lambda api_key: TestResponsesClient._FakeClient(api_key=api_key, _capture=capture),
+        )
+        monkeypatch.setattr("xai_sdk.chat.system", lambda s: {"role": "system", "content": s})
+        monkeypatch.setattr("xai_sdk.chat.user", lambda s: {"role": "user", "content": s})
+
+        _, parsed = hr_client.call_responses_api(
+            system_prompt="sys",
+            user_prompt="usr",
+            schema=self._DummySchema,
+            session_state_path=session_state,
+            phase="build_scenes",
+        )
+
+        assert parsed.ok == "yes"
+        assert capture["kwargs"]["previous_response_id"] == "resp_prev_build_001"
+        assert len(capture["appended_messages"]) == 1
+        assert capture["appended_messages"][0]["role"] == "user"
+
+    def test_build_scenes_without_chain_sends_system_and_user(self, monkeypatch, tmp_path):
+        capture = {}
+        session_state = tmp_path / "responses_session.json"
+        monkeypatch.setenv("XAI_API_KEY", "test-key")
+        monkeypatch.setattr(
+            "xai_sdk.sync.client.Client",
+            lambda api_key: TestResponsesClient._FakeClient(api_key=api_key, _capture=capture),
+        )
+        monkeypatch.setattr("xai_sdk.chat.system", lambda s: {"role": "system", "content": s})
+        monkeypatch.setattr("xai_sdk.chat.user", lambda s: {"role": "user", "content": s})
+
+        _, parsed = hr_client.call_responses_api(
+            system_prompt="sys",
+            user_prompt="usr",
+            schema=self._DummySchema,
+            session_state_path=session_state,
+            phase="build_scenes",
+        )
+
+        assert parsed.ok == "yes"
+        assert "previous_response_id" not in capture["kwargs"]
+        assert len(capture["appended_messages"]) == 2
+        assert capture["appended_messages"][0]["role"] == "system"
+        assert capture["appended_messages"][1]["role"] == "user"
+
     def test_ensure_build_scenes_template_file_upload_once_then_reuse(
         self, monkeypatch, tmp_path
     ):
@@ -610,7 +670,7 @@ class TestPromptComposition:
             return CollectionSearchResult(
                 query=query,
                 collection_id="collection_test",
-                limit=8,
+                limit=10,
                 chunks=["Text API docs"],
             )
 
@@ -628,8 +688,118 @@ class TestPromptComposition:
         info = hr_prompts.consume_last_retrieval_info()
         assert info["phase"] == "build_scenes"
         assert "Phase: build_scenes" in captured["query"]
+        assert "Video Production Agent - Build Scenes Phase" in captured["query"]
+        assert "Scene ID:" not in captured["query"]
+        assert "Narration key:" not in captured["query"]
+        assert "Scene title:" not in captured["query"]
         assert "Current scene source:" in captured["query"]
         assert "class Scene01(VoiceoverScene):" in captured["query"]
+
+    def test_build_scenes_first_scene_calls_collections(self, monkeypatch, tmp_path):
+        project = _make_scene_project(tmp_path)
+        calls = {"count": 0}
+
+        def _fake_search(query, limit=10):
+            calls["count"] += 1
+            return CollectionSearchResult(
+                query=query,
+                collection_id="collection_test",
+                limit=limit,
+                chunks=["Text API docs"],
+            )
+
+        monkeypatch.setattr(hr_prompts, "search_manim_collection", _fake_search)
+
+        _, user = hr_prompts.compose_prompt(
+            phase="build_scenes",
+            project_dir=project,
+        )
+
+        assert calls["count"] == 1
+        assert "Manim CE Reference Documentation" in user
+
+    def test_build_scenes_non_first_scene_skips_collections(self, monkeypatch, tmp_path):
+        project = _make_scene_project(tmp_path)
+        state_path = project / "project_state.json"
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+        state["scenes"].append(
+            {
+                "id": "scene_02",
+                "title": "Scene 2",
+                "narration_key": "scene_02",
+                "file": "scene_02.py",
+                "class_name": "Scene02",
+            }
+        )
+        state["current_scene_index"] = 1
+        state_path.write_text(json.dumps(state, indent=2), encoding="utf-8")
+        (project / "plan.json").write_text(
+            json.dumps(
+                {
+                    "title": "Plan",
+                    "description": "desc",
+                    "target_duration_seconds": 300,
+                    "scenes": [
+                        {
+                            "id": "scene_01",
+                            "narration_key": "scene_01",
+                            "title": "Scene 1",
+                            "description": "desc",
+                            "estimated_duration_seconds": 30,
+                            "visual_ideas": ["idea"],
+                        },
+                        {
+                            "id": "scene_02",
+                            "narration_key": "scene_02",
+                            "title": "Scene 2",
+                            "description": "desc",
+                            "estimated_duration_seconds": 30,
+                            "visual_ideas": ["idea"],
+                        },
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        (project / "narration_script.py").write_text(
+            "SCRIPT = {\n"
+            "    \"scene_01\": \"Narration text for scene one.\",\n"
+            "    \"scene_02\": \"Narration text for scene two.\"\n"
+            "}\n",
+            encoding="utf-8",
+        )
+        (project / "scene_02.py").write_text(
+            "from manim import *\n\n"
+            "class Scene02(VoiceoverScene):\n"
+            "    def construct(self):\n"
+            "        with self.voiceover(text=SCRIPT[\"scene_02\"]) as tracker:\n"
+            "            # SLOT_START:scene_body\n"
+            "            title = Text(\"Placeholder\")\n"
+            "            self.play(Write(title), run_time=min(1.0, tracker.duration * 0.2))\n"
+            "            # SLOT_END:scene_body\n",
+            encoding="utf-8",
+        )
+
+        calls = {"count": 0}
+
+        def _fake_search(query, limit=10):
+            calls["count"] += 1
+            return CollectionSearchResult(
+                query=query,
+                collection_id="collection_test",
+                limit=limit,
+                chunks=["Should not be used"],
+            )
+
+        monkeypatch.setattr(hr_prompts, "search_manim_collection", _fake_search)
+
+        _, user = hr_prompts.compose_prompt(
+            phase="build_scenes",
+            project_dir=project,
+        )
+
+        assert calls["count"] == 0
+        assert "Manim CE Reference Documentation" not in user
 
     def test_narration_prompt_loads(self, tmp_path):
         project = _make_narration_project(tmp_path)
@@ -648,7 +818,7 @@ class TestPromptComposition:
             return CollectionSearchResult(
                 query=query,
                 collection_id="collection_test",
-                limit=8,
+                limit=10,
                 chunks=["Plan docs chunk"],
             )
 
@@ -676,7 +846,7 @@ class TestPromptComposition:
             return CollectionSearchResult(
                 query=query,
                 collection_id="collection_test",
-                limit=8,
+                limit=10,
                 chunks=["Narration docs chunk"],
             )
 
@@ -710,7 +880,7 @@ class TestPromptComposition:
             return CollectionSearchResult(
                 query=query,
                 collection_id="collection_test",
-                limit=8,
+                limit=10,
                 chunks=["repair docs chunk"],
             )
 

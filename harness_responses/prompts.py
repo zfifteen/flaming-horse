@@ -27,7 +27,6 @@ PHASE_DIRS: Dict[str, str] = {
 PLACEHOLDER_RE = re.compile(r"{{\s*([A-Za-z0-9_]+)\s*}}")
 DEFAULT_SPEECH_WPM = 150
 _LAST_RETRIEVAL_INFO: Dict[str, Any] = {}
-_MAX_RETRY_CONTEXT_CHARS = 6000
 
 
 def consume_last_retrieval_info() -> Dict[str, Any]:
@@ -240,13 +239,7 @@ def _format_duration(seconds: int) -> str:
 
 
 def _truncate_retry_context(text: str) -> str:
-    value = (text or "").strip()
-    if len(value) <= _MAX_RETRY_CONTEXT_CHARS:
-        return value
-    head = value[:_MAX_RETRY_CONTEXT_CHARS]
-    return (
-        f"{head}\n\n[retry context truncated to {_MAX_RETRY_CONTEXT_CHARS} chars]"
-    )
+    return (text or "").strip()
 
 
 def _compose_plan_prompt(topic: str, retry_context: str) -> Tuple[str, str]:
@@ -356,21 +349,34 @@ def _compose_build_scenes_prompt(
         if retry_context
         else ""
     )
+    system_prompt = _render(_read_file(phase_dir / "system.md"), values)
     ref_query = _build_reference_query(
         phase="build_scenes",
-        scene_id=str(values.get("scene_id", "")),
-        narration_key=str(values.get("narration_key", "")),
-        scene_title=str(values.get("scene_title", "")),
+        scene_id="",
+        narration_key="",
+        scene_title="",
         scene_source=_read_file(project_dir / str(values.get("scene_file_name", ""))),
         scene_details=str(values.get("scene_details", "")),
         scene_narration=str(values.get("scene_narration", "")),
         retry_context=retry_context,
     )
-    retrieval = search_manim_collection(ref_query)
+    ref_query = (
+        f"{ref_query}\n\nSystem prompt:\n{system_prompt}"
+    )
+    current_scene_index = int(state.get("current_scene_index") or 0)
+    if current_scene_index == 0:
+        retrieval = search_manim_collection(ref_query)
+    else:
+        retrieval = CollectionSearchResult(
+            query=ref_query,
+            collection_id="",
+            limit=10,
+            chunks=[],
+            error="skipped_not_first_scene",
+        )
     _record_retrieval_info("build_scenes", retrieval)
     values["reference_section"] = retrieval.formatted_reference
 
-    system_prompt = _render(_read_file(phase_dir / "system.md"), values)
     user_prompt = _render(_read_file(phase_dir / "user.md"), values)
     return system_prompt, user_prompt
 

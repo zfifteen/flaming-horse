@@ -324,11 +324,16 @@ def call_responses_api(
     client = Client(api_key=api_key)
     previous_response_id: Optional[str] = None
     reset_reason: Optional[str] = None
+    stored_phase: Optional[str] = None
     if session_state_path is not None:
         previous_response_id, reset_reason = _read_session_state_pointer(
             session_state_path,
             expected_model=resolved_model,
         )
+        session_payload = _read_session_payload(session_state_path)
+        payload_phase = session_payload.get("phase")
+        if isinstance(payload_phase, str) and payload_phase.strip():
+            stored_phase = payload_phase.strip()
         if previous_response_id:
             print(f"   Previous response ID: {previous_response_id}")
         if reset_reason:
@@ -356,7 +361,13 @@ def call_responses_api(
                 resolved_model,
                 **create_kwargs,
             )
-            chat.append(sdk_system(system_prompt))
+            should_send_system_prompt = True
+            if phase == "build_scenes":
+                should_send_system_prompt = not (
+                    previous_response_id and stored_phase == "build_scenes"
+                )
+            if should_send_system_prompt:
+                chat.append(sdk_system(system_prompt))
             chat.append(sdk_user(user_prompt))
 
             raw_response = chat.sample()
