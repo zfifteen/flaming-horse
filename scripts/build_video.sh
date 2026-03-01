@@ -1611,7 +1611,51 @@ PY
   fi
   
   # Deterministically apply plan.json into project_state.json.
-  apply_state_phase "plan" || true
+  if ! apply_state_phase "plan"; then
+    echo "❌ Deterministic plan transition failed; retrying phase." | tee -a "$LOG_FILE"
+    $PYTHON_BIN - <<PY
+import json
+from datetime import datetime, UTC
+
+with open("${STATE_FILE}", "r") as f:
+    state = json.load(f)
+
+message = "plan failed: deterministic phase transition from plan to review did not apply"
+errors = state.setdefault("errors", [])
+if message not in errors:
+    errors.append(message)
+state.setdefault("flags", {})["needs_human_review"] = False
+state["updated_at"] = datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')
+
+with open("${STATE_FILE}", "w") as f:
+    json.dump(state, f, indent=2)
+PY
+    return 1
+  fi
+
+  local phase_after
+  phase_after="$(get_phase)"
+  if [[ "$phase_after" != "review" ]]; then
+    echo "❌ Deterministic plan transition expected phase review, got: ${phase_after}. Retrying phase." | tee -a "$LOG_FILE"
+    $PYTHON_BIN - <<PY
+import json
+from datetime import datetime, UTC
+
+with open("${STATE_FILE}", "r") as f:
+    state = json.load(f)
+
+message = "plan failed: deterministic transition expected phase review, got ${phase_after}"
+errors = state.setdefault("errors", [])
+if message not in errors:
+    errors.append(message)
+state.setdefault("flags", {})["needs_human_review"] = False
+state["updated_at"] = datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')
+
+with open("${STATE_FILE}", "w") as f:
+    json.dump(state, f, indent=2)
+PY
+    return 1
+  fi
 }
 
 handle_review() {

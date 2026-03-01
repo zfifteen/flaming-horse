@@ -275,6 +275,20 @@ class TestSemanticValidation:
         )
         assert hr_parser.validate_and_write_plan(plan, project) is True
 
+    def test_empty_scenes_fail(self, tmp_path):
+        project = _make_project(tmp_path)
+        plan = PlanResponse.model_construct(
+            title="Test",
+            description="desc",
+            target_duration_seconds=90,
+            scenes=[],
+        )
+        with pytest.raises(
+            SemanticValidationError,
+            match="plan.scenes must contain at least one scene",
+        ):
+            hr_parser.validate_and_write_plan(plan, project)
+
     def test_empty_title_fails(self, tmp_path):
         project = _make_project(tmp_path)
         plan = PlanResponse(
@@ -583,6 +597,22 @@ class TestResponsesClient:
         assert hr_parser.write_phase_artifacts("narration", parsed, project) is True
         content = (project / "narration_script.py").read_text(encoding="utf-8")
         assert '"scene_01": "Hello narration"' in content
+
+    def test_write_phase_artifacts_narration_missing_required_key_raises(self, tmp_path):
+        project = _make_narration_project(tmp_path)
+        state_path = project / "project_state.json"
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+        state["scenes"].append(
+            {"id": "scene_02", "narration_key": "scene_02", "title": "Scene 2"}
+        )
+        state_path.write_text(json.dumps(state), encoding="utf-8")
+
+        parsed = NarrationResponse(script={"scene_01": "Hello narration"})
+        with pytest.raises(
+            SemanticValidationError,
+            match="missing required keys from project_state.json",
+        ):
+            hr_parser.write_phase_artifacts("narration", parsed, project)
 
     def test_write_phase_artifacts_scene_qc(self, tmp_path):
         project = _make_scene_project(tmp_path)

@@ -134,6 +134,8 @@ def validate_and_write_plan(
         _fail("plan.description must not be empty")
 
     scene_count = len(parsed.scenes)
+    if scene_count == 0:
+        _fail("plan.scenes must contain at least one scene")
 
     for idx, scene in enumerate(parsed.scenes):
         if not scene.title.strip():
@@ -183,6 +185,28 @@ def _looks_like_placeholder_narration(text: str) -> bool:
     return False
 
 
+def _expected_narration_keys(project_dir: Path) -> set[str]:
+    state_file = project_dir / "project_state.json"
+    if not state_file.exists():
+        return set()
+    try:
+        state = json.loads(state_file.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return set()
+    scenes = state.get("scenes")
+    if not isinstance(scenes, list):
+        return set()
+
+    expected: set[str] = set()
+    for scene in scenes:
+        if not isinstance(scene, dict):
+            continue
+        key = scene.get("narration_key") or scene.get("id")
+        if isinstance(key, str) and key.strip():
+            expected.add(key.strip())
+    return expected
+
+
 def validate_and_write_narration(
     parsed: NarrationResponse,
     project_dir: Path,
@@ -220,6 +244,19 @@ def validate_and_write_narration(
                 raw_response,
                 content_repr,
                 f"narration.script[{key!r}] must contain real narration text",
+            )
+
+    expected_keys = _expected_narration_keys(project_dir)
+    provided_keys = {key.strip() for key in script_dict.keys() if isinstance(key, str)}
+    if expected_keys:
+        missing_keys = sorted(expected_keys - provided_keys)
+        if missing_keys:
+            _fail_with_diag(
+                project_dir,
+                raw_response,
+                content_repr,
+                "narration.script missing required keys from project_state.json: "
+                + ", ".join(missing_keys),
             )
 
     lines = [
