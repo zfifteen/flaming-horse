@@ -33,36 +33,7 @@ class TimingTerm:
     multiplier: int = 1
 
 
-class _TimingScaleTransformer(ast.NodeTransformer):
-    def __init__(self, scale: float):
-        self.scale = scale
-        self.modified = False
 
-    def _scaled_expr(self, expr: ast.AST) -> ast.AST:
-        scaled = ast.BinOp(left=expr, op=ast.Mult(), right=ast.Constant(value=self.scale))
-        return ast.copy_location(scaled, expr)
-
-    def visit_Call(self, node: ast.Call) -> ast.AST:
-        self.generic_visit(node)
-        if (
-            isinstance(node.func, ast.Attribute)
-            and isinstance(node.func.value, ast.Name)
-            and node.func.value.id == "self"
-        ):
-            if node.func.attr == "play":
-                for kw in node.keywords:
-                    if kw.arg == "run_time":
-                        kw.value = self._scaled_expr(kw.value)
-                        self.modified = True
-            elif node.func.attr == "wait":
-                if node.args:
-                    node.args[0] = self._scaled_expr(node.args[0])
-                else:
-                    node.args.append(
-                        ast.copy_location(ast.Constant(value=1.0 * self.scale), node)
-                    )
-                self.modified = True
-        return node
 
 
 def _read_cache_entries(cache_data: Any) -> Iterable[dict[str, Any]]:
@@ -309,11 +280,71 @@ def _print_known_terms(known_terms: list[TimingTerm]) -> None:
 
 
 def _apply_timing_scale(scene_source: str, scale: float) -> tuple[str, bool]:
+    """Scale run_time and wait timing values by *scale*, preserving all source comments.
+
+    Performs targeted text-level substitution instead of an AST round-trip so
+    that comments (including scaffold slot markers such as # SLOT_START:scene_body
+    and # SLOT_END:scene_body) survive the transformation intact.  ast.unparse()
+    is intentionally avoided here because it discards all comments.
+    """
     tree = ast.parse(scene_source)
-    transformer = _TimingScaleTransformer(scale)
-    new_tree = transformer.visit(tree)
-    ast.fix_missing_locations(new_tree)
-    return ast.unparse(new_tree) + "\n", transformer.modified
+
+    # Pre-compute the character offset for the start of each source line so we
+    # can convert (lineno, col_offset) AST positions to flat string indices.
+    source_lines = scene_source.splitlines(keepends=True)
+    line_starts: list[int] = [0]
+    for line in source_lines:
+        line_starts.append(line_starts[-1] + len(line))
+
+    def _to_offset(lineno: int, col: int) -> int:
+        return line_starts[lineno - 1] + col
+
+    # Collect (start_offset, end_offset, replacement_text) for every timing
+    # expression that needs to be scaled.
+    edits: list[tuple[int, int, str]] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        if not (
+            isinstance(node.func, ast.Attribute)
+            and isinstance(node.func.value, ast.Name)
+            and node.func.value.id == "self"
+        ):
+            continue
+        if node.func.attr == "play":
+            for kw in node.keywords:
+                if kw.arg != "run_time":
+                    continue
+                orig = ast.get_source_segment(scene_source, kw.value)
+                if orig is None:
+                    continue
+                start = _to_offset(kw.value.lineno, kw.value.col_offset)
+                end = _to_offset(kw.value.end_lineno, kw.value.end_col_offset)
+                edits.append((start, end, f"({orig}) * {scale}"))
+        elif node.func.attr == "wait":
+            if node.args:
+                orig = ast.get_source_segment(scene_source, node.args[0])
+                if orig is None:
+                    continue
+                start = _to_offset(node.args[0].lineno, node.args[0].col_offset)
+                end = _to_offset(node.args[0].end_lineno, node.args[0].end_col_offset)
+                edits.append((start, end, f"({orig}) * {scale}"))
+            else:
+                # bare self.wait() → self.wait(1.0 * <scale>)
+                ins = _to_offset(node.end_lineno, node.end_col_offset - 1)
+                edits.append((ins, ins, f"1.0 * {scale}"))
+
+    if not edits:
+        return scene_source, False
+
+    # Apply edits from back to front to avoid offset shift caused by earlier
+    # replacements changing the length of the string.
+    edits.sort(key=lambda e: e[0], reverse=True)
+    result = scene_source
+    for start, end, text in edits:
+        result = result[:start] + text + result[end:]
+
+    return result, True
 
 
 def _scene_id_from_path(scene_path: Path) -> str:

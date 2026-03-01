@@ -132,6 +132,51 @@ class Dummy:
             updated = scene_file.read_text(encoding="utf-8")
             self.assertIn("run_time=", updated)
 
+    def test_auto_adjust_preserves_slot_markers(self):
+        """_apply_timing_scale must not strip # SLOT_START / SLOT_END comments.
+
+        ast.unparse() silently discards all Python comments.  If those comments
+        contain the scaffold slot markers required by _inject_body_into_scaffold
+        (harness_responses/parser.py) the scene file is permanently broken for
+        any future scene_repair pass.  This regression test guards that path.
+        """
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_dir = Path(temp_dir)
+            scene_id = "scene_03_markers"
+            scene_file = project_dir / f"{scene_id}.py"
+            _write_cache(project_dir, scene_id, 20.0)
+            _write_scene(
+                scene_file,
+                """class Dummy:
+    def construct(self):
+        # SLOT_START:scene_body
+        self.play(FadeIn(title), run_time=30.0)
+        self.wait(5.0)
+        # SLOT_END:scene_body
+""",
+            )
+
+            result = subprocess.run(
+                [
+                    "python3",
+                    str(SCRIPT_PATH),
+                    "--scene-file",
+                    str(scene_file),
+                    "--project-dir",
+                    str(project_dir),
+                    "--min-ratio",
+                    "0.90",
+                    "--auto-adjust",
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
+            updated = scene_file.read_text(encoding="utf-8")
+            self.assertIn("# SLOT_START:scene_body", updated)
+            self.assertIn("# SLOT_END:scene_body", updated)
+
     def test_indeterminate_for_unparsed_expression(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             project_dir = Path(temp_dir)
