@@ -971,8 +971,37 @@ validate_scene_runtime() {
   return 0
 }
 
-ensure_qwen_cache_index() {
-  local cache_index="${PROJECT_DIR}/media/voiceovers/qwen/cache.json"
+resolve_voice_cache_dir() {
+  $PYTHON_BIN - <<PY
+import json
+from pathlib import Path
+
+project_dir = Path("${PROJECT_DIR}")
+output_dir = "media/voiceovers/qwen"
+cfg_path = project_dir / "voice_clone_config.json"
+
+if cfg_path.exists():
+    try:
+        cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
+    except Exception:
+        cfg = {}
+    candidate = cfg.get("output_dir")
+    if isinstance(candidate, str) and candidate.strip():
+        output_dir = candidate.strip()
+
+output_path = Path(output_dir).expanduser()
+cache_dir = output_path if output_path.is_absolute() else (project_dir / output_path)
+print(str(cache_dir.resolve()))
+PY
+}
+
+resolve_voice_cache_index_path() {
+  echo "$(resolve_voice_cache_dir)/cache.json"
+}
+
+ensure_voice_cache_index() {
+  local cache_index
+  cache_index="$(resolve_voice_cache_index_path)"
   if [[ -f "$cache_index" ]]; then
     return 0
   fi
@@ -998,7 +1027,7 @@ runtime_validate_scene_with_preconditions() {
   local scene_file="$1"
   local scene_class="$2"
 
-  if ! ensure_qwen_cache_index; then
+  if ! ensure_voice_cache_index; then
     echo "✗ Cannot runtime-validate scenes without cached voice data" | tee -a "$LOG_FILE" >&2
     return 1
   fi
@@ -1755,13 +1784,40 @@ handle_precache_voiceovers() {
   # Skip entirely if --skip-precache flag is set
   if [[ -n "${SKIP_PRECACHE}" ]]; then
     echo "→ --skip-precache enabled; skipping voice precaching phase." | tee -a "$LOG_FILE"
-    if [[ -f "media/voiceovers/qwen/cache.json" ]]; then
+    local cache_index
+    cache_index="$(resolve_voice_cache_index_path)"
+    if [[ -f "${cache_index}" ]]; then
       echo "→ Using existing voice cache." | tee -a "$LOG_FILE"
       apply_state_phase "precache_voiceovers" || true
       return 0
     else
-      echo "⚠ WARNING: No existing voice cache found. Rendering may fail without voice." | tee -a "$LOG_FILE"
-      return 0
+      echo "✗ ERROR: --skip-precache requires an existing voice cache at ${cache_index}" | tee -a "$LOG_FILE"
+      $PYTHON_BIN - <<PY
+import json
+from datetime import datetime, UTC
+from pathlib import Path
+
+state_path = Path("${STATE_FILE}")
+state = json.loads(state_path.read_text(encoding="utf-8"))
+message = "precache_voiceovers failed: --skip-precache requires existing ${cache_index}"
+
+errors = state.setdefault("errors", [])
+if message not in errors:
+    errors.append(message)
+
+state.setdefault("flags", {})["needs_human_review"] = True
+state["updated_at"] = datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')
+state.setdefault("history", []).append(
+    {
+        "timestamp": state["updated_at"],
+        "phase": "precache_voiceovers",
+        "action": "failed_skip_precache_missing_cache",
+    }
+)
+
+state_path.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
+PY
+      return 1
     fi
   fi
   echo "🎙️  Precaching voiceovers (backend: ${FLAMING_HORSE_TTS_BACKEND:-qwen})..." | tee -a "$LOG_FILE"
@@ -2125,7 +2181,9 @@ PY
 
   # Ensure voice cache exists (precache step). If missing, generate it now.
   # Skip this check if --skip-precache flag is set.
-  if [[ -z "${SKIP_PRECACHE}" && ! -f "media/voiceovers/qwen/cache.json" ]]; then
+  local voice_cache_index
+  voice_cache_index="$(resolve_voice_cache_index_path)"
+  if [[ -z "${SKIP_PRECACHE}" && ! -f "${voice_cache_index}" ]]; then
     echo "→ Missing voice cache index; running precache step..." | tee -a "$LOG_FILE"
     if ! handle_precache_voiceovers; then
       echo "❌ Precaching voiceovers failed; cannot render." | tee -a "$LOG_FILE" >&2
@@ -2359,6 +2417,8 @@ PY
   }
 
   echo "→ Rendering scenes sequentially (cached voice backend: ${FLAMING_HORSE_TTS_BACKEND:-qwen})" | tee -a "$LOG_FILE"
+  local voice_cache_dir
+  voice_cache_dir="$(resolve_voice_cache_dir)"
 
   while IFS='|' read -r scene_id scene_file scene_class est_duration; do
     [[ -n "$scene_id" ]] || continue
@@ -2415,7 +2475,7 @@ PY
     fi
 
     local out_video="media/videos/${scene_id}/1440p60/${scene_class}.mp4"
-    local scene_audio="media/voiceovers/qwen/${scene_id}.mp3"
+    local scene_audio="${voice_cache_dir}/${scene_id}.mp3"
     local needs_rerender=1
     # Reuse rendered scene only if output verifies and is newer than both source scene code and voice audio.
     if verify_scene_video "$scene_id" "$scene_class"; then

@@ -323,6 +323,26 @@ def infer_class_name(scene_path: Path) -> str | None:
     return None
 
 
+def resolve_voice_cache_index_path(project_dir: Path) -> Path:
+    """Resolve cache.json path from voice_clone_config.json output_dir."""
+    default_output_dir = "media/voiceovers/qwen"
+    cfg_path = project_dir / "voice_clone_config.json"
+    output_dir = default_output_dir
+
+    if cfg_path.exists():
+        try:
+            cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            cfg = {}
+        candidate = cfg.get("output_dir")
+        if isinstance(candidate, str) and candidate.strip():
+            output_dir = candidate.strip()
+
+    output_path = Path(output_dir).expanduser()
+    cache_dir = output_path if output_path.is_absolute() else (project_dir / output_path)
+    return (cache_dir / "cache.json").resolve()
+
+
 def extract_narration_script_keys(narration_path: Path) -> set[str] | None:
     """Return SCRIPT dict keys from narration_script.py or None if invalid."""
     try:
@@ -462,8 +482,9 @@ def apply_phase(project_dir: Path, state: dict, phase: str) -> dict:
         return state
 
     if phase == "precache_voiceovers":
-        # Deterministically advance once Qwen cache index exists.
-        cache_index = project_dir / "media" / "voiceovers" / "qwen" / "cache.json"
+        # Deterministically advance once configured cache index exists.
+        cache_index = resolve_voice_cache_index_path(project_dir)
+        cache_index_str = str(cache_index)
         if cache_index.exists():
             state["phase"] = "final_render"
             state["flags"]["needs_human_review"] = False
@@ -476,7 +497,7 @@ def apply_phase(project_dir: Path, state: dict, phase: str) -> dict:
                 {
                     "timestamp": utc_now(),
                     "phase": "precache_voiceovers",
-                    "action": "Detected media/voiceovers/qwen/cache.json; advanced to final_render (deterministic)",
+                    "action": f"Detected {cache_index_str}; advanced to final_render (deterministic)",
                 }
             )
             return state
@@ -485,7 +506,7 @@ def apply_phase(project_dir: Path, state: dict, phase: str) -> dict:
         state["phase"] = "precache_voiceovers"
         _add_error_unique(
             state,
-            "precache_voiceovers incomplete: media/voiceovers/qwen/cache.json missing",
+            f"precache_voiceovers incomplete: {cache_index_str} missing",
         )
         return state
 

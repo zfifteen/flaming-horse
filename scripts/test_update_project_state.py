@@ -369,6 +369,134 @@ def test_apply_narration_advances_when_script_has_all_scene_keys() -> None:
         )
 
 
+def test_apply_precache_voiceovers_advances_with_configured_cache_dir() -> None:
+    with tempfile.TemporaryDirectory() as d:
+        tmp = Path(d)
+        project_dir = make_project_dir(tmp)
+
+        write_state_raw(
+            project_dir,
+            json.dumps(
+                {
+                    "project_name": "x",
+                    "topic": "t",
+                    "phase": "precache_voiceovers",
+                    "created_at": "t",
+                    "updated_at": "t",
+                    "run_count": 0,
+                    "plan_file": "plan.json",
+                    "narration_file": "narration_script.py",
+                    "voice_config_file": "voice_clone_config.json",
+                    "scenes": [],
+                    "current_scene_index": 0,
+                    "errors": [],
+                    "history": [],
+                    "flags": {
+                        "needs_human_review": False,
+                        "dry_run": False,
+                        "force_replan": False,
+                    },
+                },
+                indent=2,
+            ),
+        )
+        (project_dir / "voice_clone_config.json").write_text(
+            json.dumps({"output_dir": "media/voiceovers/mlx"}, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        cache_index = project_dir / "media" / "voiceovers" / "mlx" / "cache.json"
+        cache_index.parent.mkdir(parents=True, exist_ok=True)
+        cache_index.write_text("[]\n", encoding="utf-8")
+
+        cp = run(
+            "--project-dir",
+            str(project_dir),
+            "--mode",
+            "apply",
+            "--phase",
+            "precache_voiceovers",
+        )
+        require(cp.returncode == 0, f"apply precache_voiceovers failed: {cp.stderr}")
+        state = read_state(project_dir)
+        require(
+            state["phase"] == "final_render",
+            "precache_voiceovers should advance to final_render when configured cache exists",
+        )
+        require(
+            state["flags"]["needs_human_review"] is False,
+            "successful precache transition should not require human review",
+        )
+        require(
+            any(
+                isinstance(entry, dict)
+                and "media/voiceovers/mlx/cache.json" in str(entry.get("action", ""))
+                for entry in state.get("history", [])
+            ),
+            "history should record configured cache index path",
+        )
+
+
+def test_apply_precache_voiceovers_stays_when_configured_cache_missing() -> None:
+    with tempfile.TemporaryDirectory() as d:
+        tmp = Path(d)
+        project_dir = make_project_dir(tmp)
+
+        write_state_raw(
+            project_dir,
+            json.dumps(
+                {
+                    "project_name": "x",
+                    "topic": "t",
+                    "phase": "precache_voiceovers",
+                    "created_at": "t",
+                    "updated_at": "t",
+                    "run_count": 0,
+                    "plan_file": "plan.json",
+                    "narration_file": "narration_script.py",
+                    "voice_config_file": "voice_clone_config.json",
+                    "scenes": [],
+                    "current_scene_index": 0,
+                    "errors": [],
+                    "history": [],
+                    "flags": {
+                        "needs_human_review": False,
+                        "dry_run": False,
+                        "force_replan": False,
+                    },
+                },
+                indent=2,
+            ),
+        )
+        (project_dir / "voice_clone_config.json").write_text(
+            json.dumps({"output_dir": "media/voiceovers/mlx"}, indent=2) + "\n",
+            encoding="utf-8",
+        )
+
+        cp = run(
+            "--project-dir",
+            str(project_dir),
+            "--mode",
+            "apply",
+            "--phase",
+            "precache_voiceovers",
+        )
+        require(cp.returncode == 0, f"apply precache_voiceovers failed: {cp.stderr}")
+        state = read_state(project_dir)
+        require(
+            state["phase"] == "precache_voiceovers",
+            "precache_voiceovers should remain when configured cache is missing",
+        )
+        require(
+            any(
+                isinstance(err, str)
+                and err.startswith("precache_voiceovers incomplete:")
+                and "media/voiceovers/mlx/cache.json" in err
+                for err in state.get("errors", [])
+            ),
+            "missing configured cache should be recorded as precache_voiceovers incomplete",
+        )
+
+
 def main() -> int:
     require(UPDATER.exists(), f"missing: {UPDATER}")
 
@@ -379,6 +507,8 @@ def main() -> int:
         test_apply_build_scenes_marks_built,
         test_apply_narration_stays_when_script_missing_scene_keys,
         test_apply_narration_advances_when_script_has_all_scene_keys,
+        test_apply_precache_voiceovers_advances_with_configured_cache_dir,
+        test_apply_precache_voiceovers_stays_when_configured_cache_missing,
     ]
 
     for t in tests:
