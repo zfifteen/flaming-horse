@@ -95,7 +95,21 @@ Primary user outcome:
 projects/<project_name>/final_video.mp4
 ```
 
-## 7. Runtime Sources Of Truth
+## 7. Assistant Mode Boundary
+
+Flaming Horse has two operation modes:
+
+1. Script mode: the user invokes `./scripts/create_video.sh <project_name> --topic "..."`.
+2. Assistant mode: an assistant invokes, observes, and interprets that same scripted pipeline.
+
+Assistant mode must not bypass the scripted deterministic process.
+Assistant mode must use the same framework entrypoints, state machine, scaffold generation, validation gates, voice caching, rendering, and assembly path that script mode uses.
+
+The assistant's value is analysis. Read logs, state files, generated artifacts, QC reports, and failure traces. Identify the first divergence point, explain the causal chain, and report the framework-level interpretation to the user.
+
+Never work around framework constructs to force a video through. Do not hand-author final scenes, patch generated project artifacts, skip validation gates, bypass voice caching, manually assemble video outputs, or replace scripted phases with ad hoc commands.
+
+## 8. Runtime Sources Of Truth
 
 Core runtime files:
 
@@ -114,7 +128,7 @@ Core runtime files:
 The live harness path is `harness_responses/`.
 Do not use stale `harness/` paths unless the user explicitly asks to inspect old documentation.
 
-## 8. Generated Artifact Boundary
+## 9. Generated Artifact Boundary
 
 Generated project artifacts are evidence by default, not fix targets.
 
@@ -128,7 +142,7 @@ Default remediation targets:
 
 Do not patch `projects/<project_name>/scene_*.py`, `plan.json`, `narration_script.py`, or other generated artifacts unless the user explicitly requests a project-level containment patch.
 
-## 9. Non-Negotiables
+## 10. Non-Negotiables
 
 1. Follow `docs/policies/USER_PREFERENCES.md` first.
 2. Do not assume intent when unclear.
@@ -138,3 +152,5 @@ Do not patch `projects/<project_name>/scene_*.py`, `plan.json`, `narration_scrip
 6. Preserve local cached voice policy for pipeline scenes.
 7. Prefer source-level fixes over repair-loop guardrails.
 8. Keep research and generation code deterministic when deterministic construction is possible.
+9. In assistant mode, use the same deterministic pipeline as script mode.
+10. Never bypass or work around framework constructs when interpreting or repairing failures.

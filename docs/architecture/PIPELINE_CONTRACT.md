@@ -20,6 +20,45 @@ projects/my_video/final_video.mp4
 
 The secondary workflow is assistant-mediated operation of the same framework. Assistants should improve the framework, inspect runs, and operate scripts. They should not replace the pipeline by hand-authoring final generated scenes.
 
+## Script Mode And Assistant Mode
+
+Script mode and assistant mode share the same execution contract.
+
+Script mode:
+
+```bash
+./scripts/create_video.sh <project_name> --topic "..."
+```
+
+Assistant mode:
+
+```bash
+./scripts/create_video.sh <project_name> --topic "..."
+```
+
+Assistant mode must not bypass, replace, or hand-simulate the deterministic pipeline.
+
+In assistant mode, the assistant may:
+
+1. Invoke the canonical entrypoint.
+2. Resume the canonical entrypoint.
+3. Read and interpret `project_state.json`, `build.log`, `error.log`, `conversation.log`, QC reports, generated scenes, rendered media, and cache artifacts.
+4. Explain the first divergence point and causal chain when a run fails.
+5. Propose or implement source-level fixes to scripts, harness code, prompts, schemas, scaffold code, validators, or voice integration when explicitly asked.
+
+In assistant mode, the assistant must not:
+
+1. Hand-author final `scene_*.py` files to get a video through.
+2. Patch generated project artifacts as a workaround.
+3. Skip deterministic validation gates.
+4. Bypass scaffold construction.
+5. Bypass local cached voice generation or render-time cached voice lookup.
+6. Manually assemble final video outputs outside the framework.
+7. Treat ad hoc shell commands as replacements for scripted phases.
+8. Hide or route around errors that the framework reports.
+
+Errors are framework evidence. The assistant should understand and interpret them for the user rather than masking them with alternate execution paths.
+
 ## Entrypoint Flow
 
 The canonical path is:
