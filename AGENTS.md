@@ -109,7 +109,17 @@ The assistant's value is analysis. Read logs, state files, generated artifacts, 
 
 Never work around framework constructs to force a video through. Do not hand-author final scenes, patch generated project artifacts, skip validation gates, bypass voice caching, manually assemble video outputs, or replace scripted phases with ad hoc commands.
 
-## 8. Runtime Sources Of Truth
+## 8. Current Framework Fix Track
+
+When working on framework repair, first read:
+
+```text
+docs/framework-fixes/index.html
+```
+
+That document captures the active repair map: phase progress detection, parser-level semantic validation, build-scenes prompt contradictions, scene-body validation, voice backend ownership, interpreter ownership, stale docs, and scene QC ownership. Treat it as the current analysis track and repair priority map. Runtime code remains authoritative for current behavior.
+
+## 9. Runtime Sources Of Truth
 
 Core runtime files:
 
@@ -128,7 +138,7 @@ Core runtime files:
 The live harness path is `harness_responses/`.
 Do not use stale `harness/` paths unless the user explicitly asks to inspect old documentation.
 
-## 9. Generated Artifact Boundary
+## 10. Generated Artifact Boundary
 
 Generated project artifacts are evidence by default, not fix targets.
 
@@ -142,7 +152,7 @@ Default remediation targets:
 
 Do not patch `projects/<project_name>/scene_*.py`, `plan.json`, `narration_script.py`, or other generated artifacts unless the user explicitly requests a project-level containment patch.
 
-## 10. Non-Negotiables
+## 11. Non-Negotiables
 
 1. Follow `docs/policies/USER_PREFERENCES.md` first.
 2. Do not assume intent when unclear.

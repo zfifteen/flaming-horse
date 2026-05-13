@@ -22,6 +22,12 @@ from pathlib import Path
 from subprocess import PIPE, Popen
 from typing import Any
 
+from tts_backend_config import (
+    selected_model_id,
+    selected_tts_backend,
+    selected_worker_python,
+    selected_worker_python_raw,
+)
 from voice_ref_mediator import resolve_voice_ref
 
 
@@ -54,24 +60,6 @@ def sha256_file(path: Path) -> str:
 
 def load_json(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
-
-
-def selected_tts_backend() -> str:
-    value = os.environ.get("FLAMING_HORSE_TTS_BACKEND", "qwen").strip().lower()
-    if value not in {"qwen", "mlx"}:
-        raise ValueError(
-            f"Invalid FLAMING_HORSE_TTS_BACKEND={value!r}. Expected 'qwen' or 'mlx'."
-        )
-    return value
-
-
-def selected_mlx_model_id(default_model_id: str) -> str:
-    override = os.environ.get("FLAMING_HORSE_MLX_MODEL_ID", "").strip()
-    if override:
-        return override
-    if default_model_id.startswith("mlx-community/"):
-        return default_model_id
-    return "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit"
 
 
 def _hf_repo_id_to_cache_dirname(model_id: str) -> str | None:
@@ -156,25 +144,21 @@ def main() -> int:
 
     cfg = load_json(cfg_path)
 
-    python_path_raw = cfg.get("qwen_python")
-    if not python_path_raw or not isinstance(python_path_raw, str):
-        print("ERROR: voice_clone_config.json must define qwen_python", file=sys.stderr)
-        return 2
+    backend = selected_tts_backend(cfg)
+    model_id = selected_model_id(cfg, backend)
+    device = cfg.get("device", "cpu")
+    dtype_str = cfg.get("dtype", "float32")
 
     # Do NOT call .resolve() here.
     # venv python binaries are often symlinks to the base interpreter; resolving
     # would bypass the venv and break imports (e.g. qwen_tts).
-    python_path = Path(os.path.expanduser(python_path_raw))
-    if not python_path.is_absolute():
-        python_path = (Path.cwd() / python_path).absolute()
+    python_path_raw = selected_worker_python_raw(cfg, backend)
+    python_path = selected_worker_python(cfg, backend)
     if not python_path.exists():
-        print(f"ERROR: qwen_python not found: {python_path}", file=sys.stderr)
+        label = "FLAMING_HORSE_MLX_PYTHON" if backend == "mlx" else "qwen_python"
+        print(f"ERROR: {label} not found: {python_path}", file=sys.stderr)
+        print(f"  Configured value: {python_path_raw}", file=sys.stderr)
         return 2
-
-    backend = selected_tts_backend()
-    model_id = cfg.get("model_id", "Qwen/Qwen3-TTS-12Hz-1.7B-Base")
-    device = cfg.get("device", "cpu")
-    dtype_str = cfg.get("dtype", "float32")
 
     if backend == "qwen" and (device != "cpu" or dtype_str != "float32"):
         print(
@@ -227,8 +211,6 @@ def main() -> int:
     # For mlx backend, mediator chooses model via env/config at runtime.
     model_source = str(model_id)
     model_display = str(model_id)
-    if backend == "mlx":
-        model_display = selected_mlx_model_id(str(model_id))
     if backend == "qwen":
         model_id_path = Path(str(model_id))
         if isinstance(model_id, str) and model_id_path.exists():
@@ -283,6 +265,10 @@ def main() -> int:
     env.setdefault("HF_HUB_OFFLINE", "1")
     env.setdefault("TRANSFORMERS_OFFLINE", "1")
     env.setdefault("TOKENIZERS_PARALLELISM", "false")
+    env["FLAMING_HORSE_TTS_BACKEND"] = backend
+    if backend == "mlx":
+        env["FLAMING_HORSE_MLX_MODEL_ID"] = str(model_id)
+        env["FLAMING_HORSE_MLX_PYTHON"] = str(python_path)
     env["PYTHONUNBUFFERED"] = "1"
 
     t0 = time.perf_counter()

@@ -2,10 +2,12 @@
 """Prepare cached voice service for a project."""
 
 import argparse
-import os
+import json
 import subprocess
 import sys
 from pathlib import Path
+
+from tts_backend_config import selected_tts_backend
 
 
 def parse_args():
@@ -43,15 +45,6 @@ def prepare_qwen_service(project_dir: Path, force: bool) -> int:
         return 2
 
 
-def selected_tts_backend() -> str:
-    value = os.environ.get("FLAMING_HORSE_TTS_BACKEND", "qwen").strip().lower()
-    if value not in {"qwen", "mlx"}:
-        raise ValueError(
-            f"Invalid FLAMING_HORSE_TTS_BACKEND={value!r}. Expected 'qwen' or 'mlx'."
-        )
-    return value
-
-
 def main() -> int:
     args = parse_args()
     project_dir = Path(args.project_dir).resolve()
@@ -60,7 +53,12 @@ def main() -> int:
         print(f"ERROR: Project directory not found: {project_dir}", file=sys.stderr)
         return 2
 
-    backend = selected_tts_backend()
+    cfg_path = project_dir / "voice_clone_config.json"
+    cfg = {}
+    if cfg_path.exists():
+        cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
+
+    backend = selected_tts_backend(cfg)
     print(f"→ Preparing cached voice service (backend: {backend})")
     return prepare_qwen_service(project_dir, args.force)
 

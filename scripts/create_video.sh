@@ -38,7 +38,9 @@ ENV_FILE="${REPO_ROOT}/.env"
 
 if [[ -f "${ENV_FILE}" ]]; then
   # shellcheck disable=SC1090
+  set -a
   source "${ENV_FILE}"
+  set +a
 fi
 
 # Enforce Python 3.13 requirement

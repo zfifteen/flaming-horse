@@ -17,10 +17,11 @@ MODEL_ID = os.environ.get(
 REF_AUDIO = os.environ.get(
     "MLX_REF_AUDIO", "/Users/velocityworks/IdeaProjects/flaming-horse/models/qwen3-tts-local/voice_ref/ref.wav"
 )
-REF_TEXT = os.environ.get(
-    "MLX_REF_TEXT",
-    Path(REF_AUDIO.replace(".wav", ".txt")).read_text(encoding="utf-8").strip(),
-)
+REF_TEXT = os.environ.get("MLX_REF_TEXT")
+if REF_TEXT is None:
+    REF_TEXT = Path(REF_AUDIO.replace(".wav", ".txt")).read_text(
+        encoding="utf-8"
+    ).strip()
 OUTPUT_DIR = Path(os.environ.get("MLX_OUTPUT_DIR", "mlx_outputs"))
 OUTPUT_DIR.mkdir(exist_ok=True, parents=True)
 

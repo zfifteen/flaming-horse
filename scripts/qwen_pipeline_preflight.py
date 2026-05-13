@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
-"""Preflight validator for Flaming Horse + local Qwen cached voice pipeline.
+"""Preflight validator for Flaming Horse cached voice pipeline.
 
 Checks:
 - project_dir + required files
-- voice_clone_config.json policy (CPU + float32)
-- qwen_python path
+- selected backend policy
+- selected worker Python path
 - reference assets and non-empty transcript
 - local HF snapshot presence for model_id
 - optional warmup (`prepare_qwen_voice.py`)
 - optional precache (`precache_voiceovers_qwen.py`)
-- cache artifacts and service load (`QwenCachedService.from_project`)
+- cache artifacts and service load
 """
 
 from __future__ import annotations
@@ -22,6 +22,12 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from tts_backend_config import (
+    selected_model_id,
+    selected_output_dir,
+    selected_tts_backend,
+    selected_worker_python,
+)
 from voice_ref_mediator import resolve_voice_ref
 
 
@@ -142,24 +148,21 @@ def main() -> int:
 
     cfg = load_json(cfg_path)
 
-    model_id = str(cfg.get("model_id", "Qwen/Qwen3-TTS-12Hz-1.7B-Base"))
+    backend = selected_tts_backend(cfg)
+    model_id = selected_model_id(cfg, backend)
     device = str(cfg.get("device", "cpu"))
     dtype_str = str(cfg.get("dtype", "float32"))
-    qwen_python_raw = cfg.get("qwen_python")
-    output_dir_rel = str(cfg.get("output_dir", "media/voiceovers/qwen"))
+    output_dir_rel = selected_output_dir(cfg)
 
-    if device != "cpu":
+    if backend == "qwen" and device != "cpu":
         fail(f"voice_clone_config.json requires device='cpu', got: {device!r}")
-    if dtype_str != "float32":
+    if backend == "qwen" and dtype_str != "float32":
         fail(f"voice_clone_config.json requires dtype='float32', got: {dtype_str!r}")
 
-    if not isinstance(qwen_python_raw, str) or not qwen_python_raw.strip():
-        fail("voice_clone_config.json missing required key: qwen_python")
-    qwen_python = Path(os.path.expanduser(qwen_python_raw))
-    if not qwen_python.is_absolute():
-        qwen_python = (Path.cwd() / qwen_python).resolve()
-    if not qwen_python.exists():
-        fail(f"qwen_python path not found: {qwen_python}")
+    worker_python = selected_worker_python(cfg, backend)
+    if not worker_python.exists():
+        label = "FLAMING_HORSE_MLX_PYTHON" if backend == "mlx" else "qwen_python"
+        fail(f"{label} path not found: {worker_python}")
 
     # Use mediator to resolve voice reference paths
     try:
@@ -176,16 +179,17 @@ def main() -> int:
             os.environ.get("HF_HOME", str(Path.home() / ".cache" / "huggingface"))
         )
         fail(
-            "Qwen model snapshot not found in local HuggingFace cache. "
+            "TTS model snapshot not found in local HuggingFace cache. "
             f"Model: {model_id} | Expected under: {hf_home / 'hub'}"
         )
 
     print("Preflight checks passed:")
+    print(f"- backend={backend}")
     print(f"- project_dir={project_dir}")
     print(f"- model_id={model_id}")
     print(f"- device={device}")
     print(f"- dtype={dtype_str}")
-    print(f"- qwen_python={qwen_python}")
+    print(f"- worker_python={worker_python}")
     print(f"- hf_snapshot={snapshot_dir}")
     print(f"- ref_audio={ref_audio}")
     print(f"- ref_text={ref_text}")

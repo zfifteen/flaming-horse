@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -33,7 +34,13 @@ def _backend() -> str:
 
 
 def _mlx_python() -> str:
-    return os.environ.get("FLAMING_HORSE_MLX_PYTHON", DEFAULT_MLX_PYTHON).strip()
+    configured = os.environ.get("FLAMING_HORSE_MLX_PYTHON", "").strip()
+    if configured:
+        return configured
+    configured = os.environ.get("PYTHON", "").strip()
+    if configured:
+        return configured
+    return sys.executable or DEFAULT_MLX_PYTHON
 
 
 def _mlx_service_script() -> str:

@@ -105,20 +105,54 @@ PROJECT_DIR="${PROJECTS_DIR}/${PROJECT_NAME}"
 
 mkdir -p "$PROJECT_DIR"
 
-# Default Qwen voice clone config (local, CPU float32)
 mkdir -p "$PROJECT_DIR/assets/voice_ref"
-cat > "$PROJECT_DIR/voice_clone_config.json" <<'EOF'
-{
-  "qwen_python": "~/IdeaProjects/flaming-horse/models/qwen3-tts-local/.venv/bin/python",
-  "model_id": "Qwen/Qwen3-TTS-12Hz-1.7B-Base",
-  "device": "cpu",
-  "dtype": "float32",
-  "language": "English",
-  "ref_audio": "assets/voice_ref/ref.wav",
-  "ref_text": "assets/voice_ref/ref.txt",
-  "output_dir": "media/voiceovers/qwen"
+python3 - "$PROJECT_DIR/voice_clone_config.json" <<'PY'
+import json
+import os
+import sys
+from pathlib import Path
+
+backend = os.environ.get("FLAMING_HORSE_TTS_BACKEND", "qwen").strip().lower()
+if backend not in {"qwen", "mlx"}:
+    raise SystemExit(
+        f"Invalid FLAMING_HORSE_TTS_BACKEND={backend!r}. Expected 'qwen' or 'mlx'."
+    )
+
+if backend == "mlx":
+    worker_python = (
+        os.environ.get("FLAMING_HORSE_MLX_PYTHON", "").strip()
+        or os.environ.get("PYTHON", "").strip()
+        or sys.executable
+    )
+    model_id = (
+        os.environ.get("FLAMING_HORSE_MLX_MODEL_ID", "").strip()
+        or "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit"
+    )
+else:
+    worker_python = (
+        os.environ.get("FLAMING_HORSE_QWEN_PYTHON", "").strip()
+        or "~/IdeaProjects/flaming-horse/models/qwen3-tts-local/.venv/bin/python"
+    )
+    model_id = (
+        os.environ.get("FLAMING_HORSE_QWEN_MODEL_ID", "").strip()
+        or "Qwen/Qwen3-TTS-12Hz-1.7B-Base"
+    )
+
+cfg = {
+    "backend": backend,
+    "worker_python": worker_python,
+    "qwen_python": worker_python,
+    "model_id": model_id,
+    "device": "cpu",
+    "dtype": "float32",
+    "language": "English",
+    "ref_audio": "assets/voice_ref/ref.wav",
+    "ref_text": "assets/voice_ref/ref.txt",
+    "output_dir": "media/voiceovers/qwen",
 }
-EOF
+
+Path(sys.argv[1]).write_text(json.dumps(cfg, indent=2) + "\n", encoding="utf-8")
+PY
 
 # Seed per-project voice reference assets if missing.
 # The voice pipeline requires these files to exist on disk.
@@ -130,7 +164,7 @@ if [[ ! -f "$PROJECT_DIR/assets/voice_ref/ref.wav" || ! -f "$PROJECT_DIR/assets/
     cp -a "$ref_template_dir/ref.wav" "$PROJECT_DIR/assets/voice_ref/ref.wav"
     cp -a "$ref_template_dir/ref.txt" "$PROJECT_DIR/assets/voice_ref/ref.txt"
   else
-    echo "❌ Missing voice reference assets for Qwen voice clone." >&2
+    echo "❌ Missing voice reference assets for cached voice clone." >&2
     echo "   Expected: $PROJECT_DIR/assets/voice_ref/ref.wav and ref.txt" >&2
     echo "   Provide a template dir via VOICE_REF_TEMPLATE_DIR, or place those files manually." >&2
     echo "   Tried template: $ref_template_dir" >&2

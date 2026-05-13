@@ -46,8 +46,8 @@ class TestQwenCachedService(unittest.TestCase):
 
             service = self.QwenCachedService.from_project(project)
             self.assertEqual(
-                Path(service.cache_dir),
-                project / "media" / "voiceovers",
+                Path(service.cache_dir).resolve(),
+                (project / "media" / "voiceovers").resolve(),
             )
             self.assertEqual(service.cache_index["intro"], "intro.mp3")
             self.assertEqual(

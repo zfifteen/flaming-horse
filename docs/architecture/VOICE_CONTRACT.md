@@ -39,28 +39,38 @@ scripts/voice_ref_mediator.py
 
 ## Backend Selection
 
-Current mainline contains both Qwen and MLX-related code.
-
-The default project config produced by `scripts/new_project.sh` is Qwen-shaped:
-
-```json
-{
-  "qwen_python": "...",
-  "model_id": "Qwen/Qwen3-TTS-12Hz-1.7B-Base",
-  "device": "cpu",
-  "dtype": "float32",
-  "output_dir": "media/voiceovers/qwen"
-}
-```
-
-`scripts/qwen_tts_mediator.py` can route generation through:
+Current mainline supports two generation backends:
 
 ```text
 FLAMING_HORSE_TTS_BACKEND=qwen
 FLAMING_HORSE_TTS_BACKEND=mlx
 ```
 
-Do not infer a completed backend migration from the presence of MLX files alone. Verify the active runtime path before changing voice behavior.
+For local macOS MLX, the expected configuration is:
+
+```text
+FLAMING_HORSE_TTS_BACKEND=mlx
+FLAMING_HORSE_MLX_PYTHON=/Users/velocityworks/IdeaProjects/flaming-horse/.venv/bin/python
+FLAMING_HORSE_MLX_MODEL_ID=mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit
+```
+
+`scripts/create_video.sh` exports values loaded from `.env` before invoking child scripts.
+
+The default project config produced by `scripts/new_project.sh` records the selected backend and worker Python:
+
+```json
+{
+  "backend": "mlx",
+  "worker_python": "/Users/velocityworks/IdeaProjects/flaming-horse/.venv/bin/python",
+  "qwen_python": "/Users/velocityworks/IdeaProjects/flaming-horse/.venv/bin/python",
+  "model_id": "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit",
+  "device": "cpu",
+  "dtype": "float32",
+  "output_dir": "media/voiceovers/qwen"
+}
+```
+
+The `qwen_python` key is retained for legacy compatibility. Under `mlx`, it points at the same worker Python as `worker_python` and must not force the old Qwen venv.
 
 ## Cache Path
 

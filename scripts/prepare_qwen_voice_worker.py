@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Worker for scripts/prepare_qwen_voice.py.
 
-Runs inside the Qwen environment specified by voice_clone_config.json.qwen_python.
+Runs inside the configured TTS worker Python environment.
 Outputs progress to stderr and final JSON to stdout.
 """
 
