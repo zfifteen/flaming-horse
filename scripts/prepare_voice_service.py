@@ -23,7 +23,7 @@ def parse_args():
     return parser.parse_args()
 
 
-def prepare_qwen_service(project_dir: Path, force: bool) -> int:
+def prepare_cached_voice_service(project_dir: Path, force: bool) -> int:
     script_dir = Path(__file__).parent
     prepare_qwen = script_dir / "prepare_qwen_voice.py"
 
@@ -65,7 +65,7 @@ def main() -> int:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
     print(f"→ Preparing cached voice service (backend: {backend})")
-    return prepare_qwen_service(project_dir, args.force)
+    return prepare_cached_voice_service(project_dir, args.force)
 
 
 if __name__ == "__main__":
