@@ -52,6 +52,8 @@ For local macOS MLX, the expected configuration is:
 FLAMING_HORSE_TTS_BACKEND=mlx
 FLAMING_HORSE_MLX_PYTHON=/absolute/path/to/python-with-mlx-audio
 FLAMING_HORSE_MLX_MODEL_ID=mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit
+# Optional project creation override:
+FLAMING_HORSE_TTS_OUTPUT_DIR=media/voiceovers/qwen
 ```
 
 `scripts/create_video.sh` exports values loaded from `.env` before invoking child scripts.
@@ -72,9 +74,11 @@ The default project config produced by `scripts/new_project.sh` records the sele
 
 The `qwen_python` key is retained for legacy compatibility. Under `mlx`, it points at the same worker Python as `worker_python` and must not force the old Qwen venv.
 
+`FLAMING_HORSE_TTS_OUTPUT_DIR` is honored when `scripts/new_project.sh` writes a new `voice_clone_config.json`. Existing projects use the `output_dir` recorded in project config.
+
 ## Cache Path
 
-The current state-transition and render path expects:
+The current state-transition and render path reads `voice_clone_config.json["output_dir"]`. The default compatibility path is:
 
 ```text
 projects/<project_name>/media/voiceovers/qwen/cache.json

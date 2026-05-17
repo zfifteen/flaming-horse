@@ -369,6 +369,62 @@ def test_apply_narration_advances_when_script_has_all_scene_keys() -> None:
         )
 
 
+def test_apply_precache_uses_configured_output_dir() -> None:
+    with tempfile.TemporaryDirectory() as d:
+        tmp = Path(d)
+        project_dir = make_project_dir(tmp)
+
+        write_state_raw(
+            project_dir,
+            json.dumps(
+                {
+                    "project_name": "x",
+                    "topic": "t",
+                    "phase": "precache_voiceovers",
+                    "created_at": "t",
+                    "updated_at": "t",
+                    "run_count": 0,
+                    "plan_file": "plan.json",
+                    "narration_file": "narration_script.py",
+                    "voice_config_file": "voice_clone_config.json",
+                    "scenes": [],
+                    "current_scene_index": 0,
+                    "errors": [],
+                    "history": [],
+                    "flags": {
+                        "needs_human_review": False,
+                        "dry_run": False,
+                        "force_replan": False,
+                    },
+                },
+                indent=2,
+            ),
+        )
+        (project_dir / "voice_clone_config.json").write_text(
+            json.dumps({"output_dir": "media/voiceovers/neutral"}),
+            encoding="utf-8",
+        )
+        cache_dir = project_dir / "media" / "voiceovers" / "neutral"
+        cache_dir.mkdir(parents=True)
+        (cache_dir / "cache.json").write_text("[]", encoding="utf-8")
+
+        cp = run(
+            "--project-dir",
+            str(project_dir),
+            "--mode",
+            "apply",
+            "--phase",
+            "precache_voiceovers",
+        )
+        require(cp.returncode == 0, f"apply precache failed: {cp.stderr}")
+        state = read_state(project_dir)
+        require(state["phase"] == "final_render", "precache should advance")
+        require(
+            "media/voiceovers/neutral" in state["history"][-1]["action"],
+            "history should record configured cache path",
+        )
+
+
 def main() -> int:
     require(UPDATER.exists(), f"missing: {UPDATER}")
 
@@ -379,6 +435,7 @@ def main() -> int:
         test_apply_build_scenes_marks_built,
         test_apply_narration_stays_when_script_missing_scene_keys,
         test_apply_narration_advances_when_script_has_all_scene_keys,
+        test_apply_precache_uses_configured_output_dir,
     ]
 
     for t in tests:

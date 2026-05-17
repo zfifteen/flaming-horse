@@ -24,6 +24,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from tts_backend_config import selected_output_dir
+
 
 PHASE_SEQUENCE = (
     "init",
@@ -54,6 +56,22 @@ def _clear_errors_matching(state: dict, predicate) -> None:
     if not isinstance(errors, list) or not errors:
         return
     state["errors"] = [e for e in errors if not (isinstance(e, str) and predicate(e))]
+
+
+def voice_cache_index_path(project_dir: Path) -> Path:
+    cfg: dict[str, Any] = {}
+    cfg_path = project_dir / "voice_clone_config.json"
+    if cfg_path.exists():
+        try:
+            cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            cfg = {}
+
+    output_dir = selected_output_dir(cfg)
+    output_path = Path(output_dir).expanduser()
+    if not output_path.is_absolute():
+        output_path = project_dir / output_path
+    return output_path / "cache.json"
 
 
 def utc_now() -> str:
@@ -462,8 +480,8 @@ def apply_phase(project_dir: Path, state: dict, phase: str) -> dict:
         return state
 
     if phase == "precache_voiceovers":
-        # Deterministically advance once Qwen cache index exists.
-        cache_index = project_dir / "media" / "voiceovers" / "qwen" / "cache.json"
+        # Deterministically advance once the configured cache index exists.
+        cache_index = voice_cache_index_path(project_dir)
         if cache_index.exists():
             state["phase"] = "final_render"
             state["flags"]["needs_human_review"] = False
@@ -476,7 +494,7 @@ def apply_phase(project_dir: Path, state: dict, phase: str) -> dict:
                 {
                     "timestamp": utc_now(),
                     "phase": "precache_voiceovers",
-                    "action": "Detected media/voiceovers/qwen/cache.json; advanced to final_render (deterministic)",
+                    "action": f"Detected {cache_index}; advanced to final_render (deterministic)",
                 }
             )
             return state
@@ -485,7 +503,7 @@ def apply_phase(project_dir: Path, state: dict, phase: str) -> dict:
         state["phase"] = "precache_voiceovers"
         _add_error_unique(
             state,
-            "precache_voiceovers incomplete: media/voiceovers/qwen/cache.json missing",
+            f"precache_voiceovers incomplete: {cache_index} missing",
         )
         return state
 

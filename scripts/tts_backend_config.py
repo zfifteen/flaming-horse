@@ -14,6 +14,7 @@ VALID_BACKENDS = {"qwen", "mlx"}
 DEFAULT_QWEN_MODEL_ID = "Qwen/Qwen3-TTS-12Hz-1.7B-Base"
 DEFAULT_MLX_MODEL_ID = "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit"
 DEFAULT_OUTPUT_DIR = "media/voiceovers/qwen"
+OUTPUT_DIR_ENV = "FLAMING_HORSE_TTS_OUTPUT_DIR"
 
 
 def _non_empty(value: Any) -> str:
@@ -114,7 +115,7 @@ def build_voice_clone_config(cfg: dict[str, Any] | None = None) -> dict[str, Any
     backend = selected_tts_backend(base)
     worker_python = selected_worker_python_raw(base, backend)
     model_id = selected_model_id(base, backend)
-    output_dir = selected_output_dir(base)
+    output_dir = _env_value(OUTPUT_DIR_ENV) or selected_output_dir(base)
 
     qwen_python = (
         selected_worker_python_raw(base, "qwen")

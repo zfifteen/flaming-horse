@@ -20,6 +20,7 @@ from tts_backend_config import (  # noqa: E402
     DEFAULT_MLX_MODEL_ID,
     build_voice_clone_config,
     selected_model_id,
+    selected_output_dir,
     selected_tts_backend,
     selected_worker_python_raw,
     write_voice_clone_config,
@@ -118,6 +119,22 @@ class TestTtsBackendConfig(unittest.TestCase):
             self.assertEqual(cfg["worker_python"], "/env/mlx/python")
             self.assertEqual(cfg["qwen_python"], "/env/mlx/python")
             self.assertEqual(cfg["output_dir"], "media/voiceovers/qwen")
+
+    def test_output_dir_env_override_is_written_to_new_config(self):
+        env = {
+            "FLAMING_HORSE_TTS_BACKEND": "mlx",
+            "FLAMING_HORSE_MLX_PYTHON": "/env/mlx/python",
+            "FLAMING_HORSE_TTS_OUTPUT_DIR": "media/voiceovers/neutral",
+        }
+        with patch.dict(os.environ, env, clear=True):
+            cfg = build_voice_clone_config({})
+            self.assertEqual(cfg["output_dir"], "media/voiceovers/neutral")
+
+        with patch.dict(os.environ, {}, clear=True):
+            self.assertEqual(
+                selected_output_dir({"output_dir": "media/voiceovers/qwen"}),
+                "media/voiceovers/qwen",
+            )
 
     def test_write_voice_clone_config(self):
         env = {

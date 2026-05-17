@@ -444,30 +444,51 @@ apply_state_phase() {
     >/dev/null
 }
 
+voice_output_dir_abs() {
+  $PYTHON_BIN - "$PROJECT_DIR" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+from tts_backend_config import selected_output_dir
+
+project_dir = Path(sys.argv[1])
+cfg_path = project_dir / "voice_clone_config.json"
+cfg = {}
+if cfg_path.exists():
+    try:
+        cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
+    except Exception:
+        cfg = {}
+
+output_dir = selected_output_dir(cfg)
+output_path = Path(output_dir).expanduser()
+if not output_path.is_absolute():
+    output_path = project_dir / output_path
+print(output_path.resolve())
+PY
+}
+
+voice_cache_index_path() {
+  local output_dir
+  output_dir="$(voice_output_dir_abs)" || return 1
+  printf '%s\n' "${output_dir}/cache.json"
+}
+
+voice_audio_path_for_scene() {
+  local scene_id="$1"
+  local output_dir
+  output_dir="$(voice_output_dir_abs)" || return 1
+  printf '%s\n' "${output_dir}/${scene_id}.mp3"
+}
+
 prepare_rerender_final() {
   [[ -n "${RERENDER_FINAL}" ]] || return 0
 
   echo "→ --rerender-final enabled; forcing fresh voice cache and restarting from precache_voiceovers." | tee -a "$LOG_FILE"
 
   local voice_output_dir
-  voice_output_dir=$($PYTHON_BIN - <<PY
-import json
-from pathlib import Path
-
-project_dir = Path("${PROJECT_DIR}")
-output_dir = "media/voiceovers/qwen"
-cfg_path = project_dir / "voice_clone_config.json"
-if cfg_path.exists():
-    try:
-        cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
-    except Exception:
-        cfg = {}
-    candidate = cfg.get("output_dir")
-    if isinstance(candidate, str) and candidate.strip():
-        output_dir = candidate.strip()
-print(str((project_dir / output_dir).resolve()))
-PY
-)
+  voice_output_dir="$(voice_output_dir_abs)"
 
   if [[ -n "${voice_output_dir}" && -d "${voice_output_dir}" ]]; then
     if [[ "${voice_output_dir}" == "${PROJECT_DIR}"/* ]]; then
@@ -972,7 +993,8 @@ validate_scene_runtime() {
 }
 
 ensure_qwen_cache_index() {
-  local cache_index="${PROJECT_DIR}/media/voiceovers/qwen/cache.json"
+  local cache_index
+  cache_index="$(voice_cache_index_path)" || return 1
   if [[ -f "$cache_index" ]]; then
     return 0
   fi
@@ -1755,7 +1777,9 @@ handle_precache_voiceovers() {
   # Skip entirely if --skip-precache flag is set
   if [[ -n "${SKIP_PRECACHE}" ]]; then
     echo "→ --skip-precache enabled; skipping voice precaching phase." | tee -a "$LOG_FILE"
-    if [[ -f "media/voiceovers/qwen/cache.json" ]]; then
+    local cache_index
+    cache_index="$(voice_cache_index_path)" || return 1
+    if [[ -f "$cache_index" ]]; then
       echo "→ Using existing voice cache." | tee -a "$LOG_FILE"
       apply_state_phase "precache_voiceovers" || true
       return 0
@@ -2125,7 +2149,9 @@ PY
 
   # Ensure voice cache exists (precache step). If missing, generate it now.
   # Skip this check if --skip-precache flag is set.
-  if [[ -z "${SKIP_PRECACHE}" && ! -f "media/voiceovers/qwen/cache.json" ]]; then
+  local cache_index
+  cache_index="$(voice_cache_index_path)" || return 1
+  if [[ -z "${SKIP_PRECACHE}" && ! -f "$cache_index" ]]; then
     echo "→ Missing voice cache index; running precache step..." | tee -a "$LOG_FILE"
     if ! handle_precache_voiceovers; then
       echo "❌ Precaching voiceovers failed; cannot render." | tee -a "$LOG_FILE" >&2
@@ -2415,7 +2441,8 @@ PY
     fi
 
     local out_video="media/videos/${scene_id}/1440p60/${scene_class}.mp4"
-    local scene_audio="media/voiceovers/qwen/${scene_id}.mp3"
+    local scene_audio
+    scene_audio="$(voice_audio_path_for_scene "$scene_id")" || return 1
     local needs_rerender=1
     # Reuse rendered scene only if output verifies and is newer than both source scene code and voice audio.
     if verify_scene_video "$scene_id" "$scene_class"; then
