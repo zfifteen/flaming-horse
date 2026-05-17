@@ -71,7 +71,7 @@ The smoke run did not complete as a successful pipeline run because final QC det
 Current focused checks:
 
 ```bash
-python3 -m py_compile scripts/tts_backend_config.py scripts/prepare_voice_service.py scripts/prepare_qwen_voice.py scripts/precache_voiceovers_qwen.py scripts/qwen_tts_mediator.py scripts/qwen_pipeline_preflight.py flaming_horse_voice/service_factory.py flaming_horse_voice/mlx_tts_service.py scripts/prepare_qwen_voice_worker.py
+python3 -m py_compile scripts/tts_backend_config.py scripts/prepare_voice_service.py scripts/prepare_qwen_voice.py scripts/precache_voiceovers_qwen.py scripts/qwen_tts_mediator.py scripts/qwen_pipeline_preflight.py flaming_horse_voice/service_factory.py flaming_horse_voice/qwen_cached.py flaming_horse_voice/mlx_tts_service.py scripts/prepare_qwen_voice_worker.py
 python3 scripts/test_tts_backend_config.py
 python3 scripts/test_qwen_cached_service.py
 python3 scripts/test_update_project_state.py

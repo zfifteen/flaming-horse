@@ -137,8 +137,7 @@ flaming-horse/
 ├── flaming_horse_voice/             # Voice service implementations
 │   ├── service_factory.py           # get_speech_service() entry point
 │   ├── qwen_cached.py               # QwenCachedService (strict, no fallback)
-│   ├── mlx_cached.py                # MLX TTS cached variant
-│   └── mlx_tts_service.py
+│   └── mlx_tts_service.py           # MLX synthesis worker used before render
 │
 ├── tests/                           # Test suite
 ├── docs/
@@ -335,6 +334,8 @@ Shared Python utilities imported by every generated scene file. All functions ar
 def get_speech_service(project_dir) -> QwenCachedService:
     return QwenCachedService.from_project(project_dir)
 ```
+
+`QwenCachedService` is the backend-neutral render-time cache reader. MLX audio is generated before render and written in the same cache format, so render-time scenes still receive `QwenCachedService`.
 
 **`QwenCachedService`** (extends `manim_voiceover_plus.services.base.SpeechService`):
 
