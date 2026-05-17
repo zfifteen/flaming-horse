@@ -7,7 +7,9 @@ ENV_FILE="${REPO_ROOT}/.env"
 
 if [[ -f "${ENV_FILE}" ]]; then
   # shellcheck disable=SC1090
+  set -a
   source "${ENV_FILE}"
+  set +a
 fi
 
 usage() {
@@ -106,53 +108,7 @@ PROJECT_DIR="${PROJECTS_DIR}/${PROJECT_NAME}"
 mkdir -p "$PROJECT_DIR"
 
 mkdir -p "$PROJECT_DIR/assets/voice_ref"
-python3 - "$PROJECT_DIR/voice_clone_config.json" <<'PY'
-import json
-import os
-import sys
-from pathlib import Path
-
-backend = os.environ.get("FLAMING_HORSE_TTS_BACKEND", "qwen").strip().lower()
-if backend not in {"qwen", "mlx"}:
-    raise SystemExit(
-        f"Invalid FLAMING_HORSE_TTS_BACKEND={backend!r}. Expected 'qwen' or 'mlx'."
-    )
-
-if backend == "mlx":
-    worker_python = (
-        os.environ.get("FLAMING_HORSE_MLX_PYTHON", "").strip()
-        or os.environ.get("PYTHON", "").strip()
-        or sys.executable
-    )
-    model_id = (
-        os.environ.get("FLAMING_HORSE_MLX_MODEL_ID", "").strip()
-        or "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit"
-    )
-else:
-    worker_python = (
-        os.environ.get("FLAMING_HORSE_QWEN_PYTHON", "").strip()
-        or "~/IdeaProjects/flaming-horse/models/qwen3-tts-local/.venv/bin/python"
-    )
-    model_id = (
-        os.environ.get("FLAMING_HORSE_QWEN_MODEL_ID", "").strip()
-        or "Qwen/Qwen3-TTS-12Hz-1.7B-Base"
-    )
-
-cfg = {
-    "backend": backend,
-    "worker_python": worker_python,
-    "qwen_python": worker_python,
-    "model_id": model_id,
-    "device": "cpu",
-    "dtype": "float32",
-    "language": "English",
-    "ref_audio": "assets/voice_ref/ref.wav",
-    "ref_text": "assets/voice_ref/ref.txt",
-    "output_dir": "media/voiceovers/qwen",
-}
-
-Path(sys.argv[1]).write_text(json.dumps(cfg, indent=2) + "\n", encoding="utf-8")
-PY
+python3 "$SCRIPT_DIR/tts_backend_config.py" --write-voice-config "$PROJECT_DIR/voice_clone_config.json"
 
 # Seed per-project voice reference assets if missing.
 # The voice pipeline requires these files to exist on disk.

@@ -1,10 +1,12 @@
 import importlib
 import json
+import os
 import sys
 import tempfile
 import types
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
@@ -76,6 +78,28 @@ class TestQwenCachedService(unittest.TestCase):
             service = self.QwenCachedService.from_project(project)
             self.assertEqual(service.cache_index["intro"], "intro.mp3")
             self.assertEqual(service.text_index["Hello"], "intro.mp3")
+
+    def test_service_factory_rejects_backend_mismatch(self):
+        with tempfile.TemporaryDirectory() as td:
+            project = Path(td)
+            (project / "voice_clone_config.json").write_text(
+                json.dumps(
+                    {
+                        "backend": "mlx",
+                        "worker_python": "/project/mlx/python",
+                        "output_dir": "media/voiceovers/qwen",
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            from flaming_horse_voice.service_factory import get_speech_service
+
+            with patch.dict(
+                os.environ, {"FLAMING_HORSE_TTS_BACKEND": "qwen"}, clear=True
+            ):
+                with self.assertRaisesRegex(ValueError, "TTS backend mismatch"):
+                    get_speech_service(project)
 
 
 if __name__ == "__main__":

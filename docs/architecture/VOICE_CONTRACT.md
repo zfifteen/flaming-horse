@@ -50,7 +50,7 @@ For local macOS MLX, the expected configuration is:
 
 ```text
 FLAMING_HORSE_TTS_BACKEND=mlx
-FLAMING_HORSE_MLX_PYTHON=/Users/velocityworks/IdeaProjects/flaming-horse/.venv/bin/python
+FLAMING_HORSE_MLX_PYTHON=/absolute/path/to/python-with-mlx-audio
 FLAMING_HORSE_MLX_MODEL_ID=mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit
 ```
 
@@ -61,8 +61,8 @@ The default project config produced by `scripts/new_project.sh` records the sele
 ```json
 {
   "backend": "mlx",
-  "worker_python": "/Users/velocityworks/IdeaProjects/flaming-horse/.venv/bin/python",
-  "qwen_python": "/Users/velocityworks/IdeaProjects/flaming-horse/.venv/bin/python",
+  "worker_python": "/absolute/path/to/python-with-mlx-audio",
+  "qwen_python": "/absolute/path/to/python-with-mlx-audio",
   "model_id": "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit",
   "device": "cpu",
   "dtype": "float32",

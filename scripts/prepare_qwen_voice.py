@@ -144,16 +144,19 @@ def main() -> int:
 
     cfg = load_json(cfg_path)
 
-    backend = selected_tts_backend(cfg)
-    model_id = selected_model_id(cfg, backend)
+    try:
+        backend = selected_tts_backend(cfg)
+        model_id = selected_model_id(cfg, backend)
+        # Do NOT call .resolve() here.
+        # venv python binaries are often symlinks to the base interpreter; resolving
+        # would bypass the venv and break imports (e.g. qwen_tts).
+        python_path_raw = selected_worker_python_raw(cfg, backend)
+        python_path = selected_worker_python(cfg, backend)
+    except ValueError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 2
     device = cfg.get("device", "cpu")
     dtype_str = cfg.get("dtype", "float32")
-
-    # Do NOT call .resolve() here.
-    # venv python binaries are often symlinks to the base interpreter; resolving
-    # would bypass the venv and break imports (e.g. qwen_tts).
-    python_path_raw = selected_worker_python_raw(cfg, backend)
-    python_path = selected_worker_python(cfg, backend)
     if not python_path.exists():
         label = "FLAMING_HORSE_MLX_PYTHON" if backend == "mlx" else "qwen_python"
         print(f"ERROR: {label} not found: {python_path}", file=sys.stderr)

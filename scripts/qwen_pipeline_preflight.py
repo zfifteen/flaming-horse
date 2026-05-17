@@ -148,8 +148,12 @@ def main() -> int:
 
     cfg = load_json(cfg_path)
 
-    backend = selected_tts_backend(cfg)
-    model_id = selected_model_id(cfg, backend)
+    try:
+        backend = selected_tts_backend(cfg)
+        model_id = selected_model_id(cfg, backend)
+        worker_python = selected_worker_python(cfg, backend)
+    except ValueError as exc:
+        fail(str(exc))
     device = str(cfg.get("device", "cpu"))
     dtype_str = str(cfg.get("dtype", "float32"))
     output_dir_rel = selected_output_dir(cfg)
@@ -159,7 +163,6 @@ def main() -> int:
     if backend == "qwen" and dtype_str != "float32":
         fail(f"voice_clone_config.json requires dtype='float32', got: {dtype_str!r}")
 
-    worker_python = selected_worker_python(cfg, backend)
     if not worker_python.exists():
         label = "FLAMING_HORSE_MLX_PYTHON" if backend == "mlx" else "qwen_python"
         fail(f"{label} path not found: {worker_python}")

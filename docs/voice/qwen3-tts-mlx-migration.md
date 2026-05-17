@@ -18,14 +18,14 @@ Do not use the older `FLAMING_HORSE_VOICE_SERVICE=mlx` migration path. Do not ma
 
 ## Expected macOS Configuration
 
-The local MLX path uses the repository virtual environment:
+The local MLX path uses an explicit Python environment with MLX audio dependencies:
 
 ```bash
-export FLAMING_HORSE_TTS_BACKEND=mlx
-export FLAMING_HORSE_MLX_PYTHON=/Users/velocityworks/IdeaProjects/flaming-horse/.venv/bin/python
-export FLAMING_HORSE_MLX_MODEL_ID=mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit
-export HF_HUB_OFFLINE=1
-export TRANSFORMERS_OFFLINE=1
+FLAMING_HORSE_TTS_BACKEND=mlx
+FLAMING_HORSE_MLX_PYTHON=/absolute/path/to/python-with-mlx-audio
+FLAMING_HORSE_MLX_MODEL_ID=mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit
+HF_HUB_OFFLINE=1
+TRANSFORMERS_OFFLINE=1
 ```
 
 `scripts/create_video.sh` sources `.env` with exported environment semantics before calling child scripts, so these values are visible to project creation, voice preparation, voice precaching, render, and assembly.
@@ -37,8 +37,8 @@ Project creation writes a backend-aware `voice_clone_config.json`:
 ```json
 {
   "backend": "mlx",
-  "worker_python": "/Users/velocityworks/IdeaProjects/flaming-horse/.venv/bin/python",
-  "qwen_python": "/Users/velocityworks/IdeaProjects/flaming-horse/.venv/bin/python",
+  "worker_python": "/absolute/path/to/python-with-mlx-audio",
+  "qwen_python": "/absolute/path/to/python-with-mlx-audio",
   "model_id": "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit",
   "output_dir": "media/voiceovers/qwen"
 }

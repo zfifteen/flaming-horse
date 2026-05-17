@@ -1,6 +1,7 @@
 import ast
 import hashlib
 import json
+import os
 import subprocess
 from pathlib import Path
 from typing import Dict, Optional
@@ -10,11 +11,12 @@ from manim_voiceover_plus.services.base import SpeechService
 
 
 class MLXCachedService(SpeechService):
-    MLX_PYTHON = "/Users/velocityworks/IdeaProjects/flaming-horse/models/qwen3-tts-local/mlx_env312/bin/python"
+    REPO_ROOT = Path(__file__).resolve().parents[1]
+    MLX_PYTHON = os.environ.get("FLAMING_HORSE_MLX_PYTHON", "")
     SERVICE_SCRIPT = str(Path(__file__).with_name("mlx_tts_service.py"))
     DEFAULT_MODEL_ID = "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit"
-    REF_AUDIO = "/Users/velocityworks/IdeaProjects/flaming-horse/models/qwen3-tts-local/voice_ref/ref.wav"
-    REF_TEXT_FILE = REF_AUDIO.replace(".wav", ".txt")
+    REF_AUDIO = str(REPO_ROOT / "assets" / "voice_ref" / "ref.wav")
+    REF_TEXT_FILE = str(Path(REF_AUDIO).with_suffix(".txt"))
 
     @staticmethod
     def _load_script(script_path: Path) -> Dict[str, str]:

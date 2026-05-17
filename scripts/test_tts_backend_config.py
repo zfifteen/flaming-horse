@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import os
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -17,9 +18,11 @@ if str(SCRIPTS_DIR) not in sys.path:
 
 from tts_backend_config import (  # noqa: E402
     DEFAULT_MLX_MODEL_ID,
+    build_voice_clone_config,
     selected_model_id,
     selected_tts_backend,
     selected_worker_python_raw,
+    write_voice_clone_config,
 )
 
 
@@ -28,7 +31,8 @@ class TestTtsBackendConfig(unittest.TestCase):
         cfg = {
             "backend": "mlx",
             "qwen_python": "/missing/qwen/python",
-            "model_id": "Qwen/Qwen3-TTS-12Hz-1.7B-Base",
+            "worker_python": "/project/mlx/python",
+            "model_id": DEFAULT_MLX_MODEL_ID,
         }
         env = {
             "FLAMING_HORSE_TTS_BACKEND": "mlx",
@@ -41,6 +45,19 @@ class TestTtsBackendConfig(unittest.TestCase):
                 "/repo/.venv/bin/python",
             )
             self.assertEqual(selected_model_id(cfg, "mlx"), DEFAULT_MLX_MODEL_ID)
+
+    def test_mlx_backend_ignores_generic_python(self):
+        cfg = {
+            "backend": "mlx",
+            "worker_python": "/project/mlx/python",
+            "model_id": DEFAULT_MLX_MODEL_ID,
+        }
+        env = {"PYTHON": "/wrong/orchestrator/python"}
+        with patch.dict(os.environ, env, clear=True):
+            self.assertEqual(
+                selected_worker_python_raw(cfg, "mlx"),
+                "/project/mlx/python",
+            )
 
     def test_project_config_selects_backend_when_env_is_unset(self):
         cfg = {
@@ -55,22 +72,63 @@ class TestTtsBackendConfig(unittest.TestCase):
                 "/repo/.venv/bin/python",
             )
 
+    def test_missing_mlx_worker_python_fails(self):
+        cfg = {"backend": "mlx", "model_id": DEFAULT_MLX_MODEL_ID}
+        with patch.dict(os.environ, {}, clear=True):
+            with self.assertRaisesRegex(ValueError, "Missing MLX worker Python"):
+                selected_worker_python_raw(cfg, "mlx")
+
+    def test_backend_env_config_mismatch_fails(self):
+        cfg = {"backend": "mlx", "worker_python": "/project/mlx/python"}
+        with patch.dict(
+            os.environ, {"FLAMING_HORSE_TTS_BACKEND": "qwen"}, clear=True
+        ):
+            with self.assertRaisesRegex(ValueError, "TTS backend mismatch"):
+                selected_tts_backend(cfg)
+
     def test_qwen_backend_uses_qwen_python(self):
         cfg = {
             "backend": "qwen",
-            "qwen_python": "/qwen/.venv/bin/python",
+            "qwen_python": "/project/qwen/python",
             "model_id": "Qwen/Qwen3-TTS-12Hz-1.7B-Base",
         }
-        with patch.dict(os.environ, {"FLAMING_HORSE_TTS_BACKEND": "qwen"}, clear=True):
+        env = {
+            "FLAMING_HORSE_TTS_BACKEND": "qwen",
+            "FLAMING_HORSE_QWEN_PYTHON": "/env/qwen/python",
+        }
+        with patch.dict(os.environ, env, clear=True):
             self.assertEqual(selected_tts_backend(), "qwen")
             self.assertEqual(
                 selected_worker_python_raw(cfg, "qwen"),
-                "/qwen/.venv/bin/python",
+                "/env/qwen/python",
             )
             self.assertEqual(
                 selected_model_id(cfg, "qwen"),
                 "Qwen/Qwen3-TTS-12Hz-1.7B-Base",
             )
+
+    def test_build_voice_clone_config_uses_shared_precedence(self):
+        env = {
+            "FLAMING_HORSE_TTS_BACKEND": "mlx",
+            "FLAMING_HORSE_MLX_PYTHON": "/env/mlx/python",
+        }
+        with patch.dict(os.environ, env, clear=True):
+            cfg = build_voice_clone_config({})
+            self.assertEqual(cfg["backend"], "mlx")
+            self.assertEqual(cfg["worker_python"], "/env/mlx/python")
+            self.assertEqual(cfg["qwen_python"], "/env/mlx/python")
+            self.assertEqual(cfg["output_dir"], "media/voiceovers/qwen")
+
+    def test_write_voice_clone_config(self):
+        env = {
+            "FLAMING_HORSE_TTS_BACKEND": "mlx",
+            "FLAMING_HORSE_MLX_PYTHON": "/env/mlx/python",
+        }
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "voice_clone_config.json"
+            with patch.dict(os.environ, env, clear=True):
+                write_voice_clone_config(path)
+            self.assertIn('"backend": "mlx"', path.read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":

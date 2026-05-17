@@ -10,15 +10,17 @@ from mlx_audio.tts.generate import generate_audio
 from mlx_audio.tts.utils import load_model
 
 # Config (env overrides optional; backward-compatible defaults)
+REPO_ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_REF_AUDIO = REPO_ROOT / "assets" / "voice_ref" / "ref.wav"
 MODEL_ID = os.environ.get(
     "MLX_MODEL_ID",
     sys.argv[2] if len(sys.argv) > 2 else "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit",
 )
 REF_AUDIO = os.environ.get(
-    "MLX_REF_AUDIO", "/Users/velocityworks/IdeaProjects/flaming-horse/models/qwen3-tts-local/voice_ref/ref.wav"
+    "MLX_REF_AUDIO", str(DEFAULT_REF_AUDIO)
 )
 REF_TEXT = os.environ.get("MLX_REF_TEXT")
-if REF_TEXT is None:
+if not REF_TEXT:
     REF_TEXT = Path(REF_AUDIO.replace(".wav", ".txt")).read_text(
         encoding="utf-8"
     ).strip()

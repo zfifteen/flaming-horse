@@ -54,11 +54,16 @@ def main() -> int:
         return 2
 
     cfg_path = project_dir / "voice_clone_config.json"
-    cfg = {}
-    if cfg_path.exists():
-        cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
+    if not cfg_path.exists():
+        print(f"ERROR: Missing {cfg_path}", file=sys.stderr)
+        return 2
+    cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
 
-    backend = selected_tts_backend(cfg)
+    try:
+        backend = selected_tts_backend(cfg)
+    except ValueError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 2
     print(f"→ Preparing cached voice service (backend: {backend})")
     return prepare_qwen_service(project_dir, args.force)
 
