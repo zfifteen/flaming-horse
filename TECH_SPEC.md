@@ -17,8 +17,8 @@
    - 5.2 [Project Initialization — `scripts/new_project.sh` and `scripts/create_video.sh`](#52-project-initialization--scriptsnew_projectsh-and-scriptscreate_videosh)
    - 5.3 [State Authority — `scripts/update_project_state.py`](#53-state-authority--scriptsupdate_project_statepy)
    - 5.4 [Scene Scaffolding — `scripts/scaffold_scene.py`](#54-scene-scaffolding--scriptsscaffold_scenepy)
-   - 5.5 [Legacy Harness — `harness/`](#55-legacy-harness--harness)
-   - 5.6 [Responses API Harness — `harness_responses/`](#56-responses-api-harness--harness_responses)
+   - 5.5 [Responses API Harness — `harness_responses/`](#55-responses-api-harness--harness_responses)
+   - 5.6 [Historical Harness Notes](#56-historical-harness-notes)
    - 5.7 [Scene Helpers — `flaming_horse/scene_helpers.py`](#57-scene-helpers--flaming_horsescene_helperspy)
    - 5.8 [Voice Services — `flaming_horse_voice/`](#58-voice-services--flaming_horse_voice)
 6. [Prompt Architecture](#6-prompt-architecture)
@@ -36,7 +36,7 @@
 13. [Voice Policy](#13-voice-policy)
 14. [Testing](#14-testing)
 15. [Render and Assembly](#15-render-and-assembly)
-16. [Harness Selection Seam — `FH_HARNESS`](#16-harness-selection-seam--fh_harness)
+16. [Harness Runtime Contract](#16-harness-runtime-contract)
 17. [Known Constraints and Risk Areas](#17-known-constraints-and-risk-areas)
 
 ---
@@ -48,7 +48,7 @@ Flaming Horse is a **deterministic, script-orchestrated pipeline** that converts
 The pipeline integrates:
 
 - **Bash orchestration** — a phased state machine that drives every stage from project creation through final video assembly.
-- **LLM agent harness** — a provider-agnostic harness (`harness/`) that composes phase-specific prompts, calls the LLM API, parses structured outputs, and writes artifacts to disk. A second, isolated harness (`harness_responses/`) is under active development to use the xAI Responses API with schema-constrained structured outputs.
+- **LLM agent harness** — the live `harness_responses/` package composes phase-specific prompts, calls xAI through the Responses API, parses schema-constrained outputs, and writes artifacts to disk.
 - **Manim CE** — all visual animation is generated as Python scene files and rendered by Manim at 1440p60.
 - **Qwen TTS** — a cached local voice clone (Qwen3-TTS-12Hz-1.7B-Base) provides all narration audio. There is no fallback TTS service.
 - **FFmpeg** — renders are assembled into a single `final_video.mp4` using a concat filter with audio/video timestamp normalization.
@@ -68,8 +68,7 @@ The pipeline integrates:
 | Layer | Technology | Notes |
 |---|---|---|
 | Orchestration | Bash (`set -Eeuo pipefail`) | Python 3.13 enforced |
-| LLM Integration (legacy) | HTTP to OpenAI-compatible `/chat/completions` | XAI, MiniMax, Ollama |
-| LLM Integration (new) | `xai_sdk` via `/v1/responses` | `harness_responses/` only |
+| LLM Integration | `xai_sdk` via `/v1/responses` | `harness_responses/` only |
 | Animation engine | Manim Community Edition | 2560×1440 (16:9), 60fps |
 | Voice synthesis | Qwen/Qwen3-TTS-12Hz-1.7B-Base (local) | Cached pre-generation; no runtime TTS calls |
 | Video assembly | FFmpeg | concat filter + `aresample=async=1` |
@@ -105,25 +104,7 @@ flaming-horse/
 │   ├── state_schema.json            # JSON Schema for project_state.json
 │   └── ...
 │
-├── harness/                         # Legacy LLM harness (Chat Completions)
-│   ├── cli.py                       # Argparse CLI and main()
-│   ├── __main__.py                  # python -m harness entry
-│   ├── client.py                    # Provider-agnostic LLM API client
-│   ├── prompts.py                   # Phase-specific prompt composer
-│   ├── parser.py                    # Response parser and artifact writer
-│   ├── prompts/                     # Modular prompt assets (one dir per phase)
-│   │   ├── 00_plan/
-│   │   ├── 01_review/
-│   │   ├── 02_narration/
-│   │   ├── 04_build_scenes/
-│   │   ├── 05_scene_qc/
-│   │   ├── 06_scene_repair/
-│   │   └── _shared/
-│   ├── templates/                   # Reference templates (kitchen sink, etc.)
-│   └── util/
-│       └── layout_validator.py
-│
-├── harness_responses/               # New isolated xAI Responses API harness
+├── harness_responses/               # Live xAI Responses API harness
 │   ├── cli.py
 │   ├── client.py                    # Uses xai_sdk chat.parse()
 │   ├── parser.py
@@ -262,57 +243,29 @@ Generates a deterministic `scene_<N>_<slug>.py` file containing:
 
 The scaffold is the contract between the orchestrator and the LLM: the harness injects only the scene body (pure Python statements, no imports, no class wrapper) into the slot; everything outside the slot is orchestrator-owned and never modified by the agent.
 
-### 5.5 Legacy Harness — `harness/`
+### 5.5 Responses API Harness — `harness_responses/`
 
-**Invoked as:** `python3 -m harness --phase <phase> --project-dir <path> [options]`
-
-**Components:**
-
-| File | Responsibility |
-|---|---|
-| `cli.py` | Argument parsing, project state loading, prompt composition, LLM call, response parsing, conversation log, exit codes |
-| `client.py` | `LLMClient` class — provider-agnostic HTTP client to any OpenAI-compatible `/chat/completions` endpoint |
-| `prompts.py` | `compose_prompt(phase, state, ...)` — assembles `(system_prompt, user_prompt)` from modular `system.md`/`user.md` files with `{{placeholder}}` rendering |
-| `parser.py` | `parse_and_write_artifacts(phase, response_text, project_dir, state)` — extracts JSON/Python from free-form LLM response, validates, writes to disk |
-
-**Supported phases:** `plan`, `narration`, `build_scenes`, `scene_qc`, `scene_repair`
-
-**Dry-run mode:** `--dry-run` prints prompt sizes and first 500 chars of each prompt without calling the API; writes to `log/conversation.log`.
-
-**Temperature:** Controlled by `AGENT_TEMPERATURE` env var (default: `0.7`; clamped to [0.0, 2.0]).
-
-**LLM Client details (`client.py`):**
-
-- Supported providers: `XAI`, `MINIMAX`, `OLLAMA` (configured via `LLM_PROVIDER`).
-- Default models: XAI → `grok-code-fast-1`; MiniMax → `MiniMax-M2.5`; Ollama → `qwen2.5-coder:7b`.
-- `max_tokens`: 16,000.
-- Request timeout: 300 seconds.
-- Retry: 3 attempts with exponential backoff (2s × 2^attempt) on 429, 5xx, and transient connection errors.
-- 4xx client errors (except 429) fail immediately.
-
-**Backward-compatible aliases:** `XAIClient = LLMClient`, `call_xai_api = call_llm_api`.
-
-### 5.6 Responses API Harness — `harness_responses/`
-
-A fully isolated second harness that uses the xAI Responses API (`/v1/responses`) via the `xai_sdk` Python package.
+The live harness uses the xAI Responses API (`/v1/responses`) via the `xai_sdk` Python package.
 
 **Key architectural differences from legacy harness:**
 
-| Aspect | Legacy `harness/` | `harness_responses/` |
-|---|---|---|
-| API shape | OpenAI `/chat/completions` | xAI `/v1/responses` |
-| Structured output | Free-form parsing in `parser.py` | API-enforced via `chat.parse()` + Pydantic schemas |
-| Schema models | None | `harness_responses/schemas/` Pydantic models |
-| Isolation | — | Zero imports from `harness/`; enforced by AST-based isolation test |
+| Aspect | Current behavior |
+|---|---|
+| API shape | xAI `/v1/responses` |
+| Structured output | API-enforced via `chat.parse()` + Pydantic schemas |
+| Schema models | `harness_responses/schemas/` Pydantic models |
+| Isolation | Zero imports from legacy harness code |
 
-**Current rollout status:** Phase 1 — `plan` phase wired end-to-end.
+**Implemented phases:** `plan`, `narration`, `build_scenes`, `scene_qc`, `scene_repair`.
 
 **Exit code contract (harness_responses):**
 - `0` — success
 - `1` — general / recoverable error (retryable)
 - `2` — `SemanticValidationError` (business rule violation, retryable)
 
-See [Section 16](#16-harness-selection-seam--fh_harness) for harness selection.
+### 5.6 Historical Harness Notes
+
+Older documents under `docs/harness/` and prior audit folders describe a legacy chat-completions harness. Those documents are historical references, not the current orchestrator contract.
 
 ### 5.7 Scene Helpers — `flaming_horse/scene_helpers.py`
 
@@ -649,7 +602,7 @@ On retry exhaustion, `mark_retry_exhausted()` sets `flags.needs_human_review = t
 
 For scene build failures and pre-render syntax failures, the orchestrator invokes `repair_scene_until_valid(scene_id, scene_file, scene_class, failure_reason)`. This:
 1. Extracts the recent error from the log.
-2. Invokes `python3 -m harness --phase scene_repair --scene-file <path> --retry-context "<error>"`.
+2. Invokes the live Responses harness with `--phase scene_repair --scene-file <path> --retry-context "<error>"`.
 3. After each repair, runs the full validation chain.
 4. Repeats up to `$PHASE_RETRY_LIMIT` times.
 
@@ -913,18 +866,9 @@ These values are locked in the scaffold and must not be modified by the agent.
 
 ---
 
-## 16. Harness Selection Seam — `FH_HARNESS`
+## 16. Harness Runtime Contract
 
-`build_video.sh` reads `FH_HARNESS` (default: `legacy`) to select which harness to invoke for agent phases:
-
-| Value | Harness invoked | Entry point |
-|---|---|---|
-| `legacy` (default) | `harness/` | `python3 -m harness` |
-| `responses` | `harness_responses/` | `python3 -m harness_responses` |
-
-When `FH_HARNESS=legacy` (or unset), all existing pipeline behavior is unchanged.
-
-The `harness_responses/` harness is currently implemented for the `plan` phase only (Phase 1 rollout). Phases not yet implemented in `harness_responses/` fall back to the legacy harness or exit with an unsupported-phase error, depending on orchestrator logic.
+`build_video.sh` invokes the live `harness_responses/` package for agent phases. There is no active harness selection seam in the current orchestrator.
 
 ---
 
@@ -937,6 +881,6 @@ The `harness_responses/` harness is currently implemented for the `plan` phase o
 | **Voice cache completeness** | `final_render` will fail if `cache.json` is absent or incomplete. The `precache_voiceovers` phase must run (and succeed) before render. |
 | **Single-machine rendering** | Scenes are rendered sequentially on one machine. Parallel rendering is configurable via `PARALLEL_RENDERS` but is experimental. |
 | **Manim version pinning** | Manim API surface is large; scene code is generated against Manim CE. Version drift between the model's training data and the installed version may produce `AttributeError`/`ImportError` failures during render. The scene_repair loop addresses these at runtime. |
-| **Documentation drift** | Some `harness/README.md` sections describe an older file layout (duplicate `prompt_templates/` listing). The authoritative structure is `harness/prompts/<NN_phase>/`. |
+| **Documentation drift** | Historical docs under `docs/harness/` and older audit folders describe the previous harness. The active local-agent contract lives in `AGENTS.md` and `docs/architecture/*.md`. |
 | **`review` phase stub** | The `review` phase is structurally present in the pipeline and state schema but currently performs only deterministic structural checks (plan.json shape validation). No LLM call is made for this phase. |
-| **`harness_responses/` partial rollout** | Only `plan` is fully wired in `harness_responses/`. Other phases are not yet implemented. `FH_HARNESS=responses` should only be used when this is understood. |
+| **`harness_responses/` scope** | The live harness implements `plan`, `narration`, `build_scenes`, `scene_qc`, and `scene_repair`. |
