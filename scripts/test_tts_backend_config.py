@@ -110,6 +110,18 @@ class TestTtsBackendConfig(unittest.TestCase):
                 "Qwen/Qwen3-TTS-12Hz-1.7B-Base",
             )
 
+    def test_qwen_backend_accepts_worker_python_fallback(self):
+        cfg = {
+            "backend": "qwen",
+            "worker_python": "/project/neutral/python",
+            "model_id": "Qwen/Qwen3-TTS-12Hz-1.7B-Base",
+        }
+        with patch.dict(os.environ, {}, clear=True):
+            self.assertEqual(
+                selected_worker_python_raw(cfg, "qwen"),
+                "/project/neutral/python",
+            )
+
     def test_build_voice_clone_config_uses_shared_precedence(self):
         env = {
             "FLAMING_HORSE_TTS_BACKEND": "mlx",

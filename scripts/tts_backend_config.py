@@ -86,9 +86,13 @@ def selected_worker_python_raw(cfg: dict[str, Any], backend: str) -> str:
     configured = _non_empty(cfg.get("qwen_python"))
     if configured:
         return configured
+    configured = _non_empty(cfg.get("worker_python"))
+    if configured:
+        return configured
     raise ValueError(
         "Missing Qwen worker Python. Set FLAMING_HORSE_QWEN_PYTHON or "
-        'voice_clone_config.json["qwen_python"].'
+        'voice_clone_config.json["qwen_python"] or '
+        'voice_clone_config.json["worker_python"].'
     )
 
 
