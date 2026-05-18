@@ -17,7 +17,7 @@
    - 5.2 [Project Initialization — `scripts/new_project.sh` and `scripts/create_video.sh`](#52-project-initialization--scriptsnew_projectsh-and-scriptscreate_videosh)
    - 5.3 [State Authority — `scripts/update_project_state.py`](#53-state-authority--scriptsupdate_project_statepy)
    - 5.4 [Scene Scaffolding — `scripts/scaffold_scene.py`](#54-scene-scaffolding--scriptsscaffold_scenepy)
-   - 5.5 [Responses API Harness — `harness_responses/`](#55-responses-api-harness--harness_responses)
+   - 5.5 [Grok CLI Harness — `harness_responses/`](#55-grok-cli-harness--harness_responses)
    - 5.6 [Historical Harness Notes](#56-historical-harness-notes)
    - 5.7 [Scene Helpers — `flaming_horse/scene_helpers.py`](#57-scene-helpers--flaming_horsescene_helperspy)
    - 5.8 [Voice Services — `flaming_horse_voice/`](#58-voice-services--flaming_horse_voice)
@@ -48,7 +48,7 @@ Flaming Horse is a **deterministic, script-orchestrated pipeline** that converts
 The pipeline integrates:
 
 - **Bash orchestration** — a phased state machine that drives every stage from project creation through final video assembly.
-- **LLM agent harness** — the live `harness_responses/` package composes phase-specific prompts, calls xAI through the Responses API, parses schema-constrained outputs, and writes artifacts to disk.
+- **LLM agent harness** — the live `harness_responses/` package composes phase-specific prompts, invokes the local Grok Build CLI, validates staged JSON against schemas, and writes artifacts through deterministic parser code.
 - **Manim CE** — all visual animation is generated as Python scene files and rendered by Manim at 1440p60.
 - **Qwen TTS** — a cached local voice clone (Qwen3-TTS-12Hz-1.7B-Base) provides all narration audio. There is no fallback TTS service.
 - **FFmpeg** — renders are assembled into a single `final_video.mp4` using a concat filter with audio/video timestamp normalization.
@@ -68,7 +68,7 @@ The pipeline integrates:
 | Layer | Technology | Notes |
 |---|---|---|
 | Orchestration | Bash (`set -Eeuo pipefail`) | Python 3.13 enforced |
-| LLM Integration | `xai_sdk` via `/v1/responses` | `harness_responses/` only |
+| LLM Integration | Local Grok Build CLI | `harness_responses/` only |
 | Animation engine | Manim Community Edition | 2560×1440 (16:9), 60fps |
 | Voice synthesis | Qwen/Qwen3-TTS-12Hz-1.7B-Base (local) | Cached pre-generation; no runtime TTS calls |
 | Video assembly | FFmpeg | concat filter + `aresample=async=1` |
@@ -104,9 +104,9 @@ flaming-horse/
 │   ├── state_schema.json            # JSON Schema for project_state.json
 │   └── ...
 │
-├── harness_responses/               # Live xAI Responses API harness
+├── harness_responses/               # Live local Grok CLI harness
 │   ├── cli.py
-│   ├── client.py                    # Uses xai_sdk chat.parse()
+│   ├── client.py                    # Invokes grok and reads staged JSON
 │   ├── parser.py
 │   ├── prompts.py
 │   ├── schemas/                     # Pydantic models for structured output
@@ -243,16 +243,19 @@ Generates a deterministic `scene_<N>_<slug>.py` file containing:
 
 The scaffold is the contract between the orchestrator and the LLM: the harness injects only the scene body (pure Python statements, no imports, no class wrapper) into the slot; everything outside the slot is orchestrator-owned and never modified by the agent.
 
-### 5.5 Responses API Harness — `harness_responses/`
+### 5.5 Grok CLI Harness — `harness_responses/`
 
-The live harness uses the xAI Responses API (`/v1/responses`) via the `xai_sdk` Python package.
+The live harness uses the local Grok Build CLI from the project log directory
+with Grok's `workspace` sandbox. Grok may read repository and project files
+directly, but sandboxed writes are limited to the log directory and the staged
+JSON response file the harness validates and promotes.
 
 **Key architectural differences from legacy harness:**
 
 | Aspect | Current behavior |
 |---|---|
-| API shape | xAI `/v1/responses` |
-| Structured output | API-enforced via `chat.parse()` + Pydantic schemas |
+| Backend shape | Local CLI prompt-file call plus staged JSON file |
+| Structured output | Harness-enforced via Pydantic schemas over staged JSON |
 | Schema models | `harness_responses/schemas/` Pydantic models |
 | Isolation | Zero imports from legacy harness code |
 
@@ -635,18 +638,13 @@ After `assemble`, `qc_final_video.sh` checks audio/video duration ratios per sce
 
 All variables are set in `.env` (sourced by `build_video.sh`) or as shell exports. See `.env.example` for annotated defaults.
 
-### LLM Provider
+### Grok CLI Harness
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `LLM_PROVIDER` | `XAI` | Active provider: `XAI`, `MINIMAX`, or `OLLAMA` |
-| `XAI_API_KEY` | — | xAI API key (required when `LLM_PROVIDER=XAI`) |
-| `MINIMAX_API_KEY` | — | MiniMax API key (required when `LLM_PROVIDER=MINIMAX`) |
-| `XAI_BASE_URL` | `https://api.x.ai/v1` | xAI endpoint override |
-| `MINIMAX_BASE_URL` | `https://api.minimax.io/v1` | MiniMax endpoint override |
-| `XAI_MODEL` | `grok-code-fast-1` | xAI model override |
-| `MINIMAX_MODEL` | `MiniMax-M2.5` | MiniMax model override |
-| `AGENT_MODEL` | `xai/grok-4-1-fast` | Global fallback model (used by `build_video.sh` default) |
+| `GROK_MODEL` | `grok-build` | Local Grok CLI model ID |
+| `GROK_CLI` | `grok` on PATH | Optional absolute path to the Grok CLI executable |
+| `GROK_CLI_TIMEOUT_SECONDS` | `900` | Per-phase Grok CLI timeout in seconds |
 | `AGENT_TEMPERATURE` | `0.7` | Sampling temperature; clamped to [0.0, 2.0] |
 
 ### Pipeline Behavior
@@ -658,7 +656,6 @@ All variables are set in `.env` (sourced by `build_video.sh`) or as shell export
 | `PHASE_RETRY_LIMIT` | `3` | Maximum retries per phase or scene |
 | `PHASE_RETRY_BACKOFF_SECONDS` | `2` | Sleep between retry attempts |
 | `PYTHON` / `PYTHON3` | `python3.13` | Python interpreter override |
-| `FH_HARNESS` | `legacy` | Harness selection: `legacy` or `responses` |
 
 ### Voice
 
@@ -701,7 +698,7 @@ All variables are set in `.env` (sourced by `build_video.sh`) or as shell export
 | `2` | Parse failure — could not extract valid artifacts | Retry |
 | `3` | Schema validation error — structured output malformed | No retry; writes to `log/debug_response_<phase>.txt`; records to `project_state.json.errors` |
 
-### Responses API Harness (`harness_responses/`)
+### Grok CLI Harness (`harness_responses/`)
 
 | Code | Meaning |
 |---|---|
@@ -720,6 +717,8 @@ All variables are set in `.env` (sourced by `build_video.sh`) or as shell export
 | `log/build.log` | Full stdout/stderr from all phases, harness calls, validation steps |
 | `log/error.log` | Error events with timestamps and extracted stack traces |
 | `log/conversation.log` | Full system prompt + user prompt + assistant response for every harness call |
+| `log/grok_prompt_<phase>_<timestamp>.md` | Prompt file passed to the local Grok CLI |
+| `log/grok_response_<phase>_<timestamp>.json` | Staged JSON response written by Grok and validated by the harness |
 | `log/heartbeat.txt` | Updated every `HEARTBEAT_INTERVAL_SECONDS` with current phase, stage, scene, attempt, PID |
 | `log/crash_diag.log` | Structured diagnostic entries from `diagnostics_log()` — phase, stage, scene, iteration, attempt, error |
 | `log/debug_response_<phase>.txt` | Raw model response on parse/schema failures |
@@ -733,7 +732,7 @@ Each entry in `log/conversation.log`:
 ============================================================
 timestamp_utc: <ISO 8601>
 phase: <phase>
-status: api_success | dry_run | error
+status: cli_success | dry_run | error
 [error: <message>]
 
 ----- SYSTEM PROMPT -----
@@ -813,7 +812,7 @@ The `precache_voiceovers` phase runs `scripts/precache_voiceovers_qwen.py`, whic
 | Phase vocabulary | `test_phase_vocabulary.py` | `pytest tests/test_phase_vocabulary.py` | No |
 | Kitchen sink scenes | `test_kitchen_sink_scenes.py` | `pytest tests/test_kitchen_sink_scenes.py` | No |
 | E2E scaffold workflow | `test_e2e_scaffold_workflow.py` | `pytest tests/test_e2e_scaffold_workflow.py` | No |
-| Live API E2E | `test_harness_e2e.sh` | `bash tests/test_harness_e2e.sh` | **Yes** (`XAI_API_KEY` required) |
+| Live Grok CLI E2E | `test_harness_e2e.sh` | `bash tests/test_harness_e2e.sh` | **Yes** (authenticated `grok` CLI required) |
 | `harness_responses` isolation | `tests/harness_responses/test_plan_phase.py` | `pytest tests/harness_responses/` | No |
 
 ### Key Test Assertions

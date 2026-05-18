@@ -11,7 +11,6 @@ Covers:
 """
 
 import json
-import builtins
 import runpy
 import sys
 from pathlib import Path
@@ -23,7 +22,6 @@ import harness_responses.cli as hr_cli
 import harness_responses.client as hr_client
 import harness_responses.parser as hr_parser
 import harness_responses.prompts as hr_prompts
-from harness_responses.collections import CollectionSearchResult
 from harness_responses.schemas.build_scenes import BuildScenesResponse
 from harness_responses.schemas.narration import NarrationResponse
 from harness_responses.schemas.plan import PlanResponse, SceneItem
@@ -302,253 +300,157 @@ class TestSemanticValidation:
         assert "validation_error" in data
 
 
-class TestResponsesClient:
+class TestGrokCliClient:
     class _DummySchema(BaseModel):
         ok: str
 
-    class _FakeChat:
-        def __init__(self, raw_content: str, outer):
-            self.raw_content = raw_content
-            self.outer = outer
-
-        def append(self, msg):
-            self.outer.setdefault("appended_messages", []).append(msg)
-            return None
-
-        def sample(self):
-            response = _MockResponse(self.raw_content)
-            response.id = self.outer.get("response_id", "mock_response_id_123")
-            return response
-
-    class _FakeChatFactory:
-        def __init__(self, outer):
-            self.outer = outer
-
-        def create(self, model, **kwargs):
-            self.outer["model"] = model
-            self.outer["kwargs"] = kwargs
-            raw_content = self.outer.get("raw_content", "{\"ok\":\"yes\"}")
-            return TestResponsesClient._FakeChat(raw_content, self.outer)
-
-    class _FakeClient:
-        def __init__(self, *, api_key, _capture):
-            _capture["api_key"] = api_key
-            self.chat = TestResponsesClient._FakeChatFactory(_capture)
-
-    class _FakeHttpResponse:
-        def __init__(self, payload: dict):
-            self._payload = payload
-
-        def raise_for_status(self):
-            return None
-
-        def json(self):
-            return self._payload
-
-    def test_enable_web_search_wires_search_parameters(self, monkeypatch):
-        capture = {}
-        monkeypatch.setenv("XAI_API_KEY", "test-key")
-        monkeypatch.setattr(
-            "xai_sdk.sync.client.Client",
-            lambda api_key: TestResponsesClient._FakeClient(api_key=api_key, _capture=capture),
-        )
-        monkeypatch.setattr("xai_sdk.chat.system", lambda s: {"role": "system", "content": s})
-        monkeypatch.setattr("xai_sdk.chat.user", lambda s: {"role": "user", "content": s})
-
-        raw, parsed = hr_client.call_responses_api(
-            system_prompt="sys",
-            user_prompt="usr",
-            schema=self._DummySchema,
-            enable_web_search=True,
-        )
-        assert parsed.ok == "yes"
-        assert raw.id == "mock_response_id_123"
-        assert "search_parameters" in capture["kwargs"]
-        assert capture["kwargs"]["search_parameters"].mode == "on"
-        assert capture["kwargs"]["response_format"] == "json_object"
-        assert capture["kwargs"]["store_messages"] is True
-
-    def test_disable_web_search_omits_search_parameters(self, monkeypatch):
-        capture = {}
-        monkeypatch.setenv("XAI_API_KEY", "test-key")
-        monkeypatch.setattr(
-            "xai_sdk.sync.client.Client",
-            lambda api_key: TestResponsesClient._FakeClient(api_key=api_key, _capture=capture),
-        )
-        monkeypatch.setattr("xai_sdk.chat.system", lambda s: {"role": "system", "content": s})
-        monkeypatch.setattr("xai_sdk.chat.user", lambda s: {"role": "user", "content": s})
-
-        _, parsed = hr_client.call_responses_api(
-            system_prompt="sys",
-            user_prompt="usr",
-            schema=self._DummySchema,
-            enable_web_search=False,
-        )
-        assert parsed.ok == "yes"
-        assert "search_parameters" not in capture["kwargs"]
-        assert capture["kwargs"]["response_format"] == "json_object"
-        assert capture["kwargs"]["store_messages"] is True
-        assert "previous_response_id" not in capture["kwargs"]
-        assert len(capture["appended_messages"]) == 2
-
-    def test_missing_tools_module_does_not_crash(self, monkeypatch):
-        capture = {}
-        monkeypatch.setenv("XAI_API_KEY", "test-key")
-        monkeypatch.setattr(
-            "xai_sdk.sync.client.Client",
-            lambda api_key: TestResponsesClient._FakeClient(api_key=api_key, _capture=capture),
-        )
-        monkeypatch.setattr("xai_sdk.chat.system", lambda s: {"role": "system", "content": s})
-        monkeypatch.setattr("xai_sdk.chat.user", lambda s: {"role": "user", "content": s})
-
-        original_import = builtins.__import__
-
-        def _fake_import(name, globals_dict=None, locals_dict=None, fromlist=(), level=0):
-            if name == "xai_sdk.tools" or (
-                name == "xai_sdk" and "tools" in fromlist
-            ):
-                raise ModuleNotFoundError("No module named 'xai_sdk.tools'")
-            return original_import(name, globals_dict, locals_dict, fromlist, level)
-
-        monkeypatch.setattr(builtins, "__import__", _fake_import)
-
-        _, parsed = hr_client.call_responses_api(
-            system_prompt="sys",
-            user_prompt="usr",
-            schema=self._DummySchema,
-            enable_web_search=False,
-        )
-        assert parsed.ok == "yes"
-        assert "tools" not in capture["kwargs"]
-
-    def test_previous_response_id_used_when_session_pointer_exists(
+    def test_call_grok_cli_writes_prompt_and_reads_staged_response(
         self, monkeypatch, tmp_path
     ):
         capture = {}
         session_state = tmp_path / "responses_session.json"
-        session_state.write_text(
-            json.dumps(
+        prompt_file = tmp_path / "prompt.md"
+        staged_file = tmp_path / "response.json"
+        grok_bin = tmp_path / "grok"
+        grok_bin.write_text("#!/bin/sh\n", encoding="utf-8")
+        grok_bin.chmod(0o755)
+
+        monkeypatch.setenv("GROK_CLI", str(grok_bin))
+        monkeypatch.setattr(
+            hr_client,
+            "_response_paths",
+            lambda **_: (prompt_file, staged_file),
+        )
+
+        def _fake_run(cmd, **kwargs):
+            capture["cmd"] = cmd
+            capture["kwargs"] = kwargs
+            staged_file.write_text('{"ok":"yes"}\n', encoding="utf-8")
+            return type(
+                "Result",
+                (),
                 {
-                    "model": "grok-4-1-fast",
-                    "updated_at": "2026-01-01T00:00:00+00:00",
-                    "last_response_id": "resp_prev_001",
-                    "phase": "plan",
-                }
-            ),
-            encoding="utf-8",
-        )
-        monkeypatch.setenv("XAI_API_KEY", "test-key")
-        monkeypatch.setattr(
-            "xai_sdk.sync.client.Client",
-            lambda api_key: TestResponsesClient._FakeClient(api_key=api_key, _capture=capture),
-        )
-        monkeypatch.setattr("xai_sdk.chat.system", lambda s: {"role": "system", "content": s})
-        monkeypatch.setattr("xai_sdk.chat.user", lambda s: {"role": "user", "content": s})
+                    "returncode": 0,
+                    "stdout": '{"requestId":"req_001"}',
+                    "stderr": "",
+                },
+            )()
 
-        raw, parsed = hr_client.call_responses_api(
-            system_prompt="sys",
-            user_prompt="usr",
-            schema=self._DummySchema,
-            session_state_path=session_state,
-            phase="plan",
-        )
-        assert parsed.ok == "yes"
-        assert capture["kwargs"]["previous_response_id"] == "resp_prev_001"
-        assert getattr(raw, "previous_response_id_used") == "resp_prev_001"
-        assert len(capture["appended_messages"]) == 2
+        monkeypatch.setattr(hr_client.subprocess, "run", _fake_run)
 
-    def test_session_state_stores_last_response_id_not_history(self, monkeypatch, tmp_path):
-        capture = {"response_id": "resp_new_001"}
-        session_state = tmp_path / "responses_session.json"
-        monkeypatch.setenv("XAI_API_KEY", "test-key")
-        monkeypatch.setattr(
-            "xai_sdk.sync.client.Client",
-            lambda api_key: TestResponsesClient._FakeClient(api_key=api_key, _capture=capture),
-        )
-        monkeypatch.setattr("xai_sdk.chat.system", lambda s: {"role": "system", "content": s})
-        monkeypatch.setattr("xai_sdk.chat.user", lambda s: {"role": "user", "content": s})
-
-        _, parsed = hr_client.call_responses_api(
+        raw, parsed = hr_client.call_grok_cli(
             system_prompt="sys",
             user_prompt="usr",
             schema=self._DummySchema,
             session_state_path=session_state,
             phase="narration",
+            project_dir=tmp_path,
         )
         assert parsed.ok == "yes"
+        assert raw.id == "req_001"
+        assert "--prompt-file" in capture["cmd"]
+        assert "--cwd" in capture["cmd"]
+        assert str(tmp_path) in capture["cmd"]
+        assert "--sandbox" in capture["cmd"]
+        assert "workspace" in capture["cmd"]
+        assert "--output-format" in capture["cmd"]
+        assert "--no-subagents" in capture["cmd"]
+        assert "--disable-web-search" in capture["cmd"]
+        assert "--no-memory" in capture["cmd"]
+        assert "--model" in capture["cmd"]
+        assert capture["kwargs"]["cwd"] == str(tmp_path)
+        assert "Write exactly one JSON object" in prompt_file.read_text(encoding="utf-8")
 
         data = json.loads(session_state.read_text(encoding="utf-8"))
-        assert data["last_response_id"] == "resp_new_001"
-        assert data["model"] == "grok-4-1-fast"
+        assert data["backend"] == "grok_cli"
+        assert data["last_response_id"] == "req_001"
+        assert data["model"] == "grok-build"
         assert data["phase"] == "narration"
         assert "history" not in data
 
-    def test_ensure_build_scenes_template_file_upload_once_then_reuse(
-        self, monkeypatch, tmp_path
-    ):
-        template_file = tmp_path / "template.md"
-        template_file.write_text("template body", encoding="utf-8")
-        monkeypatch.setattr(hr_client, "_BUILD_SCENES_TEMPLATE_PATH", template_file)
-        monkeypatch.setenv("XAI_API_KEY", "test-key")
+    def test_generic_python_env_does_not_select_cli(self, monkeypatch, tmp_path):
+        monkeypatch.setenv("PYTHON", "/tmp/not-grok")
+        monkeypatch.delenv("GROK_CLI", raising=False)
+        monkeypatch.setattr(hr_client.shutil, "which", lambda _: None)
+        with pytest.raises(EnvironmentError, match="grok CLI not found"):
+            hr_client.call_grok_cli("sys", "usr", self._DummySchema)
 
-        calls = {"count": 0}
-
-        def _fake_post(*args, **kwargs):
-            calls["count"] += 1
-            return TestResponsesClient._FakeHttpResponse({"id": "file_abc123"})
-
-        monkeypatch.setattr(hr_client.requests, "post", _fake_post)
-        session_state = tmp_path / "responses_session.json"
-
-        first = hr_client.ensure_build_scenes_template_file(
-            session_state_path=session_state
-        )
-        second = hr_client.ensure_build_scenes_template_file(
-            session_state_path=session_state
-        )
-
-        assert first["template_file_id"] == "file_abc123"
-        assert first["uploaded"] is True
-        assert second["template_file_id"] == "file_abc123"
-        assert second["uploaded"] is False
-        assert calls["count"] == 1
-
-    def test_malformed_json_raises(self, monkeypatch):
-        capture = {"raw_content": "{bad json"}
-        monkeypatch.setenv("XAI_API_KEY", "test-key")
+    def test_missing_staged_response_raises(self, monkeypatch, tmp_path):
+        prompt_file = tmp_path / "prompt.md"
+        staged_file = tmp_path / "missing.json"
+        grok_bin = tmp_path / "grok"
+        grok_bin.write_text("#!/bin/sh\n", encoding="utf-8")
+        grok_bin.chmod(0o755)
+        monkeypatch.setenv("GROK_CLI", str(grok_bin))
         monkeypatch.setattr(
-            "xai_sdk.sync.client.Client",
-            lambda api_key: TestResponsesClient._FakeClient(api_key=api_key, _capture=capture),
+            hr_client,
+            "_response_paths",
+            lambda **_: (prompt_file, staged_file),
         )
-        monkeypatch.setattr("xai_sdk.chat.system", lambda s: {"role": "system", "content": s})
-        monkeypatch.setattr("xai_sdk.chat.user", lambda s: {"role": "user", "content": s})
+        monkeypatch.setattr(
+            hr_client.subprocess,
+            "run",
+            lambda *_, **__: type(
+                "Result",
+                (),
+                {"returncode": 0, "stdout": "", "stderr": ""},
+            )(),
+        )
+        with pytest.raises(ValueError, match="did not write"):
+            hr_client.call_grok_cli("sys", "usr", self._DummySchema)
+
+    def test_malformed_staged_json_raises(self, monkeypatch, tmp_path):
+        prompt_file = tmp_path / "prompt.md"
+        staged_file = tmp_path / "bad.json"
+        grok_bin = tmp_path / "grok"
+        grok_bin.write_text("#!/bin/sh\n", encoding="utf-8")
+        grok_bin.chmod(0o755)
+        monkeypatch.setenv("GROK_CLI", str(grok_bin))
+        monkeypatch.setattr(
+            hr_client,
+            "_response_paths",
+            lambda **_: (prompt_file, staged_file),
+        )
+
+        def _fake_run(*_, **__):
+            staged_file.write_text("{bad json", encoding="utf-8")
+            return type(
+                "Result",
+                (),
+                {"returncode": 0, "stdout": "", "stderr": ""},
+            )()
+
+        monkeypatch.setattr(hr_client.subprocess, "run", _fake_run)
 
         with pytest.raises(ValueError, match="Structured JSON validation failed"):
-            hr_client.call_responses_api(
-                system_prompt="sys",
-                user_prompt="usr",
-                schema=self._DummySchema,
-                enable_web_search=False,
-            )
+            hr_client.call_grok_cli("sys", "usr", self._DummySchema)
 
-    def test_schema_invalid_json_raises(self, monkeypatch):
-        capture = {"raw_content": "{\"missing_ok\": true}"}
-        monkeypatch.setenv("XAI_API_KEY", "test-key")
+    def test_nonzero_cli_exit_raises(self, monkeypatch, tmp_path):
+        prompt_file = tmp_path / "prompt.md"
+        staged_file = tmp_path / "response.json"
+        grok_bin = tmp_path / "grok"
+        grok_bin.write_text("#!/bin/sh\n", encoding="utf-8")
+        grok_bin.chmod(0o755)
+        monkeypatch.setenv("GROK_CLI", str(grok_bin))
         monkeypatch.setattr(
-            "xai_sdk.sync.client.Client",
-            lambda api_key: TestResponsesClient._FakeClient(api_key=api_key, _capture=capture),
+            hr_client,
+            "_response_paths",
+            lambda **_: (prompt_file, staged_file),
         )
-        monkeypatch.setattr("xai_sdk.chat.system", lambda s: {"role": "system", "content": s})
-        monkeypatch.setattr("xai_sdk.chat.user", lambda s: {"role": "user", "content": s})
+        monkeypatch.setattr(
+            hr_client.subprocess,
+            "run",
+            lambda *_, **__: type(
+                "Result",
+                (),
+                {"returncode": 12, "stdout": "out", "stderr": "err"},
+            )(),
+        )
+        with pytest.raises(RuntimeError, match="Grok CLI failed"):
+            hr_client.call_grok_cli("sys", "usr", self._DummySchema)
 
-        with pytest.raises(ValueError, match="Structured JSON validation failed"):
-            hr_client.call_responses_api(
-                system_prompt="sys",
-                user_prompt="usr",
-                schema=self._DummySchema,
-                enable_web_search=False,
-            )
 
+class TestArtifactWriters:
     def test_write_phase_artifacts_plan(self, tmp_path):
         project = _make_project(tmp_path)
         plan = _make_valid_plan(9)
@@ -634,33 +536,14 @@ class TestPromptComposition:
 
     def test_build_scenes_prompt_loads(self, monkeypatch, tmp_path):
         project = _make_scene_project(tmp_path)
-        captured = {}
-
-        def _fake_search(query):
-            captured["query"] = query
-            return CollectionSearchResult(
-                query=query,
-                collection_id="collection_test",
-                limit=8,
-                chunks=["Text API docs"],
-            )
-
-        monkeypatch.setattr(
-            hr_prompts,
-            "search_manim_collection",
-            _fake_search,
-        )
         system, user = hr_prompts.compose_prompt(
             phase="build_scenes",
             project_dir=project,
+            template_file_reference="/repo/harness_responses/templates/phase_scenes.md",
         )
         assert "Build Scenes Phase" in system
         assert "Scene ID: scene_01" in user
-        info = hr_prompts.consume_last_retrieval_info()
-        assert info["phase"] == "build_scenes"
-        assert "Phase: build_scenes" in captured["query"]
-        assert "Current scene source:" in captured["query"]
-        assert "class Scene01(VoiceoverScene):" in captured["query"]
+        assert "/repo/harness_responses/templates/phase_scenes.md" in user
 
     def test_narration_prompt_loads(self, tmp_path):
         project = _make_narration_project(tmp_path)
@@ -671,57 +554,15 @@ class TestPromptComposition:
         assert "voiceover writer" in system
         assert "Narration Test" in user
 
-    def test_plan_prompt_queries_collections_with_user_prompt(self, monkeypatch):
-        captured = {}
-
-        def _fake_search(query):
-            captured["query"] = query
-            return CollectionSearchResult(
-                query=query,
-                collection_id="collection_test",
-                limit=8,
-                chunks=["Plan docs chunk"],
-            )
-
-        monkeypatch.setattr(hr_prompts, "search_manim_collection", _fake_search)
+    def test_prompt_retrieval_info_is_empty_for_local_cli(self, monkeypatch):
         _, user = hr_prompts.compose_prompt(
             phase="plan",
             topic="orbital resonance",
             project_dir=Path("."),
         )
         info = hr_prompts.consume_last_retrieval_info()
-        assert "Create a video plan for this topic" in captured["query"]
-        assert "orbital resonance" in captured["query"]
-        assert "Plan docs chunk" not in user
-        assert info["phase"] == "plan"
-        assert info["hit_count"] == 1
-
-    def test_narration_prompt_queries_collections_with_user_prompt(
-        self, monkeypatch, tmp_path
-    ):
-        project = _make_narration_project(tmp_path)
-        captured = {}
-
-        def _fake_search(query):
-            captured["query"] = query
-            return CollectionSearchResult(
-                query=query,
-                collection_id="collection_test",
-                limit=8,
-                chunks=["Narration docs chunk"],
-            )
-
-        monkeypatch.setattr(hr_prompts, "search_manim_collection", _fake_search)
-        _, user = hr_prompts.compose_prompt(
-            phase="narration",
-            project_dir=project,
-        )
-        info = hr_prompts.consume_last_retrieval_info()
-        assert "Narration Test" in captured["query"]
-        assert "\"scene_01\"" in captured["query"]
-        assert "Narration docs chunk" not in user
-        assert info["phase"] == "narration"
-        assert info["hit_count"] == 1
+        assert "orbital resonance" in user
+        assert info == {}
 
     def test_scene_qc_prompt_loads(self, tmp_path):
         project = _make_scene_project(tmp_path)
@@ -734,22 +575,6 @@ class TestPromptComposition:
 
     def test_scene_repair_prompt_loads(self, monkeypatch, tmp_path):
         project = _make_scene_project(tmp_path)
-        captured = {}
-
-        def _fake_search(query):
-            captured["query"] = query
-            return CollectionSearchResult(
-                query=query,
-                collection_id="collection_test",
-                limit=8,
-                chunks=["repair docs chunk"],
-            )
-
-        monkeypatch.setattr(
-            hr_prompts,
-            "search_manim_collection",
-            _fake_search,
-        )
         _, user = hr_prompts.compose_prompt(
             phase="scene_repair",
             project_dir=project,
@@ -758,10 +583,6 @@ class TestPromptComposition:
         )
         assert "Current Scene ID" in user
         assert "boom" in user
-        assert "Phase: scene_repair" in captured["query"]
-        assert "Current scene source:" in captured["query"]
-        assert "Full error stacktrace/context:" in captured["query"]
-        assert "boom" in captured["query"]
 
 
 # ---------------------------------------------------------------------------
@@ -824,21 +645,21 @@ class TestCLI:
         assert log.exists()
         content = log.read_text()
         assert "dry_run" in content
-        assert "api_mode: responses" in content
+        assert "api_mode: grok_cli" in content
         assert "store: True" in content
 
-    def test_api_success_log_includes_previous_and_response_id(self, monkeypatch, tmp_path):
+    def test_cli_success_log_includes_response_id(self, monkeypatch, tmp_path):
         project = _make_project(tmp_path)
         monkeypatch.setattr(hr_cli, "compose_prompt", lambda **_: ("sys", "user"))
         monkeypatch.setattr(hr_cli, "write_phase_artifacts", lambda **_: True)
 
         class _Raw:
-            id = "resp_current_002"
+            id = "grok_current_002"
             content = "{\"ok\": \"yes\"}"
-            previous_response_id_used = "resp_prev_001"
+            previous_response_id_used = None
 
         monkeypatch.setattr(
-            "harness_responses.client.call_responses_api",
+            "harness_responses.client.call_grok_cli",
             lambda **_: (_Raw(), _make_valid_plan(9)),
         )
         monkeypatch.setattr(
@@ -853,10 +674,10 @@ class TestCLI:
         assert hr_cli.main() == 0
         content = (project / "log" / "conversation.log").read_text(encoding="utf-8")
         assert "store: True" in content
-        assert "previous_response_id: resp_prev_001" in content
-        assert "response_id: resp_current_002" in content
+        assert "previous_response_id:" not in content
+        assert "response_id: grok_current_002" in content
 
-    def test_build_scenes_includes_uploaded_template_file_reference(
+    def test_build_scenes_includes_local_template_reference(
         self, monkeypatch, tmp_path
     ):
         project = _make_scene_project(tmp_path)
@@ -874,15 +695,7 @@ class TestCLI:
         monkeypatch.setattr(hr_cli, "compose_prompt", _fake_compose_prompt)
         monkeypatch.setattr(hr_cli, "write_phase_artifacts", lambda **_: True)
         monkeypatch.setattr(
-            "harness_responses.client.ensure_build_scenes_template_file",
-            lambda **_: {
-                "template_file_id": "file_template_001",
-                "template_hash": "hash",
-                "uploaded": False,
-            },
-        )
-        monkeypatch.setattr(
-            "harness_responses.client.call_responses_api",
+            "harness_responses.client.call_grok_cli",
             lambda **_: (_Raw(), BuildScenesResponse(scene_body="title = Text('x')")),
         )
         monkeypatch.setattr(
@@ -895,7 +708,8 @@ class TestCLI:
         )
         assert hr_cli.main() == 0
         ref = captured.get("template_file_reference", "")
-        assert "file_template_001" in ref
+        assert "harness_responses/prompts/build_scenes/user.md" in ref
+        assert "scripts/scaffold_scene.py" in ref
 
     def test_retry_context_clears_response_pointer_before_api_call(
         self, monkeypatch, tmp_path
@@ -919,7 +733,7 @@ class TestCLI:
             previous_response_id_used = None
 
         monkeypatch.setattr(
-            "harness_responses.client.call_responses_api",
+            "harness_responses.client.call_grok_cli",
             lambda **_: (_Raw(), _make_valid_plan(9)),
         )
         monkeypatch.setattr(
@@ -946,8 +760,8 @@ class TestCLI:
 
         monkeypatch.setattr(hr_cli, "compose_prompt", _fake_prompt)
         monkeypatch.setattr(
-            "harness_responses.client.call_responses_api",
-            lambda **kw: (_MockResponse(), _make_valid_plan(9)),
+            "harness_responses.client.call_grok_cli",
+            lambda **kw: (_RawResponse(), _make_valid_plan(9)),
         )
         monkeypatch.setattr(hr_cli, "write_phase_artifacts", _fake_write)
         monkeypatch.setattr(
@@ -961,13 +775,12 @@ class TestCLI:
         )
         assert hr_cli.main() == 2
 
-    def test_api_key_missing_returns_2(self, monkeypatch, tmp_path):
+    def test_grok_cli_missing_returns_2(self, monkeypatch, tmp_path):
         project = _make_project(tmp_path)
         monkeypatch.setattr(hr_cli, "compose_prompt", lambda **_: ("sys", "user"))
-        # Patch at the source module so the lazy import picks it up
         monkeypatch.setattr(
-            "harness_responses.client.call_responses_api",
-            lambda **_: (_ for _ in ()).throw(EnvironmentError("XAI_API_KEY not set")),
+            "harness_responses.client.call_grok_cli",
+            lambda **_: (_ for _ in ()).throw(EnvironmentError("grok CLI not found")),
         )
         monkeypatch.setattr(
             sys, "argv",
@@ -994,12 +807,13 @@ class TestCLI:
         assert called["ok"] is True
 
 
-class _MockResponse:
-    """Minimal mock for xai_sdk Response."""
-    id = "mock_response_id_123"
+class _RawResponse:
+    """Minimal mock for Grok CLI response."""
+    id = "mock_grok_response_id_123"
 
     def __init__(self, content: str = "mock content"):
         self.content = content
+        self.previous_response_id_used = None
 
 
 # ---------------------------------------------------------------------------

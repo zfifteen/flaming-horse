@@ -39,14 +39,14 @@ Covers:
 - `plan`, `narration`, `build_scenes`, `scene_qc`, `scene_repair` in `--dry-run`
 - Uses a self-contained temporary fixture project
 
-### 4) Live API end-to-end
+### 4) Local Grok CLI end-to-end
 
 ```bash
 bash tests/test_harness_e2e.sh
 ```
 
 Requires:
-- `XAI_API_KEY` in environment or `.env`
+- authenticated local Grok CLI (`grok login`, then `grok models`)
 
 ### 5) CLI help smoke checks
 

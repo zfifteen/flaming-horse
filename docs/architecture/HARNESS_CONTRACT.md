@@ -42,14 +42,25 @@ For each harness phase:
 
 1. `harness_responses/cli.py` parses CLI arguments and phase.
 2. `harness_responses/prompts.py` composes system and user prompts from `harness_responses/prompts/<phase>/`.
-3. `harness_responses/client.py` calls xAI through `xai_sdk`.
-4. The response is parsed into the phase Pydantic schema.
-5. `harness_responses/parser.py` performs semantic validation and writes artifacts.
+3. `harness_responses/client.py` writes a phase prompt file and invokes the local Grok Build CLI from the project log directory with Grok's `workspace` sandbox.
+4. Grok may read the repository and project filesystem, but sandboxed writes are limited to the log directory and the required staged JSON response file.
+5. The staged JSON is parsed into the phase Pydantic schema.
+6. `harness_responses/parser.py` performs semantic validation and writes artifacts.
 
-Conversation continuity is stored in:
+Backend session metadata is stored in:
 
 ```text
 projects/<project_name>/log/responses_session.json
+```
+
+The Grok CLI backend is stateless per phase. The session file is retained as a
+compatibility metadata record, not as a conversation-continuation contract.
+
+Per-call prompt and staged response files are written as:
+
+```text
+projects/<project_name>/log/grok_prompt_<phase>_<timestamp>.md
+projects/<project_name>/log/grok_response_<phase>_<timestamp>.json
 ```
 
 Prompt and response records are appended to:
@@ -118,13 +129,15 @@ Prompt instructions must not contradict parser or scaffold contracts. If one pro
 
 Current `harness_responses/client.py` supports:
 
-1. `response_format="json_object"`.
-2. Stateful `previous_response_id`.
-3. Optional web search when `enable_web_search=True`.
-4. Optional `collections_search` when available from `xai_sdk.tools`.
-5. Build-scenes template upload through xAI Files.
+1. Local Grok Build CLI invocation.
+2. Prompt-file execution from the repository root.
+3. Required staged JSON file output.
+4. Pydantic validation before parser promotion.
+5. No web search, xAI collections, xAI file upload, or API conversation continuation.
 
-Do not present optional retrieval/tool behavior as mandatory unless the code enforces it.
+Do not present filesystem read access as artifact ownership. Grok may inspect
+files, but only the harness parser promotes validated artifacts into canonical
+project files.
 
 ## Exit Codes
 

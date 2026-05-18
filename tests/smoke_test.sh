@@ -10,9 +10,21 @@ if [[ -f "${ENV_FILE}" ]]; then
   source "${ENV_FILE}"
 fi
 
-if [[ -z "${XAI_API_KEY:-}" ]]; then
-  echo "❌ XAI_API_KEY is not set in the environment." >&2
-  echo "   Please set it in .env or export XAI_API_KEY=your_key" >&2
+if [[ -n "${GROK_CLI:-}" ]]; then
+  GROK_BIN="${GROK_CLI}"
+else
+  GROK_BIN="$(command -v grok || true)"
+fi
+
+if [[ -z "${GROK_BIN}" || ! -x "${GROK_BIN}" ]]; then
+  echo "❌ grok CLI is not available." >&2
+  echo "   Add grok to PATH or set GROK_CLI=/absolute/path/to/grok" >&2
+  exit 1
+fi
+
+if ! "${GROK_BIN}" models >/dev/null 2>&1; then
+  echo "❌ grok CLI is not logged in or cannot list models." >&2
+  echo "   Run: grok login" >&2
   exit 1
 fi
 

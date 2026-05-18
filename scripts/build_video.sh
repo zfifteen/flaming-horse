@@ -27,7 +27,8 @@ if [[ -f "${ENV_FILE}" ]]; then
   PYTHON_BIN="${PYTHON:-${PYTHON3:-$PYTHON_BIN}}"
 fi
 
-AGENT_MODEL="${AGENT_MODEL:-xai/grok-4-1-fast}"
+GROK_MODEL="${GROK_MODEL:-grok-build}"
+export GROK_MODEL
 PROJECTS_BASE_DIR="${PROJECTS_BASE_DIR:-projects}"
 PROJECT_DEFAULT_NAME="${PROJECT_DEFAULT_NAME:-default_video}"
 PHASE_RETRY_LIMIT="${PHASE_RETRY_LIMIT:-3}"
@@ -1100,7 +1101,7 @@ PY
   local retry_context_file
   retry_context_file="$(get_retry_context_file "$phase")"
   
-  echo "Using Python harness (xAI Responses API)" | tee -a "$LOG_FILE"
+  echo "Using Python harness (local Grok CLI)" | tee -a "$LOG_FILE"
 
   local -a harness_args=(
     --phase "$phase"
@@ -1117,7 +1118,6 @@ PY
     harness_args+=(--retry-context "$retry_context")
   fi
 
-  export XAI_API_KEY="$XAI_API_KEY"
   $PYTHON_BIN -m harness_responses "${harness_args[@]}" \
     > >(tee -a "$LOG_FILE") \
     2> >(tee -a "$LOG_FILE" >&2)
