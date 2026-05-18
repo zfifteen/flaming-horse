@@ -1,89 +1,30 @@
-# Where to Add LLM API Keys
+# Local Grok CLI Authentication
 
-## Local Configuration (.env file)
+The live Flaming Horse harness no longer uses hosted LLM API keys.
 
-For local development, add your API keys to the `.env` file in the repo root (NOT committed to git).
-
-### Configuration
-
-The harness uses provider-agnostic configuration. Set `LLM_PROVIDER` to switch between providers:
+Authenticate the local Grok Build CLI instead:
 
 ```bash
-# LLM Provider Configuration
-LLM_PROVIDER=XAI
-# LLM_PROVIDER=MINIMAX
-
-# Provider-Specific Keys
-XAI_API_KEY=your_xai_key_here
-MINIMAX_API_KEY=your_minimax_key_here
-
-# Provider-Specific Base URLs (optional - defaults provided)
-XAI_BASE_URL=https://api.x.ai/v1
-MINIMAX_BASE_URL=https://api.minimax.io/v1
-
-# Provider-Specific Models (optional - defaults provided)
-XAI_MODEL=grok-code-fast-1
-MINIMAX_MODEL=MiniMax-M2.5
+grok login
+grok models
 ```
 
-### Switching Providers
+The required model is:
 
-To switch between providers, just change `LLM_PROVIDER`:
+```text
+grok-build
+```
+
+Optional `.env` settings:
 
 ```bash
-# Use XAI (default)
-LLM_PROVIDER=XAI
-
-# Use MiniMax
-# LLM_PROVIDER=XAI
-LLM_PROVIDER=MINIMAX
+GROK_MODEL=grok-build
+# GROK_CLI=/absolute/path/to/grok
+# GROK_CLI_TIMEOUT_SECONDS=900
 ```
 
-All provider keys can remain in the `.env` - only change `LLM_PROVIDER` to switch.
+Validate the local backend contract with:
 
-## GitHub Repository Secrets
-
-For GitHub Actions, add keys as repository secrets:
-
-### Steps:
-
-1. **Go to your GitHub repository:**
-   ```
-   https://github.com/zfifteen/flaming-horse
-   ```
-
-2. **Click on "Settings"** (top menu bar)
-
-3. **In the left sidebar, click:**
-   - "Secrets and variables"
-   - Then click "Actions"
-
-4. **Click "New repository secret"**
-
-5. **Add the secret:**
-   - **Name:** `XAI_API_KEY` or `MINIMAX_API_KEY`
-   - **Value:** Your actual API key
-   - Click "Add secret"
-
-## Verify It's Added
-
-After adding the secret, you should see it listed under:
+```bash
+python3 scripts/test_grok_cli_contract.py
 ```
-Settings → Secrets and variables → Actions → Repository secrets
-```
-
-## How It Will Be Used
-
-Once added, the secret will be accessible in GitHub Actions workflows:
-
-```yaml
-env:
-  XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
-  MINIMAX_API_KEY: ${{ secrets.MINIMAX_API_KEY }}
-```
-
-## Summary
-
-1. Add API keys to `.env` for local development
-2. Add API keys to GitHub secrets for CI/CD
-3. Set `LLM_PROVIDER` to switch between XAI and MINIMAX

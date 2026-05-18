@@ -1,5 +1,5 @@
-"""
-Flaming Horse harness_responses — xAI Responses API harness.
+"""Flaming Horse harness_responses package.
 
-Isolated from harness/ with zero shared code dependencies.
+The live backend is the local Grok Build CLI. This package remains isolated
+from harness/ with zero shared code dependencies.
 """

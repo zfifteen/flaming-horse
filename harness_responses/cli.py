@@ -7,19 +7,18 @@ Supports phases implemented in this harness:
 - build_scenes
 - scene_qc
 - scene_repair
-Exit codes match legacy harness contract: 0=success, 1=recoverable/phase failure, 2=config error.
+Exit codes match harness contract: 0=success, 1=recoverable/phase failure, 2=config error.
 """
 
 import argparse
 import json
-import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from harness_responses.parser import SemanticValidationError, write_phase_artifacts
-from harness_responses.prompts import compose_prompt, consume_last_retrieval_info
+from harness_responses.prompts import compose_prompt
 
 # Phases implemented in Phase 1
 _IMPLEMENTED_PHASES = ["plan", "narration", "build_scenes", "scene_qc", "scene_repair"]
@@ -47,11 +46,6 @@ def _append_conversation_log(
     previous_response_id: Optional[str],
     status: str,
     api_mode: str,
-    tools_enabled: bool,
-    store: bool,
-    template_file_id: Optional[str] = None,
-    template_uploaded: Optional[bool] = None,
-    retrieval_info: Optional[Dict[str, Any]] = None,
     assistant_response_content: Optional[str] = None,
     error_text: Optional[str] = None,
 ) -> None:
@@ -61,17 +55,11 @@ def _append_conversation_log(
         f"phase: {phase}",
         f"status: {status}",
         f"api_mode: {api_mode}",
-        f"tools_enabled: {tools_enabled}",
-        f"store: {store}",
     ]
     if previous_response_id:
         parts.append(f"previous_response_id: {previous_response_id}")
     if response_id:
         parts.append(f"response_id: {response_id}")
-    if template_file_id:
-        parts.append(f"template_file_id: {template_file_id}")
-    if template_uploaded is not None:
-        parts.append(f"template_uploaded: {template_uploaded}")
     if error_text:
         parts.append(f"error: {error_text}")
     parts.extend(
@@ -85,14 +73,6 @@ def _append_conversation_log(
             "",
         ]
     )
-    if retrieval_info:
-        parts.extend(
-            [
-                "----- COLLECTIONS RETRIEVAL -----",
-                json.dumps(retrieval_info, indent=2, default=str),
-                "",
-            ]
-        )
     if assistant_response_content is not None:
         parts.extend(
             [
@@ -156,10 +136,23 @@ def _get_schema_for_phase(phase: str):
     raise NotImplementedError(f"No schema for phase: {phase}")
 
 
+def _build_scenes_template_reference() -> str:
+    repo_root = Path(__file__).resolve().parents[1]
+    return "\n".join(
+        [
+            "Read these local framework files directly when needed:",
+            f"- {repo_root / 'harness_responses' / 'prompts' / 'build_scenes' / 'user.md'}",
+            f"- {repo_root / 'harness_responses' / 'prompts' / 'build_scenes' / 'system.md'}",
+            f"- {repo_root / 'harness_responses' / 'templates' / 'phase_scenes.md'}",
+            f"- {repo_root / 'scripts' / 'scaffold_scene.py'}",
+        ]
+    )
+
+
 def main() -> int:
     """Main entry point for harness_responses CLI."""
     parser = argparse.ArgumentParser(
-        description="Flaming Horse harness_responses — xAI Responses API harness"
+        description="Flaming Horse harness_responses — local Grok CLI harness"
     )
     parser.add_argument(
         "--phase",
@@ -213,26 +206,12 @@ def main() -> int:
         print("❌ --scene-file is required for scene_repair phase", file=sys.stderr)
         return 1
 
-    # Runtime config
-    raw_temperature = os.getenv("AGENT_TEMPERATURE", "0.7")
-    try:
-        temperature = float(raw_temperature)
-    except ValueError:
-        temperature = 0.7
-    temperature = max(0.0, min(2.0, temperature))
-
-    store = True  # stateful conversation chaining via previous_response_id
-    enable_web_search = False  # tools off by default
-
     log_dir = args.project_dir / "log"
     log_dir.mkdir(parents=True, exist_ok=True)
     conversation_log = log_dir / "conversation.log"
 
     system_prompt = ""
     user_prompt = ""
-    retrieval_info: Dict[str, Any] = {}
-    template_file_id: Optional[str] = None
-    template_uploaded: Optional[bool] = None
     session_state_path = log_dir / "responses_session.json"
 
     try:
@@ -241,19 +220,8 @@ def main() -> int:
             from harness_responses.client import clear_response_pointer
 
             clear_response_pointer(session_state_path=session_state_path)
-        if args.phase == "build_scenes" and not args.dry_run:
-            from harness_responses.client import ensure_build_scenes_template_file
-
-            template_state = ensure_build_scenes_template_file(
-                session_state_path=session_state_path
-            )
-            template_file_id = template_state.get("template_file_id")
-            template_uploaded = bool(template_state.get("uploaded"))
-            if template_file_id:
-                template_file_reference = (
-                    "Use uploaded xAI file id "
-                    f"`{template_file_id}` as template context for scene-writing rules."
-                )
+        if args.phase == "build_scenes":
+            template_file_reference = _build_scenes_template_reference()
 
         system_prompt, user_prompt = compose_prompt(
             phase=args.phase,
@@ -263,16 +231,12 @@ def main() -> int:
             scene_file=args.scene_file,
             template_file_reference=template_file_reference,
         )
-        retrieval_info = consume_last_retrieval_info()
 
         if args.dry_run:
             print("🔍 DRY RUN MODE — harness_responses")
             print(f"   Phase:          {args.phase}")
             print(f"   System prompt:  {len(system_prompt)} chars")
             print(f"   User prompt:    {len(user_prompt)} chars")
-            print(f"   Temperature:    {temperature}")
-            print(f"   Store:          {store}")
-            print(f"   Web search:     {enable_web_search}")
             schema_cls = _get_schema_for_phase(args.phase)
             print(f"   Schema:         {schema_cls.__name__}")
             print("\n=== System Prompt (first 500 chars) ===")
@@ -287,30 +251,23 @@ def main() -> int:
                 response_id=None,
                 previous_response_id=None,
                 status="dry_run",
-                api_mode="responses",
-                tools_enabled=enable_web_search,
-                store=store,
-                template_file_id=template_file_id,
-                template_uploaded=template_uploaded,
-                retrieval_info=retrieval_info or None,
+                api_mode="grok_cli",
             )
             return 0
 
-        # Import client only when not in dry-run to avoid requiring XAI_API_KEY
-        from harness_responses.client import call_responses_api
+        # Import client only when not in dry-run to avoid requiring Grok CLI.
+        from harness_responses.client import call_grok_cli
 
         schema_cls = _get_schema_for_phase(args.phase)
 
-        print(f"🤖 harness_responses calling Responses API for phase: {args.phase}")
-        raw_response, parsed = call_responses_api(
+        print(f"🤖 harness_responses calling local Grok CLI for phase: {args.phase}")
+        raw_response, parsed = call_grok_cli(
             system_prompt=system_prompt,
             user_prompt=user_prompt,
             schema=schema_cls,
-            temperature=temperature,
-            store=store,
-            enable_web_search=enable_web_search,
             session_state_path=session_state_path,
             phase=args.phase,
+            project_dir=args.project_dir,
         )
 
         response_id: Optional[str] = getattr(raw_response, "id", None)
@@ -330,13 +287,8 @@ def main() -> int:
             user_prompt=user_prompt,
             response_id=response_id,
             previous_response_id=previous_response_id,
-            status="api_success",
-            api_mode="responses",
-            tools_enabled=enable_web_search,
-            store=store,
-            template_file_id=template_file_id,
-            template_uploaded=template_uploaded,
-            retrieval_info=retrieval_info or None,
+            status="cli_success",
+            api_mode="grok_cli",
             assistant_response_content=assistant_response_content,
         )
 
@@ -376,12 +328,7 @@ def main() -> int:
                     response_id=None,
                     previous_response_id=None,
                     status="error",
-                    api_mode="responses",
-                    tools_enabled=enable_web_search,
-                    store=store,
-                    template_file_id=template_file_id,
-                    template_uploaded=template_uploaded,
-                    retrieval_info=retrieval_info or None,
+                    api_mode="grok_cli",
                     error_text=str(exc),
                 )
         except Exception:

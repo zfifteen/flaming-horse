@@ -80,14 +80,13 @@ Detailed setup: `docs/guides/INSTALLATION.md`
 
 ### Agent/harness
 
-The orchestrator calls the Responses harness (`python -m harness_responses`) for agent phases.
+The orchestrator calls the local Grok CLI harness (`python -m harness_responses`) for agent phases.
 Configure behavior via environment variables (typically in `.env`):
 
-**LLM Provider Configuration:**
-- `LLM_PROVIDER` - Provider name (XAI or MINIMAX)
-- `{PROVIDER}_API_KEY` - Provider-specific API key
-- `{PROVIDER}_BASE_URL` - Provider-specific endpoint (optional)
-- `{PROVIDER}_MODEL` - Provider-specific model (optional)
+**Grok CLI Configuration:**
+- `GROK_MODEL` - Grok CLI model ID with no provider prefix. Default: `grok-build`.
+- `GROK_CLI` - Optional absolute path to the `grok` executable.
+- `GROK_CLI_TIMEOUT_SECONDS` - Optional per-phase CLI timeout.
 
 See `.env.example` for full configuration.
 
@@ -158,7 +157,9 @@ The following variables are present in `.env` and are actively used by the appli
 
 | Variable | Used by | Purpose |
 | --- | --- | --- |
-| `AGENT_MODEL` | `scripts/build_video.sh`, `harness_responses/client.py` | Global fallback model selection for harness calls. |
+| `GROK_MODEL` | `scripts/build_video.sh`, `harness_responses/client.py` | Grok CLI model selection for harness calls. |
+| `GROK_CLI` | `harness_responses/client.py`, `scripts/check_dependencies.sh` | Optional absolute path to the local Grok CLI executable. |
+| `GROK_CLI_TIMEOUT_SECONDS` | `harness_responses/client.py` | Per-phase Grok CLI timeout in seconds. |
 | `PROJECTS_BASE_DIR` | `scripts/new_project.sh`, `scripts/create_video.sh`, `scripts/build_video.sh` | Default root directory for project creation/build paths. |
 | `PROJECT_DEFAULT_NAME` | `scripts/build_video.sh` | Default project name when no project path is provided. |
 | `PHASE_RETRY_LIMIT` | `scripts/build_video.sh` | Max retry attempts for phase/scene self-heal loops. |
@@ -173,5 +174,3 @@ The following variables are present in `.env` and are actively used by the appli
 | `FLAMING_HORSE_MLX_PYTHON` | `scripts/qwen_tts_mediator.py` | Python interpreter path for MLX TTS subprocess execution. |
 | `FLAMING_HORSE_MLX_MODEL_ID` | `scripts/qwen_tts_mediator.py`, `scripts/prepare_qwen_voice.py` | Overrides MLX model identifier. |
 | `FLAMING_HORSE_VOICE_REF_DIR` | `scripts/voice_ref_mediator.py`, `scripts/build_video.sh` | Overrides voice reference directory (`ref.wav`/`ref.txt`). |
-| `XAI_API_KEY` | `harness_responses/client.py`, `scripts/build_video.sh`, `scripts/check_dependencies.sh`, test scripts | xAI API authentication credential. |
-| `XAI_MODEL` | `harness_responses/client.py` | Optional xAI model override. |

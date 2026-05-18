@@ -197,16 +197,17 @@ safe_layout()               # Overlap-free positioning
 | Layout overlap | `validate_layout.py` | scene_qc |
 | SCRIPT references | `validate_scene_content.py` | scene_qc |
 
-### 6.4 Provider Agnosticism
+### 6.4 Local Grok CLI Harness
 
 ```bash
-# XAI (default)
-LLM_PROVIDER=XAI
-XAI_API_KEY=your_key
+# Default local backend
+GROK_MODEL=grok-build
 
-# Or MiniMax
-LLM_PROVIDER=MINIMAX
-MINIMAX_API_KEY=your_key
+# Optional executable override
+GROK_CLI=/absolute/path/to/grok
+
+# Optional per-phase timeout
+GROK_CLI_TIMEOUT_SECONDS=900
 ```
 
 ---
@@ -393,4 +394,3 @@ Primary sources reviewed for this document:
 
 **Document Version:** 2.0  
 **Last Updated:** February 20, 2026
-

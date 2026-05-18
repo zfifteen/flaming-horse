@@ -5,14 +5,56 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(realpath "${SCRIPT_DIR}/..")"
 ENV_FILE="${REPO_ROOT}/.env"
 
+_grok_cli_env_set=0
+_grok_model_env_set=0
+_grok_timeout_env_set=0
+if [[ -n "${GROK_CLI:-}" ]]; then
+  _grok_cli_env_set=1
+  _grok_cli_env="${GROK_CLI}"
+fi
+if [[ -n "${GROK_MODEL:-}" ]]; then
+  _grok_model_env_set=1
+  _grok_model_env="${GROK_MODEL}"
+fi
+if [[ -n "${GROK_CLI_TIMEOUT_SECONDS:-}" ]]; then
+  _grok_timeout_env_set=1
+  _grok_timeout_env="${GROK_CLI_TIMEOUT_SECONDS}"
+fi
+
 if [[ -f "${ENV_FILE}" ]]; then
   # shellcheck disable=SC1090
   source "${ENV_FILE}"
 fi
+if [[ ${_grok_cli_env_set} -eq 1 ]]; then
+  GROK_CLI="${_grok_cli_env}"
+fi
+if [[ ${_grok_model_env_set} -eq 1 ]]; then
+  GROK_MODEL="${_grok_model_env}"
+fi
+if [[ ${_grok_timeout_env_set} -eq 1 ]]; then
+  GROK_CLI_TIMEOUT_SECONDS="${_grok_timeout_env}"
+fi
 
-if [[ -z "${XAI_API_KEY:-}" ]]; then
-  echo "❌ XAI_API_KEY is not set in the environment." >&2
-  echo "   Please set it in .env or export XAI_API_KEY=your_key" >&2
+if [[ -n "${GROK_CLI:-}" ]]; then
+  GROK_BIN="${GROK_CLI}"
+else
+  GROK_BIN="$(command -v grok || true)"
+fi
+
+if [[ -z "${GROK_BIN}" || ! -x "${GROK_BIN}" ]]; then
+  echo "❌ grok CLI is not available." >&2
+  echo "   Add grok to PATH or set GROK_CLI=/absolute/path/to/grok" >&2
+  exit 1
+fi
+
+grok_models_status=0
+grok_models_output="$("${GROK_BIN}" models 2>&1)" || grok_models_status=$?
+if [[ "${grok_models_status}" -ne 0 || "${grok_models_output}" != *"grok-build"* ]]; then
+  echo "❌ grok CLI is not logged in or cannot list required model grok-build." >&2
+  echo "   Run: grok login" >&2
+  if [[ -n "${grok_models_output}" ]]; then
+    echo "${grok_models_output}" >&2
+  fi
   exit 1
 fi
 

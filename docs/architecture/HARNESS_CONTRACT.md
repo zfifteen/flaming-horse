@@ -42,15 +42,32 @@ For each harness phase:
 
 1. `harness_responses/cli.py` parses CLI arguments and phase.
 2. `harness_responses/prompts.py` composes system and user prompts from `harness_responses/prompts/<phase>/`.
-3. `harness_responses/client.py` calls xAI through `xai_sdk`.
-4. The response is parsed into the phase Pydantic schema.
-5. `harness_responses/parser.py` performs semantic validation and writes artifacts.
+3. `harness_responses/client.py` writes a phase prompt file and invokes the local Grok Build CLI from the project log directory with Grok's `workspace` sandbox.
+4. Grok may read the repository and project filesystem, but sandboxed writes are limited to the log directory and the required staged JSON response file.
+5. The staged JSON is parsed into the phase Pydantic schema.
+6. `harness_responses/parser.py` performs semantic validation and writes artifacts.
 
-Conversation continuity is stored in:
+Backend session metadata is stored in:
 
 ```text
 projects/<project_name>/log/responses_session.json
 ```
+
+The Grok CLI backend is stateless per phase. The session file is retained as a
+compatibility metadata record, not as a conversation-continuation contract.
+
+Per-call prompt and staged response files are written as:
+
+```text
+projects/<project_name>/log/grok_prompt_<phase>_<timestamp>.md
+projects/<project_name>/log/grok_response_<phase>_<timestamp>.json
+```
+
+These files are retained as execution evidence. A project with many retries
+will accumulate one prompt file and one staged-response file per Grok call.
+The current contract favors auditability over log rotation.
+If a failure occurs after prompt writing and before staged response writing,
+the prompt-only record is also retained as evidence of the attempted call.
 
 Prompt and response records are appended to:
 
@@ -118,13 +135,51 @@ Prompt instructions must not contradict parser or scaffold contracts. If one pro
 
 Current `harness_responses/client.py` supports:
 
-1. `response_format="json_object"`.
-2. Stateful `previous_response_id`.
-3. Optional web search when `enable_web_search=True`.
-4. Optional `collections_search` when available from `xai_sdk.tools`.
-5. Build-scenes template upload through xAI Files.
+1. Local Grok Build CLI invocation.
+2. Prompt-file execution from the project log directory.
+3. Required staged JSON file output.
+4. Pydantic validation before parser promotion.
+5. No web search, xAI collections, xAI file upload, or API conversation continuation.
 
-Do not present optional retrieval/tool behavior as mandatory unless the code enforces it.
+The minimum verified Grok CLI version for this backend is:
+
+```text
+grok 0.1.212
+```
+
+The backend requires the local CLI to support these flags:
+
+```text
+--cwd
+--sandbox workspace
+--prompt-file
+--output-format json
+--no-subagents
+--disable-web-search
+--max-turns 1
+--permission-mode bypassPermissions
+--always-approve
+--no-memory
+--model grok-build
+```
+
+`scripts/test_grok_cli_contract.py` is the live contract check for this flag
+surface. It verifies the installed binary, required model, and staged JSON write
+using the same headless invocation shape as the harness.
+
+The `bypassPermissions` plus `always-approve` pair is intentionally narrow to
+the staged JSON writer contract. Less-permissive headless modes did not write
+the staged file reliably in local testing. The security invariant is therefore:
+
+```text
+Grok runs from projects/<project_name>/log, uses workspace sandboxing, has no
+web search, has no subagents, and is instructed to write only the staged JSON
+file. Parser-owned artifact promotion remains deterministic.
+```
+
+Do not present filesystem read access as artifact ownership. Grok may inspect
+files, but only the harness parser promotes validated artifacts into canonical
+project files.
 
 ## Exit Codes
 
@@ -133,6 +188,9 @@ The CLI contract is:
 1. `0`: success.
 2. `1`: recoverable phase failure.
 3. `2`: configuration, implementation, or semantic validation failure.
+
+Grok CLI timeout is a configuration failure. Raise
+`GROK_CLI_TIMEOUT_SECONDS` if a phase is expected to run longer.
 
 `build_video.sh` uses these return codes to decide retry, pause, or failure behavior.
 

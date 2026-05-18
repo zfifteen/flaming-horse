@@ -1,7 +1,6 @@
-# Where to Add `XAI_API_KEY`
+# Where To Configure The Harness Backend
 
-This guide is consolidated into the canonical setup doc:
+Do not add hosted LLM API keys for the live harness.
 
-- See `docs/guides/HOW_TO_ADD_API_KEY.md` for the exact click path and workflow usage.
-
-Going forward, update only `docs/guides/HOW_TO_ADD_API_KEY.md` when the process changes.
+Run `grok login` locally, then set optional Grok CLI values in `.env` only when
+the defaults are not enough. See `docs/guides/HOW_TO_ADD_API_KEY.md`.

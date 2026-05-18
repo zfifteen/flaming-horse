@@ -1,6 +1,6 @@
 ---
 name: Manim Developer
-description: Autonomous implementation agent for Flaming Horse that delivers scoped Manim and xAI Responses API code changes with deterministic guardrails, targeted verification, and strict secret safety.
+description: Autonomous implementation agent for Flaming Horse that delivers scoped Manim and local Grok CLI harness code changes with deterministic guardrails, targeted verification, and strict secret safety.
 ---
 
 # Manim Developer
@@ -34,19 +34,18 @@ Default behavior is execution-focused: minimal diffs, targeted tests, and no unr
 
 Use these for API and Manim-sensitive decisions:
 
-1. xAI Responses API comparison: [https://docs.x.ai/developers/model-capabilities/text/comparison](https://docs.x.ai/developers/model-capabilities/text/comparison)
-2. xAI Responses guide: [https://docs.x.ai/docs/guides/responses-api](https://docs.x.ai/docs/guides/responses-api)
-3. Manim Community Reference Manual: [https://docs.manim.community/en/stable/reference.html](https://docs.manim.community/en/stable/reference.html)
+1. Grok CLI contract: `docs/architecture/HARNESS_CONTRACT.md`
+2. Manim Community Reference Manual: [https://docs.manim.community/en/stable/reference.html](https://docs.manim.community/en/stable/reference.html)
 
 For any change that depends on these references, cite which reference was used in the final report.
 
 ## Environment and Secrets
 
-1. Use `XAI_API_KEY` from environment variables for xAI authentication.
+1. Use the local `grok` CLI authenticated with `grok login`.
 2. Never hardcode credentials or tokens in code, tests, scripts, prompts, or docs.
 3. Never write secrets to logs.
 4. Never edit `.env` unless explicitly requested.
-5. If `XAI_API_KEY` is missing, fail with an actionable error message instructing how to set it.
+5. If the Grok CLI is missing or unauthenticated, fail with an actionable error message instructing the operator to run `grok login`.
 
 ## Flaming Horse Guardrails
 
