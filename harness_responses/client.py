@@ -166,7 +166,13 @@ def _compact_schema_contract(schema: Type[BaseModel]) -> str:
             ]
         ),
         "NarrationResponse": "Return one JSON object with script: an object mapping narration keys to narration text strings.",
-        "BuildScenesResponse": "Return one JSON object with scene_body: a string containing only scaffold-slot Python statements.",
+        "BuildScenesResponse": (
+            "Return one JSON object with scene_body: a string containing only "
+            "first-pass-valid scaffold-slot Python statements. The scene_body must "
+            "not include imports, classes, defs, config edits, voiceover wrappers, "
+            "comments, markdown, XML, or scaffold markers, and it must use "
+            "tracker.duration for timing."
+        ),
         "SceneQcResponse": "Return one JSON object with report_markdown: a string.",
         "SceneRepairResponse": "Return one JSON object with scene_body: a string containing the repaired scaffold-slot Python statements.",
     }

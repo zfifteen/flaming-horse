@@ -9,6 +9,7 @@ Responsibilities:
 No dependencies on harness/.
 """
 
+import ast
 import json
 import re
 from datetime import datetime, timezone
@@ -276,7 +277,108 @@ def _normalize_and_validate_scene_body(
             extracted_content,
             f"{phase}.scene_body cannot be empty",
         )
+    _validate_scene_body_contract(
+        phase=phase,
+        scene_body=candidate,
+        project_dir=project_dir,
+        raw_response=raw_response,
+        extracted_content=extracted_content,
+    )
     return candidate
+
+
+def _validate_scene_body_contract(
+    *,
+    phase: str,
+    scene_body: str,
+    project_dir: Path,
+    raw_response: Any,
+    extracted_content: Any,
+) -> None:
+    def fail(msg: str) -> None:
+        _fail_with_diag(project_dir, raw_response, extracted_content, f"{phase}.{msg}")
+
+    for line_no, line in enumerate(scene_body.splitlines(), start=1):
+        stripped = line.strip()
+        if stripped.startswith("#"):
+            fail(f"scene_body line {line_no} must not contain comments")
+
+    try:
+        tree = ast.parse(scene_body)
+    except SyntaxError as exc:
+        fail(f"scene_body must be valid Python statements: {exc}")
+
+    forbidden_nodes = (
+        ast.Import,
+        ast.ImportFrom,
+        ast.ClassDef,
+        ast.FunctionDef,
+        ast.AsyncFunctionDef,
+    )
+    for node in ast.walk(tree):
+        if isinstance(node, forbidden_nodes):
+            fail(
+                "scene_body must not include imports, class definitions, "
+                "or function definitions"
+            )
+
+    def call_name(node: ast.AST) -> str:
+        if isinstance(node, ast.Name):
+            return node.id
+        if isinstance(node, ast.Attribute):
+            return node.attr
+        return ""
+
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        name = call_name(node.func)
+        if name == "ShowCreation":
+            fail("Use Create(...) instead of ShowCreation(...)")
+        if name == "FadeIn":
+            kw_names = {kw.arg for kw in node.keywords if kw.arg}
+            if "lag_ratio" in kw_names:
+                fail("Use LaggedStart(..., lag_ratio=...) instead of FadeIn(..., lag_ratio=...)")
+            if "scale_factor" in kw_names:
+                fail("FadeIn(..., scale_factor=...) is unsupported")
+        if name == "set_color" and node.args:
+            first_arg = node.args[0]
+            if isinstance(first_arg, ast.Call):
+                first_name = call_name(first_arg.func)
+                if first_name == "list":
+                    fail("set_color(list(...)) is not Manim-compatible")
+                if first_name == "harmonious_color":
+                    fail("select a concrete Manim-compatible color before set_color(...)")
+
+    forbidden_patterns: list[tuple[str, str]] = [
+        (r"(?m)^\s*config\s*\.", "scene_body must not modify Manim config"),
+        (r"with\s+self\.voiceover\s*\(", "scaffold owns the voiceover wrapper"),
+        (r"#\s*SLOT_(START|END):scene_body", "scene_body must not include slot markers"),
+        (r"```", "scene_body must not include markdown fences"),
+        (r"</?scene_body\b", "scene_body must not include XML scene_body tags"),
+        (r"\bShowCreation\s*\(", "Use Create(...) instead of ShowCreation(...)"),
+        (
+            r"FadeIn\([^\n)]*lag_ratio\s*=",
+            "Use LaggedStart(..., lag_ratio=...) instead of FadeIn(..., lag_ratio=...)",
+        ),
+        (
+            r"FadeIn\([^\n)]*scale_factor\s*=",
+            "FadeIn(..., scale_factor=...) is unsupported",
+        ),
+        (r"&lt;|&gt;", "scene_body must use Python operators, not escaped HTML operators"),
+        (r"set_color\(\s*list\(", "set_color(list(...)) is not Manim-compatible"),
+        (
+            r"set_color\(\s*harmonious_color\(",
+            "select a concrete Manim-compatible color before set_color(...)",
+        ),
+        (r"\b(?:np\.)?random\b", "scene_body must be deterministic and not use random"),
+    ]
+    for pattern, message in forbidden_patterns:
+        if re.search(pattern, scene_body):
+            fail(message)
+
+    if "tracker.duration" not in scene_body:
+        fail("scene_body must use tracker.duration for narration-synced timing")
 
 
 def _resolve_scene_file_for_build(project_dir: Path) -> Path:

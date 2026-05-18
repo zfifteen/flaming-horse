@@ -555,6 +555,89 @@ class TestArtifactWriters:
         content = (project / "scene_01.py").read_text(encoding="utf-8")
         assert "Fixed" in content
 
+    def test_scene_body_empty_or_comment_only_fails(self, tmp_path):
+        project = _make_scene_project(tmp_path)
+        for body in ("", "   ", "# placeholder only"):
+            parsed = BuildScenesResponse(scene_body=body)
+            with pytest.raises(SemanticValidationError):
+                hr_parser.write_phase_artifacts("build_scenes", parsed, project)
+
+    @pytest.mark.parametrize(
+        ("body", "message"),
+        [
+            ("import os\nself.wait(tracker.duration * 0.1)", "must not include imports"),
+            (
+                "class Bad:\n    pass\nself.wait(tracker.duration * 0.1)",
+                "must not include imports, class definitions, or function definitions",
+            ),
+            (
+                "def helper():\n    pass\nself.wait(tracker.duration * 0.1)",
+                "must not include imports, class definitions, or function definitions",
+            ),
+            ("config.frame_width = 1\nself.wait(tracker.duration * 0.1)", "config"),
+            (
+                "with self.voiceover(text=SCRIPT['scene_01']) as tracker:\n    pass",
+                "voiceover wrapper",
+            ),
+            (
+                "# SLOT_START:scene_body\nself.wait(tracker.duration * 0.1)",
+                "comments",
+            ),
+        ],
+    )
+    def test_scene_body_structural_violations_fail(self, tmp_path, body, message):
+        project = _make_scene_project(tmp_path)
+        parsed = BuildScenesResponse(scene_body=body)
+        with pytest.raises(SemanticValidationError, match=message):
+            hr_parser.write_phase_artifacts("build_scenes", parsed, project)
+
+    @pytest.mark.parametrize(
+        ("body", "message"),
+        [
+            (
+                "title = Text('x')\nself.play(Write(title), run_time=1)",
+                "tracker.duration",
+            ),
+            (
+                "self.play(ShowCreation(Line()), run_time=tracker.duration * 0.2)",
+                "ShowCreation",
+            ),
+            (
+                "self.play(FadeIn(Text('x'), lag_ratio=0.2), run_time=tracker.duration * 0.2)",
+                "LaggedStart",
+            ),
+            (
+                "self.play(FadeIn(Text('x'), scale_factor=2), run_time=tracker.duration * 0.2)",
+                "scale_factor",
+            ),
+            (
+                "title = Text('1 &lt; 2')\nself.wait(tracker.duration * 0.1)",
+                "escaped HTML",
+            ),
+            (
+                "title = Text('x')\ntitle.set_color(list(BLUE))\nself.wait(tracker.duration * 0.1)",
+                "set_color",
+            ),
+            (
+                "title = Text('x')\ntitle.set_color(harmonious_color(BLUE))\nself.wait(tracker.duration * 0.1)",
+                "concrete Manim-compatible color",
+            ),
+        ],
+    )
+    def test_scene_body_known_invalid_manim_patterns_fail(self, tmp_path, body, message):
+        project = _make_scene_project(tmp_path)
+        parsed = BuildScenesResponse(scene_body=body)
+        with pytest.raises(SemanticValidationError, match=message):
+            hr_parser.write_phase_artifacts("build_scenes", parsed, project)
+
+    def test_scene_repair_uses_shared_scene_body_validation(self, tmp_path):
+        project = _make_scene_project(tmp_path)
+        parsed = SceneRepairResponse(
+            scene_body="self.play(ShowCreation(Line()), run_time=tracker.duration * 0.2)"
+        )
+        with pytest.raises(SemanticValidationError, match="ShowCreation"):
+            hr_parser.write_phase_artifacts("scene_repair", parsed, project)
+
     def test_write_phase_artifacts_narration(self, tmp_path):
         project = _make_narration_project(tmp_path)
         parsed = NarrationResponse(script={"scene_01": "Hello narration"})
@@ -620,6 +703,38 @@ class TestPromptComposition:
         assert "Build Scenes Phase" in system
         assert "Scene ID: scene_01" in user
         assert "/repo/harness_responses/templates/phase_scenes.md" in user
+
+    def test_build_scenes_prompt_names_first_pass_contract(self, tmp_path):
+        project = _make_scene_project(tmp_path)
+        system, user = hr_prompts.compose_prompt(
+            phase="build_scenes",
+            project_dir=project,
+        )
+        combined = f"{system}\n{user}"
+        assert "first-pass-valid" in combined
+        assert "scaffold structure" in combined
+        assert "Python syntax" in combined
+        assert "import/API validation" in combined
+        assert "voiceover sync" in combined
+        assert "timing budget validation" in combined
+        assert "semantic placeholder checks" in combined
+        assert "manim render --dry_run" in combined
+
+    def test_build_scenes_prompt_forbids_known_failure_patterns(self, tmp_path):
+        project = _make_scene_project(tmp_path)
+        _, user = hr_prompts.compose_prompt(
+            phase="build_scenes",
+            project_dir=project,
+        )
+        assert "JSON only" in user
+        assert "Do not include imports" in user
+        assert "ShowCreation" in user
+        assert "FadeIn(..., lag_ratio=...)" in user
+        assert "FadeIn(..., scale_factor=...)" in user
+        assert "&lt;" in user
+        assert "set_color(list(...))" in user
+        assert "set_color(harmonious_color(...))" in user
+        assert "with self.voiceover" in user
 
     def test_narration_prompt_loads(self, tmp_path):
         project = _make_narration_project(tmp_path)
