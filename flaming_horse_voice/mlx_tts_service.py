@@ -19,11 +19,7 @@ MODEL_ID = os.environ.get(
 REF_AUDIO = os.environ.get(
     "MLX_REF_AUDIO", str(DEFAULT_REF_AUDIO)
 )
-REF_TEXT = os.environ.get("MLX_REF_TEXT")
-if not REF_TEXT:
-    REF_TEXT = Path(REF_AUDIO.replace(".wav", ".txt")).read_text(
-        encoding="utf-8"
-    ).strip()
+REF_TEXT = os.environ.get("MLX_REF_TEXT", "").strip()
 OUTPUT_DIR = Path(os.environ.get("MLX_OUTPUT_DIR", "mlx_outputs"))
 OUTPUT_DIR.mkdir(exist_ok=True, parents=True)
 
@@ -36,10 +32,29 @@ def cache_key(text: str) -> str:
     return hashlib.md5(f"{MODEL_ID}:{text}:{ref_hash}".encode()).hexdigest()
 
 
+def resolve_ref_text(ref_audio: str, ref_text: str = "") -> str:
+    configured = ref_text.strip()
+    if configured:
+        return configured
+
+    transcript_path = Path(ref_audio).with_suffix(".txt")
+    if not transcript_path.exists():
+        raise ValueError(
+            "Missing MLX reference transcript. Set MLX_REF_TEXT or create "
+            f"{transcript_path} next to MLX_REF_AUDIO."
+        )
+
+    resolved = transcript_path.read_text(encoding="utf-8").strip()
+    if not resolved:
+        raise ValueError(f"MLX reference transcript is empty: {transcript_path}")
+    return resolved
+
+
 def synthesize_batch(
     segments: list[dict],
 ) -> list[dict]:  # Returns [{"id": "seg1", "path": str, "duration": float}]
     results = []
+    ref_text = resolve_ref_text(REF_AUDIO, REF_TEXT)
     for seg in segments:
         key = cache_key(seg["text"])
         cached_path = OUTPUT_DIR / f"{key}.wav"
@@ -59,7 +74,7 @@ def synthesize_batch(
             model=model,
             text=seg["text"],
             ref_audio=REF_AUDIO,
-            ref_text=REF_TEXT,
+            ref_text=ref_text,
             file_prefix=str(out_prefix),
             audio_format="wav",
             join_audio=True,  # Single WAV, no chunks
