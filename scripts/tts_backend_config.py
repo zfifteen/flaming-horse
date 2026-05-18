@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -148,7 +149,14 @@ def main() -> int:
     )
     parser.add_argument("--write-voice-config", type=Path, required=True)
     args = parser.parse_args()
-    write_voice_clone_config(args.write_voice_config)
+    try:
+        write_voice_clone_config(args.write_voice_config)
+    except ValueError as exc:
+        print(
+            f"ERROR: {exc} See .env.example for required TTS settings.",
+            file=sys.stderr,
+        )
+        return 2
     return 0
 
 

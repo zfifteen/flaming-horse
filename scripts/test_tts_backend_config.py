@@ -7,6 +7,7 @@ import os
 import sys
 import tempfile
 import unittest
+from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
 
@@ -19,6 +20,7 @@ if str(SCRIPTS_DIR) not in sys.path:
 from tts_backend_config import (  # noqa: E402
     DEFAULT_MLX_MODEL_ID,
     build_voice_clone_config,
+    main,
     selected_model_id,
     selected_output_dir,
     selected_tts_backend,
@@ -146,6 +148,25 @@ class TestTtsBackendConfig(unittest.TestCase):
             with patch.dict(os.environ, env, clear=True):
                 write_voice_clone_config(path)
             self.assertIn('"backend": "mlx"', path.read_text(encoding="utf-8"))
+
+    def test_cli_reports_missing_worker_python_without_traceback(self):
+        env = {"FLAMING_HORSE_TTS_BACKEND": "mlx"}
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "voice_clone_config.json"
+            with (
+                patch.dict(os.environ, env, clear=True),
+                patch.object(
+                    sys,
+                    "argv",
+                    ["tts_backend_config.py", "--write-voice-config", str(path)],
+                ),
+                patch("sys.stderr", new_callable=StringIO) as stderr,
+            ):
+                self.assertEqual(main(), 2)
+
+            self.assertIn("ERROR: Missing MLX worker Python", stderr.getvalue())
+            self.assertIn(".env.example", stderr.getvalue())
+            self.assertFalse(path.exists())
 
 
 if __name__ == "__main__":
