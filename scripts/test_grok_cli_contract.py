@@ -107,15 +107,24 @@ def check_models(grok: str) -> None:
 
 def check_staged_json_write(grok: str) -> None:
     with tempfile.TemporaryDirectory(prefix=".grok_contract_", dir=REPO_ROOT) as tmp:
-        work_dir = Path(tmp)
-        prompt_path = work_dir / "prompt.md"
-        staged_path = work_dir / "staged.json"
+        root = Path(tmp)
+        project_dir = root / "project"
+        log_dir = root / "log"
+        project_dir.mkdir()
+        log_dir.mkdir()
+        marker_path = project_dir / "read_marker.txt"
+        marker_text = "flaming-horse-grok-read-contract"
+        marker_path.write_text(marker_text, encoding="utf-8")
+        prompt_path = log_dir / "prompt.md"
+        staged_path = log_dir / "staged.json"
         prompt_path.write_text(
             "\n".join(
                 [
                     "Write exactly one JSON object to this staged response file:",
                     str(staged_path),
-                    'The JSON object must be {"ok": true}.',
+                    "Before writing, read this project file:",
+                    str(marker_path),
+                    'The JSON object must be {"ok": true, "marker": "<file contents>"} where marker is the exact project-file content.',
                     "Do not write markdown, code fences, or prose to the file.",
                     "Do not create or edit any other files.",
                     "When finished, print only the staged response file path.",
@@ -127,7 +136,7 @@ def check_staged_json_write(grok: str) -> None:
         cmd = [
             grok,
             "--cwd",
-            str(work_dir),
+            str(log_dir),
             "--sandbox",
             "workspace",
             "--prompt-file",
@@ -145,13 +154,13 @@ def check_staged_json_write(grok: str) -> None:
             "--model",
             DEFAULT_MODEL,
         ]
-        result = run_command(cmd, cwd=work_dir)
+        result = run_command(cmd, cwd=log_dir)
         if result.returncode != 0:
             fail(f"staged JSON smoke failed:\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}")
         if not staged_path.exists():
             fail("Grok CLI exited successfully but did not write staged JSON")
         payload = json.loads(staged_path.read_text(encoding="utf-8"))
-        if payload != {"ok": True}:
+        if payload != {"ok": True, "marker": marker_text}:
             fail(f"unexpected staged JSON payload: {payload!r}")
 
 
