@@ -13,14 +13,12 @@ from __future__ import annotations
 import json
 import os
 import subprocess
-import sys
 from pathlib import Path
 from typing import Any
 
 import torch
 
 
-DEFAULT_MLX_PYTHON = ""
 DEFAULT_MLX_MODEL_ID = "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit"
 
 
@@ -37,7 +35,10 @@ def _mlx_python() -> str:
     configured = os.environ.get("FLAMING_HORSE_MLX_PYTHON", "").strip()
     if configured:
         return configured
-    return sys.executable or DEFAULT_MLX_PYTHON
+    raise ValueError(
+        "Missing MLX worker Python. Set FLAMING_HORSE_MLX_PYTHON before "
+        "calling the MLX TTS mediator."
+    )
 
 
 def _mlx_service_script() -> str:
