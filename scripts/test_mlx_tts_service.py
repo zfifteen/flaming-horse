@@ -17,7 +17,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 SERVICE_PATH = REPO_ROOT / "flaming_horse_voice" / "mlx_tts_service.py"
 
 
-def load_service_module(output_dir: Path):
+def load_service_module(output_dir: Path, load_calls: list[str] | None = None):
     mlx_pkg = types.ModuleType("mlx")
     mlx_core = types.ModuleType("mlx.core")
     mlx_audio_pkg = types.ModuleType("mlx_audio")
@@ -27,7 +27,14 @@ def load_service_module(output_dir: Path):
     soundfile_mod = types.ModuleType("soundfile")
 
     generate_mod.generate_audio = lambda *args, **kwargs: None
-    utils_mod.load_model = lambda model_id: object()
+    if load_calls is None:
+        load_calls = []
+
+    def fake_load_model(model_id):
+        load_calls.append(model_id)
+        return object()
+
+    utils_mod.load_model = fake_load_model
     soundfile_mod.read = lambda path: ([0.0], 24000)
 
     modules = {
@@ -54,6 +61,12 @@ def load_service_module(output_dir: Path):
 
 
 class TestMlxTtsService(unittest.TestCase):
+    def test_import_does_not_load_model(self):
+        with tempfile.TemporaryDirectory() as td:
+            load_calls: list[str] = []
+            load_service_module(Path(td), load_calls=load_calls)
+            self.assertEqual(load_calls, [])
+
     def test_ref_text_env_value_avoids_file_lookup(self):
         with tempfile.TemporaryDirectory() as td:
             module = load_service_module(Path(td))
@@ -72,6 +85,25 @@ class TestMlxTtsService(unittest.TestCase):
             transcript.write_text("from file\n", encoding="utf-8")
             module = load_service_module(Path(td))
             self.assertEqual(module.resolve_ref_text(str(base), ""), "from file")
+
+    def test_missing_ref_audio_reports_configuration_error(self):
+        with tempfile.TemporaryDirectory() as td:
+            module = load_service_module(Path(td))
+            with self.assertRaisesRegex(ValueError, "Missing MLX reference audio"):
+                module.resolve_ref_audio(str(Path(td) / "missing.wav"))
+
+    def test_ref_audio_must_be_file(self):
+        with tempfile.TemporaryDirectory() as td:
+            module = load_service_module(Path(td))
+            with self.assertRaisesRegex(ValueError, "MLX_REF_AUDIO is not a file"):
+                module.resolve_ref_audio(td)
+
+    def test_cache_key_wraps_unreadable_ref_audio_errors(self):
+        with tempfile.TemporaryDirectory() as td:
+            module = load_service_module(Path(td))
+            missing = Path(td) / "missing.wav"
+            with self.assertRaisesRegex(ValueError, "Unable to read MLX reference audio"):
+                module.cache_key("hello", missing)
 
 
 if __name__ == "__main__":

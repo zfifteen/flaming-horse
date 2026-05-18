@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import ast
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -16,6 +17,9 @@ from typing import Any
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+SCRIPTS_DIR = REPO_ROOT / "scripts"
+if str(SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS_DIR))
 
 BUILD_PHASES = [
     "init",
@@ -137,6 +141,51 @@ def check_voice_contract() -> None:
     )
 
 
+def check_voice_backend_resolution_contract() -> None:
+    from tts_backend_config import build_voice_clone_config
+
+    saved_env = os.environ.copy()
+    try:
+        for key in list(os.environ):
+            if key.startswith("FLAMING_HORSE_"):
+                os.environ.pop(key)
+        os.environ["FLAMING_HORSE_TTS_BACKEND"] = "mlx"
+        os.environ["FLAMING_HORSE_MLX_PYTHON"] = "/env/mlx/python"
+        cfg = build_voice_clone_config({})
+    finally:
+        os.environ.clear()
+        os.environ.update(saved_env)
+
+    require(
+        "qwen_python" not in cfg,
+        "new MLX voice configs must not synthesize qwen_python",
+    )
+
+    prepare_voice = read_text("scripts/prepare_qwen_voice.py")
+    require(
+        "selected_output_dir(cfg)" in prepare_voice,
+        "prepare_qwen_voice.py does not use shared selected_output_dir",
+    )
+    require(
+        "compute_fingerprint(cfg, str(model_id)" in prepare_voice,
+        "prepare_qwen_voice.py fingerprint does not use resolved model_id",
+    )
+
+    mlx_service = read_text("flaming_horse_voice/mlx_tts_service.py")
+    require(
+        "def resolve_ref_audio(" in mlx_service,
+        "mlx_tts_service.py does not validate MLX reference audio explicitly",
+    )
+    require(
+        "Path(REF_AUDIO).read_bytes()" not in mlx_service,
+        "mlx_tts_service.py still reads global REF_AUDIO directly for cache key",
+    )
+    require(
+        not re.search(r"^model\s*=\s*load_model\(", mlx_service, re.M),
+        "mlx_tts_service.py loads model at import time",
+    )
+
+
 def check_removed_live_surfaces() -> None:
     removed_service = "MLX" + "CachedService"
     removed_module = "flaming_horse_voice" + ".mlx_cached"
@@ -162,6 +211,7 @@ def main() -> int:
     check_phase_contract()
     check_scaffold_contract()
     check_voice_contract()
+    check_voice_backend_resolution_contract()
     check_removed_live_surfaces()
     print("OK")
     return 0

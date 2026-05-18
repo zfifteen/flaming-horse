@@ -24,6 +24,7 @@ from typing import Any
 
 from tts_backend_config import (
     selected_model_id,
+    selected_output_dir,
     selected_tts_backend,
     selected_worker_python,
     selected_worker_python_raw,
@@ -110,9 +111,11 @@ def find_hf_snapshot_dir(model_id: str) -> Path | None:
     return snapshots[0]
 
 
-def compute_fingerprint(cfg: dict[str, Any], ref_audio: Path, ref_text: Path) -> str:
+def compute_fingerprint(
+    cfg: dict[str, Any], model_id: str, ref_audio: Path, ref_text: Path
+) -> str:
     payload = {
-        "model_id": cfg.get("model_id", "Qwen/Qwen3-TTS-12Hz-1.7B-Base"),
+        "model_id": model_id,
         "device": cfg.get("device", "cpu"),
         "dtype": cfg.get("dtype", "float32"),
         "language": cfg.get("language", "English"),
@@ -183,12 +186,12 @@ def main() -> int:
     print(f"  Ref WAV: {ref_audio}")
     print(f"  Ref TXT: {ref_text}")
 
-    output_dir_rel = cfg.get("output_dir", "media/voiceovers/qwen")
+    output_dir_rel = selected_output_dir(cfg)
     output_dir = (project_dir / str(output_dir_rel)).resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
     ready_path = output_dir / "ready.json"
 
-    fingerprint = compute_fingerprint(cfg, ref_audio, ref_text)
+    fingerprint = compute_fingerprint(cfg, str(model_id), ref_audio, ref_text)
 
     if ready_path.exists() and not args.force:
         try:

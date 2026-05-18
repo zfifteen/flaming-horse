@@ -131,8 +131,17 @@ class TestTtsBackendConfig(unittest.TestCase):
             cfg = build_voice_clone_config({})
             self.assertEqual(cfg["backend"], "mlx")
             self.assertEqual(cfg["worker_python"], "/env/mlx/python")
-            self.assertEqual(cfg["qwen_python"], "/env/mlx/python")
+            self.assertNotIn("qwen_python", cfg)
             self.assertEqual(cfg["output_dir"], "media/voiceovers/qwen")
+
+    def test_mlx_config_preserves_explicit_legacy_qwen_python_only(self):
+        env = {
+            "FLAMING_HORSE_TTS_BACKEND": "mlx",
+            "FLAMING_HORSE_MLX_PYTHON": "/env/mlx/python",
+        }
+        with patch.dict(os.environ, env, clear=True):
+            cfg = build_voice_clone_config({"qwen_python": "/legacy/qwen/python"})
+            self.assertEqual(cfg["qwen_python"], "/legacy/qwen/python")
 
     def test_output_dir_env_override_is_written_to_new_config(self):
         env = {

@@ -64,7 +64,6 @@ The default project config produced by `scripts/new_project.sh` records the sele
 {
   "backend": "mlx",
   "worker_python": "/absolute/path/to/python-with-mlx-audio",
-  "qwen_python": "/absolute/path/to/python-with-mlx-audio",
   "model_id": "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit",
   "device": "cpu",
   "dtype": "float32",
@@ -72,7 +71,7 @@ The default project config produced by `scripts/new_project.sh` records the sele
 }
 ```
 
-The `qwen_python` key is retained for legacy compatibility. Under `mlx`, it points at the same worker Python as `worker_python` and must not force the old Qwen venv.
+The `qwen_python` key is retained only for legacy Qwen project compatibility. New MLX project configs must not write a synthetic `qwen_python` value.
 
 `FLAMING_HORSE_TTS_OUTPUT_DIR` is honored when `scripts/new_project.sh` writes a new `voice_clone_config.json`. Existing projects use the `output_dir` recorded in project config.
 

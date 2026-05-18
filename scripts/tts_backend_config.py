@@ -122,16 +122,9 @@ def build_voice_clone_config(cfg: dict[str, Any] | None = None) -> dict[str, Any
     model_id = selected_model_id(base, backend)
     output_dir = _env_value(OUTPUT_DIR_ENV) or selected_output_dir(base)
 
-    qwen_python = (
-        selected_worker_python_raw(base, "qwen")
-        if backend == "qwen"
-        else _non_empty(base.get("qwen_python")) or worker_python
-    )
-
-    return {
+    result = {
         "backend": backend,
         "worker_python": worker_python,
-        "qwen_python": qwen_python,
         "model_id": model_id,
         "device": base.get("device", "cpu"),
         "dtype": base.get("dtype", "float32"),
@@ -140,6 +133,12 @@ def build_voice_clone_config(cfg: dict[str, Any] | None = None) -> dict[str, Any
         "ref_text": base.get("ref_text", "assets/voice_ref/ref.txt"),
         "output_dir": output_dir,
     }
+    qwen_python = _non_empty(base.get("qwen_python"))
+    if backend == "qwen":
+        result["qwen_python"] = selected_worker_python_raw(base, "qwen")
+    elif qwen_python:
+        result["qwen_python"] = qwen_python
+    return result
 
 
 def write_voice_clone_config(output_path: Path) -> None:
