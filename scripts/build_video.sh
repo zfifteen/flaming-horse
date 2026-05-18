@@ -475,13 +475,6 @@ voice_cache_index_path() {
   printf '%s\n' "${output_dir}/cache.json"
 }
 
-voice_audio_path_for_scene() {
-  local scene_id="$1"
-  local output_dir
-  output_dir="$(voice_output_dir_abs)" || return 1
-  printf '%s\n' "${output_dir}/${scene_id}.mp3"
-}
-
 prepare_rerender_final() {
   [[ -n "${RERENDER_FINAL}" ]] || return 0
 
@@ -993,8 +986,9 @@ validate_scene_runtime() {
 }
 
 ensure_qwen_cache_index() {
-  local cache_index
-  cache_index="$(voice_cache_index_path)" || return 1
+  local voice_output_dir cache_index
+  voice_output_dir="$(voice_output_dir_abs)" || return 1
+  cache_index="${voice_output_dir}/cache.json"
   if [[ -f "$cache_index" ]]; then
     return 0
   fi
@@ -2149,8 +2143,9 @@ PY
 
   # Ensure voice cache exists (precache step). If missing, generate it now.
   # Skip this check if --skip-precache flag is set.
-  local cache_index
-  cache_index="$(voice_cache_index_path)" || return 1
+  local voice_output_dir cache_index
+  voice_output_dir="$(voice_output_dir_abs)" || return 1
+  cache_index="${voice_output_dir}/cache.json"
   if [[ -z "${SKIP_PRECACHE}" && ! -f "$cache_index" ]]; then
     echo "→ Missing voice cache index; running precache step..." | tee -a "$LOG_FILE"
     if ! handle_precache_voiceovers; then
@@ -2441,8 +2436,7 @@ PY
     fi
 
     local out_video="media/videos/${scene_id}/1440p60/${scene_class}.mp4"
-    local scene_audio
-    scene_audio="$(voice_audio_path_for_scene "$scene_id")" || return 1
+    local scene_audio="${voice_output_dir}/${scene_id}.mp3"
     local needs_rerender=1
     # Reuse rendered scene only if output verifies and is newer than both source scene code and voice audio.
     if verify_scene_video "$scene_id" "$scene_class"; then
