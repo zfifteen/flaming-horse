@@ -123,6 +123,11 @@ def check_harness_contract() -> None:
         "scripts/test_grok_cli_contract.py" in harness_contract,
         "HARNESS_CONTRACT.md does not point to the live Grok CLI contract check",
     )
+    for env_name in ("GROK_CLI", "GROK_MODEL", "GROK_CLI_TIMEOUT_SECONDS"):
+        require(
+            f"export {env_name}" in build_video,
+            f"build_video.sh does not export {env_name} for harness subprocesses",
+        )
 
 
 def check_harness_docs_contract() -> None:

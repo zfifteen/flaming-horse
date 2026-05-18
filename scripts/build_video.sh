@@ -54,6 +54,12 @@ fi
 
 GROK_MODEL="${GROK_MODEL:-grok-build}"
 export GROK_MODEL
+if [[ -n "${GROK_CLI:-}" ]]; then
+  export GROK_CLI
+fi
+if [[ -n "${GROK_CLI_TIMEOUT_SECONDS:-}" ]]; then
+  export GROK_CLI_TIMEOUT_SECONDS
+fi
 PROJECTS_BASE_DIR="${PROJECTS_BASE_DIR:-projects}"
 PROJECT_DEFAULT_NAME="${PROJECT_DEFAULT_NAME:-default_video}"
 PHASE_RETRY_LIMIT="${PHASE_RETRY_LIMIT:-3}"
