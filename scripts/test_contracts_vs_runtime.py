@@ -157,9 +157,14 @@ def check_harness_docs_contract() -> None:
     require("AGENT_TEMPERATURE" not in cli, "CLI still parses inert AGENT_TEMPERATURE")
     require("store: True" not in cli, "CLI still logs inert store=True")
     require(
-        "consume_last_retrieval_info" not in cli + prompts,
-        "dead retrieval-info shim still exists in live harness",
+        "consume_last_retrieval_info" not in cli,
+        "dead retrieval-info shim still exists in harness_responses/cli.py",
     )
+    require(
+        "consume_last_retrieval_info" not in prompts,
+        "dead retrieval-info shim still exists in harness_responses/prompts.py",
+    )
+    require("tools_enabled" not in cli, "CLI still logs inert tools_enabled field")
     require(
         "temperature:" not in client and "max_tokens:" not in client,
         "client still exposes inert generation knobs",

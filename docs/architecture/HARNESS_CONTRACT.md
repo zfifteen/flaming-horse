@@ -66,6 +66,8 @@ projects/<project_name>/log/grok_response_<phase>_<timestamp>.json
 These files are retained as execution evidence. A project with many retries
 will accumulate one prompt file and one staged-response file per Grok call.
 The current contract favors auditability over log rotation.
+If a failure occurs after prompt writing and before staged response writing,
+the prompt-only record is also retained as evidence of the attempted call.
 
 Prompt and response records are appended to:
 

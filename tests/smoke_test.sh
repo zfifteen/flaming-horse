@@ -6,9 +6,19 @@ REPO_ROOT="$(realpath "${SCRIPT_DIR}/..")"
 ENV_FILE="${REPO_ROOT}/.env"
 
 _grok_cli_env_set=0
+_grok_model_env_set=0
+_grok_timeout_env_set=0
 if [[ -n "${GROK_CLI:-}" ]]; then
   _grok_cli_env_set=1
   _grok_cli_env="${GROK_CLI}"
+fi
+if [[ -n "${GROK_MODEL:-}" ]]; then
+  _grok_model_env_set=1
+  _grok_model_env="${GROK_MODEL}"
+fi
+if [[ -n "${GROK_CLI_TIMEOUT_SECONDS:-}" ]]; then
+  _grok_timeout_env_set=1
+  _grok_timeout_env="${GROK_CLI_TIMEOUT_SECONDS}"
 fi
 
 if [[ -f "${ENV_FILE}" ]]; then
@@ -17,6 +27,12 @@ if [[ -f "${ENV_FILE}" ]]; then
 fi
 if [[ ${_grok_cli_env_set} -eq 1 ]]; then
   GROK_CLI="${_grok_cli_env}"
+fi
+if [[ ${_grok_model_env_set} -eq 1 ]]; then
+  GROK_MODEL="${_grok_model_env}"
+fi
+if [[ ${_grok_timeout_env_set} -eq 1 ]]; then
+  GROK_CLI_TIMEOUT_SECONDS="${_grok_timeout_env}"
 fi
 
 if [[ -n "${GROK_CLI:-}" ]]; then

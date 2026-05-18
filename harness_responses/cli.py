@@ -46,7 +46,6 @@ def _append_conversation_log(
     previous_response_id: Optional[str],
     status: str,
     api_mode: str,
-    tools_enabled: bool,
     assistant_response_content: Optional[str] = None,
     error_text: Optional[str] = None,
 ) -> None:
@@ -56,7 +55,6 @@ def _append_conversation_log(
         f"phase: {phase}",
         f"status: {status}",
         f"api_mode: {api_mode}",
-        f"tools_enabled: {tools_enabled}",
     ]
     if previous_response_id:
         parts.append(f"previous_response_id: {previous_response_id}")
@@ -208,8 +206,6 @@ def main() -> int:
         print("❌ --scene-file is required for scene_repair phase", file=sys.stderr)
         return 1
 
-    enable_web_search = False  # tools off by default
-
     log_dir = args.project_dir / "log"
     log_dir.mkdir(parents=True, exist_ok=True)
     conversation_log = log_dir / "conversation.log"
@@ -241,7 +237,6 @@ def main() -> int:
             print(f"   Phase:          {args.phase}")
             print(f"   System prompt:  {len(system_prompt)} chars")
             print(f"   User prompt:    {len(user_prompt)} chars")
-            print(f"   Web search:     {enable_web_search}")
             schema_cls = _get_schema_for_phase(args.phase)
             print(f"   Schema:         {schema_cls.__name__}")
             print("\n=== System Prompt (first 500 chars) ===")
@@ -257,7 +252,6 @@ def main() -> int:
                 previous_response_id=None,
                 status="dry_run",
                 api_mode="grok_cli",
-                tools_enabled=enable_web_search,
             )
             return 0
 
@@ -295,7 +289,6 @@ def main() -> int:
             previous_response_id=previous_response_id,
             status="cli_success",
             api_mode="grok_cli",
-            tools_enabled=enable_web_search,
             assistant_response_content=assistant_response_content,
         )
 
@@ -336,7 +329,6 @@ def main() -> int:
                     previous_response_id=None,
                     status="error",
                     api_mode="grok_cli",
-                    tools_enabled=enable_web_search,
                     error_text=str(exc),
                 )
         except Exception:
