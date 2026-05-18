@@ -642,10 +642,9 @@ All variables are set in `.env` (sourced by `build_video.sh`) or as shell export
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `GROK_MODEL` | `grok-build` | Local Grok CLI model ID |
+| `GROK_MODEL` | `grok-build` | Local Grok CLI model ID with no provider prefix |
 | `GROK_CLI` | `grok` on PATH | Optional absolute path to the Grok CLI executable |
 | `GROK_CLI_TIMEOUT_SECONDS` | `900` | Per-phase Grok CLI timeout in seconds |
-| `AGENT_TEMPERATURE` | `0.7` | Sampling temperature; clamped to [0.0, 2.0] |
 
 ### Pipeline Behavior
 

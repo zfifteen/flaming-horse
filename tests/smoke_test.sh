@@ -5,9 +5,18 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(realpath "${SCRIPT_DIR}/..")"
 ENV_FILE="${REPO_ROOT}/.env"
 
+_grok_cli_env_set=0
+if [[ -n "${GROK_CLI:-}" ]]; then
+  _grok_cli_env_set=1
+  _grok_cli_env="${GROK_CLI}"
+fi
+
 if [[ -f "${ENV_FILE}" ]]; then
   # shellcheck disable=SC1090
   source "${ENV_FILE}"
+fi
+if [[ ${_grok_cli_env_set} -eq 1 ]]; then
+  GROK_CLI="${_grok_cli_env}"
 fi
 
 if [[ -n "${GROK_CLI:-}" ]]; then
@@ -22,9 +31,14 @@ if [[ -z "${GROK_BIN}" || ! -x "${GROK_BIN}" ]]; then
   exit 1
 fi
 
-if ! "${GROK_BIN}" models >/dev/null 2>&1; then
-  echo "❌ grok CLI is not logged in or cannot list models." >&2
+grok_models_status=0
+grok_models_output="$("${GROK_BIN}" models 2>&1)" || grok_models_status=$?
+if [[ "${grok_models_status}" -ne 0 || "${grok_models_output}" != *"grok-build"* ]]; then
+  echo "❌ grok CLI is not logged in or cannot list required model grok-build." >&2
   echo "   Run: grok login" >&2
+  if [[ -n "${grok_models_output}" ]]; then
+    echo "${grok_models_output}" >&2
+  fi
   exit 1
 fi
 

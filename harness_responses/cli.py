@@ -12,14 +12,13 @@ Exit codes match harness contract: 0=success, 1=recoverable/phase failure, 2=con
 
 import argparse
 import json
-import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from harness_responses.parser import SemanticValidationError, write_phase_artifacts
-from harness_responses.prompts import compose_prompt, consume_last_retrieval_info
+from harness_responses.prompts import compose_prompt
 
 # Phases implemented in Phase 1
 _IMPLEMENTED_PHASES = ["plan", "narration", "build_scenes", "scene_qc", "scene_repair"]
@@ -48,8 +47,6 @@ def _append_conversation_log(
     status: str,
     api_mode: str,
     tools_enabled: bool,
-    store: bool,
-    retrieval_info: Optional[Dict[str, Any]] = None,
     assistant_response_content: Optional[str] = None,
     error_text: Optional[str] = None,
 ) -> None:
@@ -60,7 +57,6 @@ def _append_conversation_log(
         f"status: {status}",
         f"api_mode: {api_mode}",
         f"tools_enabled: {tools_enabled}",
-        f"store: {store}",
     ]
     if previous_response_id:
         parts.append(f"previous_response_id: {previous_response_id}")
@@ -79,14 +75,6 @@ def _append_conversation_log(
             "",
         ]
     )
-    if retrieval_info:
-        parts.extend(
-            [
-                "----- COLLECTIONS RETRIEVAL -----",
-                json.dumps(retrieval_info, indent=2, default=str),
-                "",
-            ]
-        )
     if assistant_response_content is not None:
         parts.extend(
             [
@@ -220,15 +208,6 @@ def main() -> int:
         print("❌ --scene-file is required for scene_repair phase", file=sys.stderr)
         return 1
 
-    # Runtime config
-    raw_temperature = os.getenv("AGENT_TEMPERATURE", "0.7")
-    try:
-        temperature = float(raw_temperature)
-    except ValueError:
-        temperature = 0.7
-    temperature = max(0.0, min(2.0, temperature))
-
-    store = True  # logged for compatibility; Grok CLI backend is stateless per phase
     enable_web_search = False  # tools off by default
 
     log_dir = args.project_dir / "log"
@@ -237,7 +216,6 @@ def main() -> int:
 
     system_prompt = ""
     user_prompt = ""
-    retrieval_info: Dict[str, Any] = {}
     session_state_path = log_dir / "responses_session.json"
 
     try:
@@ -257,15 +235,12 @@ def main() -> int:
             scene_file=args.scene_file,
             template_file_reference=template_file_reference,
         )
-        retrieval_info = consume_last_retrieval_info()
 
         if args.dry_run:
             print("🔍 DRY RUN MODE — harness_responses")
             print(f"   Phase:          {args.phase}")
             print(f"   System prompt:  {len(system_prompt)} chars")
             print(f"   User prompt:    {len(user_prompt)} chars")
-            print(f"   Temperature:    {temperature}")
-            print(f"   Store:          {store}")
             print(f"   Web search:     {enable_web_search}")
             schema_cls = _get_schema_for_phase(args.phase)
             print(f"   Schema:         {schema_cls.__name__}")
@@ -283,8 +258,6 @@ def main() -> int:
                 status="dry_run",
                 api_mode="grok_cli",
                 tools_enabled=enable_web_search,
-                store=store,
-                retrieval_info=retrieval_info or None,
             )
             return 0
 
@@ -298,9 +271,6 @@ def main() -> int:
             system_prompt=system_prompt,
             user_prompt=user_prompt,
             schema=schema_cls,
-            temperature=temperature,
-            store=store,
-            enable_web_search=enable_web_search,
             session_state_path=session_state_path,
             phase=args.phase,
             project_dir=args.project_dir,
@@ -326,8 +296,6 @@ def main() -> int:
             status="cli_success",
             api_mode="grok_cli",
             tools_enabled=enable_web_search,
-            store=store,
-            retrieval_info=retrieval_info or None,
             assistant_response_content=assistant_response_content,
         )
 
@@ -369,8 +337,6 @@ def main() -> int:
                     status="error",
                     api_mode="grok_cli",
                     tools_enabled=enable_web_search,
-                    store=store,
-                    retrieval_info=retrieval_info or None,
                     error_text=str(exc),
                 )
         except Exception:

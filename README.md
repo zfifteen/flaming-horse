@@ -84,7 +84,7 @@ The orchestrator calls the local Grok CLI harness (`python -m harness_responses`
 Configure behavior via environment variables (typically in `.env`):
 
 **Grok CLI Configuration:**
-- `GROK_MODEL` - Grok CLI model ID. Default: `grok-build`.
+- `GROK_MODEL` - Grok CLI model ID with no provider prefix. Default: `grok-build`.
 - `GROK_CLI` - Optional absolute path to the `grok` executable.
 - `GROK_CLI_TIMEOUT_SECONDS` - Optional per-phase CLI timeout.
 

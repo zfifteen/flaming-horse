@@ -25,6 +25,10 @@ _DEFAULT_MODEL = "grok-build"
 _DEFAULT_TIMEOUT_SECONDS = 900
 
 
+class GrokCliTimeoutError(EnvironmentError):
+    """Raised when the local Grok CLI exceeds the configured phase timeout."""
+
+
 @dataclass
 class GrokCliResponse:
     """Minimal raw response object consumed by harness_responses.cli/parser."""
@@ -88,9 +92,13 @@ def _resolve_grok_cli() -> str:
     configured = os.getenv("GROK_CLI", "").strip()
     if configured:
         path = Path(os.path.expanduser(configured))
-        if path.exists() and path.is_file() and os.access(path, os.X_OK):
-            return str(path)
-        raise EnvironmentError(f"GROK_CLI is set but not executable: {configured}")
+        if not path.exists():
+            raise EnvironmentError(f"GROK_CLI path does not exist: {configured}")
+        if not path.is_file():
+            raise EnvironmentError(f"GROK_CLI is not a file: {configured}")
+        if not os.access(path, os.X_OK):
+            raise EnvironmentError(f"GROK_CLI is not executable: {configured}")
+        return str(path)
 
     discovered = shutil.which("grok")
     if discovered:
@@ -106,7 +114,12 @@ def _resolve_model(model: Optional[str]) -> str:
     value = raw.strip()
     if not value:
         return _DEFAULT_MODEL
-    return value.removeprefix("grok/")
+    if "/" in value:
+        raise EnvironmentError(
+            "GROK_MODEL must be a Grok CLI model id without provider prefix "
+            f"(got {value!r})"
+        )
+    return value
 
 
 def _resolve_timeout_seconds() -> int:
@@ -140,8 +153,31 @@ def _response_paths(
     return prompt_path, staged_path
 
 
-def _schema_json(schema: Type[BaseModel]) -> str:
-    return json.dumps(schema.model_json_schema(), indent=2, sort_keys=True)
+def _compact_schema_contract(schema: Type[BaseModel]) -> str:
+    contracts = {
+        "PlanResponse": "\n".join(
+            [
+                "Return one JSON object with:",
+                "- title: string",
+                "- description: string",
+                "- target_duration_seconds: positive integer",
+                "- scenes: non-empty ordered array of objects",
+                "Each scene object has title, description, estimated_duration_seconds, and visual_ideas.",
+            ]
+        ),
+        "NarrationResponse": "Return one JSON object with script: an object mapping narration keys to narration text strings.",
+        "BuildScenesResponse": "Return one JSON object with scene_body: a string containing only scaffold-slot Python statements.",
+        "SceneQcResponse": "Return one JSON object with report_markdown: a string.",
+        "SceneRepairResponse": "Return one JSON object with scene_body: a string containing the repaired scaffold-slot Python statements.",
+    }
+    known = contracts.get(schema.__name__)
+    if known:
+        return known
+
+    fields = []
+    for field_name in schema.model_fields:
+        fields.append(f"- {field_name}")
+    return "Return one JSON object with these top-level fields:\n" + "\n".join(fields)
 
 
 def _build_prompt(
@@ -170,10 +206,8 @@ def _build_prompt(
             f"Repository root: {_repo_root()}",
             f"Project directory: {project_text}",
             "",
-            "## Required JSON Schema",
-            "```json",
-            _schema_json(schema),
-            "```",
+            "## Required JSON Contract",
+            _compact_schema_contract(schema),
             "",
             "## System Prompt",
             system_prompt,
@@ -203,18 +237,12 @@ def call_grok_cli(
     user_prompt: str,
     schema: Type[T],
     *,
-    temperature: float = 0.7,
-    max_tokens: int = 16000,
-    store: bool = True,
-    enable_web_search: bool = False,
     model: Optional[str] = None,
     session_state_path: Optional[Path] = None,
     phase: Optional[str] = None,
     project_dir: Optional[Path] = None,
 ) -> Tuple[GrokCliResponse, T]:
     """Call local Grok CLI and validate its staged JSON response."""
-
-    del temperature, max_tokens, store, enable_web_search
 
     grok_cli = _resolve_grok_cli()
     resolved_model = _resolve_model(model)
@@ -258,13 +286,21 @@ def call_grok_cli(
         resolved_model,
     ]
 
-    result = subprocess.run(
-        cmd,
-        capture_output=True,
-        text=True,
-        timeout=timeout_seconds,
-        cwd=str(execution_dir),
-    )
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=timeout_seconds,
+            cwd=str(execution_dir),
+        )
+    except subprocess.TimeoutExpired as exc:
+        staged_response_path.unlink(missing_ok=True)
+        raise GrokCliTimeoutError(
+            "Grok CLI timed out after "
+            f"{timeout_seconds} seconds for phase {phase or 'unknown'}. "
+            "Increase GROK_CLI_TIMEOUT_SECONDS if this phase is expected to run longer."
+        ) from exc
     if result.returncode != 0:
         raise RuntimeError(
             "Grok CLI failed with exit code "
@@ -307,12 +343,15 @@ def call_grok_cli(
                 "backend": "grok_cli",
                 "model": resolved_model,
                 "last_response_id": response_id,
-                "phase": phase,
                 "updated_at": _utc_now(),
                 "prompt_file": str(prompt_path),
                 "staged_response_file": str(staged_response_path),
             }
         )
+        if phase:
+            session["phase"] = phase
+        else:
+            session.pop("phase", None)
         _write_session_payload(session_state_path, session)
 
     return raw, parsed

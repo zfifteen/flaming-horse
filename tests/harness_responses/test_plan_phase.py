@@ -356,10 +356,15 @@ class TestGrokCliClient:
         assert "--output-format" in capture["cmd"]
         assert "--no-subagents" in capture["cmd"]
         assert "--disable-web-search" in capture["cmd"]
+        assert "--permission-mode" in capture["cmd"]
+        assert "bypassPermissions" in capture["cmd"]
+        assert "--always-approve" in capture["cmd"]
         assert "--no-memory" in capture["cmd"]
         assert "--model" in capture["cmd"]
         assert capture["kwargs"]["cwd"] == str(tmp_path)
         assert "Write exactly one JSON object" in prompt_file.read_text(encoding="utf-8")
+        assert "Required JSON Contract" in prompt_file.read_text(encoding="utf-8")
+        assert "Required JSON Schema" not in prompt_file.read_text(encoding="utf-8")
 
         data = json.loads(session_state.read_text(encoding="utf-8"))
         assert data["backend"] == "grok_cli"
@@ -368,12 +373,83 @@ class TestGrokCliClient:
         assert data["phase"] == "narration"
         assert "history" not in data
 
+    def test_session_state_omits_empty_phase(self, monkeypatch, tmp_path):
+        session_state = tmp_path / "responses_session.json"
+        prompt_file = tmp_path / "prompt.md"
+        staged_file = tmp_path / "response.json"
+        grok_bin = tmp_path / "grok"
+        grok_bin.write_text("#!/bin/sh\n", encoding="utf-8")
+        grok_bin.chmod(0o755)
+
+        monkeypatch.setenv("GROK_CLI", str(grok_bin))
+        monkeypatch.setattr(
+            hr_client,
+            "_response_paths",
+            lambda **_: (prompt_file, staged_file),
+        )
+
+        def _fake_run(*_, **__):
+            staged_file.write_text('{"ok":"yes"}\n', encoding="utf-8")
+            return type(
+                "Result",
+                (),
+                {"returncode": 0, "stdout": "", "stderr": ""},
+            )()
+
+        monkeypatch.setattr(hr_client.subprocess, "run", _fake_run)
+
+        hr_client.call_grok_cli(
+            system_prompt="sys",
+            user_prompt="usr",
+            schema=self._DummySchema,
+            session_state_path=session_state,
+        )
+        data = json.loads(session_state.read_text(encoding="utf-8"))
+        assert "phase" not in data
+
     def test_generic_python_env_does_not_select_cli(self, monkeypatch, tmp_path):
         monkeypatch.setenv("PYTHON", "/tmp/not-grok")
         monkeypatch.delenv("GROK_CLI", raising=False)
         monkeypatch.setattr(hr_client.shutil, "which", lambda _: None)
         with pytest.raises(EnvironmentError, match="grok CLI not found"):
             hr_client.call_grok_cli("sys", "usr", self._DummySchema)
+
+    def test_missing_configured_cli_path_is_distinct(self, monkeypatch):
+        monkeypatch.setenv("GROK_CLI", "/definitely/not/grok")
+        with pytest.raises(EnvironmentError, match="path does not exist"):
+            hr_client.call_grok_cli("sys", "usr", self._DummySchema)
+
+    def test_provider_prefixed_model_fails_clearly(self, monkeypatch, tmp_path):
+        grok_bin = tmp_path / "grok"
+        grok_bin.write_text("#!/bin/sh\n", encoding="utf-8")
+        grok_bin.chmod(0o755)
+        monkeypatch.setenv("GROK_CLI", str(grok_bin))
+        monkeypatch.setenv("GROK_MODEL", "xai/grok-4-1-fast")
+        with pytest.raises(EnvironmentError, match="without provider prefix"):
+            hr_client.call_grok_cli("sys", "usr", self._DummySchema)
+
+    def test_timeout_cleans_partial_staged_response(self, monkeypatch, tmp_path):
+        prompt_file = tmp_path / "prompt.md"
+        staged_file = tmp_path / "response.json"
+        grok_bin = tmp_path / "grok"
+        grok_bin.write_text("#!/bin/sh\n", encoding="utf-8")
+        grok_bin.chmod(0o755)
+        monkeypatch.setenv("GROK_CLI", str(grok_bin))
+        monkeypatch.setattr(
+            hr_client,
+            "_response_paths",
+            lambda **_: (prompt_file, staged_file),
+        )
+
+        def _fake_run(*_, **__):
+            staged_file.write_text('{"ok":"partial"}', encoding="utf-8")
+            raise hr_client.subprocess.TimeoutExpired(cmd=["grok"], timeout=1)
+
+        monkeypatch.setattr(hr_client.subprocess, "run", _fake_run)
+
+        with pytest.raises(hr_client.GrokCliTimeoutError, match="timed out"):
+            hr_client.call_grok_cli("sys", "usr", self._DummySchema, phase="plan")
+        assert not staged_file.exists()
 
     def test_missing_staged_response_raises(self, monkeypatch, tmp_path):
         prompt_file = tmp_path / "prompt.md"
@@ -554,16 +630,6 @@ class TestPromptComposition:
         assert "voiceover writer" in system
         assert "Narration Test" in user
 
-    def test_prompt_retrieval_info_is_empty_for_local_cli(self, monkeypatch):
-        _, user = hr_prompts.compose_prompt(
-            phase="plan",
-            topic="orbital resonance",
-            project_dir=Path("."),
-        )
-        info = hr_prompts.consume_last_retrieval_info()
-        assert "orbital resonance" in user
-        assert info == {}
-
     def test_scene_qc_prompt_loads(self, tmp_path):
         project = _make_scene_project(tmp_path)
         system, user = hr_prompts.compose_prompt(
@@ -646,7 +712,7 @@ class TestCLI:
         content = log.read_text()
         assert "dry_run" in content
         assert "api_mode: grok_cli" in content
-        assert "store: True" in content
+        assert "store:" not in content
 
     def test_cli_success_log_includes_response_id(self, monkeypatch, tmp_path):
         project = _make_project(tmp_path)
@@ -673,7 +739,7 @@ class TestCLI:
         )
         assert hr_cli.main() == 0
         content = (project / "log" / "conversation.log").read_text(encoding="utf-8")
-        assert "store: True" in content
+        assert "store:" not in content
         assert "previous_response_id:" not in content
         assert "response_id: grok_current_002" in content
 

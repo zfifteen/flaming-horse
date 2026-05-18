@@ -1,5 +1,12 @@
 # Collections Integration Plan (Responses Harness)
 
+Status: Superseded by the local Grok CLI harness backend.
+
+This is a historical implementation note. The active runtime no longer includes
+`harness_responses/collections.py`, xAI Collections, file upload, or hosted
+Responses API retrieval. See `docs/architecture/HARNESS_CONTRACT.md` for the
+current backend contract.
+
 Status key:
 - `[ ]` pending
 - `[-]` in progress

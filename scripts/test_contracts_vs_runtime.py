@@ -87,6 +87,7 @@ def check_harness_contract() -> None:
     agents = read_text("AGENTS.md")
     harness_contract = read_text("docs/architecture/HARNESS_CONTRACT.md")
     build_video = read_text("scripts/build_video.sh")
+    client = read_text("harness_responses/client.py")
     cli_phases = list(python_assignment("harness_responses/cli.py", "_IMPLEMENTED_PHASES"))
 
     require(
@@ -112,6 +113,57 @@ def check_harness_contract() -> None:
         "build_video.sh still invokes legacy harness",
     )
     require(cli_phases == HARNESS_PHASES, "harness_responses CLI phase list drifted")
+    require(
+        "--permission-mode" in client and "bypassPermissions" in client,
+        "Grok CLI permission-mode contract drifted",
+    )
+    require("--always-approve" in client, "Grok CLI approval contract drifted")
+    require("--sandbox" in client and "workspace" in client, "Grok sandbox contract drifted")
+    require(
+        "scripts/test_grok_cli_contract.py" in harness_contract,
+        "HARNESS_CONTRACT.md does not point to the live Grok CLI contract check",
+    )
+
+
+def check_harness_docs_contract() -> None:
+    active_docs = [
+        "README.md",
+        "TECH_SPEC.md",
+        "CURRENT_STATE.md",
+        ".env.example",
+        "docs/architecture/HARNESS_CONTRACT.md",
+        "docs/guides/HOW_TO_ADD_API_KEY.md",
+        "docs/guides/WHERE_TO_ADD_API_KEY.md",
+        "docs/harness/HARNESS_QUICK_REFERENCE.md",
+        "docs/harness/HARNESS_MIGRATION_GUIDE.md",
+        "docs/engineering/IMPLEMENTATION_COMPLETE.md",
+        "docs/testing/E2E_TESTING_SUMMARY.md",
+    ]
+    stale_runtime_vars = [
+        "LLM_PROVIDER=",
+        "XAI_API_KEY=",
+        "XAI_MODEL=",
+        "AGENT_MODEL=",
+        "MINIMAX_API_KEY=",
+        "MINIMAX_MODEL=",
+    ]
+    for path in active_docs:
+        text = read_text(path)
+        for stale in stale_runtime_vars:
+            require(stale not in text, f"{path} still documents stale runtime variable {stale}")
+    cli = read_text("harness_responses/cli.py")
+    client = read_text("harness_responses/client.py")
+    prompts = read_text("harness_responses/prompts.py")
+    require("AGENT_TEMPERATURE" not in cli, "CLI still parses inert AGENT_TEMPERATURE")
+    require("store: True" not in cli, "CLI still logs inert store=True")
+    require(
+        "consume_last_retrieval_info" not in cli + prompts,
+        "dead retrieval-info shim still exists in live harness",
+    )
+    require(
+        "temperature:" not in client and "max_tokens:" not in client,
+        "client still exposes inert generation knobs",
+    )
 
 
 def check_phase_contract() -> None:
@@ -232,6 +284,7 @@ def check_removed_live_surfaces() -> None:
 
 def main() -> int:
     check_harness_contract()
+    check_harness_docs_contract()
     check_phase_contract()
     check_scaffold_contract()
     check_voice_contract()

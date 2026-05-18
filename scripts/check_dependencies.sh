@@ -50,10 +50,35 @@ while [[ ${#} -gt 0 ]]; do
   esac
 done
 
+_grok_cli_env_set=0
+_grok_model_env_set=0
+_grok_timeout_env_set=0
+if [[ -n "${GROK_CLI:-}" ]]; then
+  _grok_cli_env_set=1
+  _grok_cli_env="${GROK_CLI}"
+fi
+if [[ -n "${GROK_MODEL:-}" ]]; then
+  _grok_model_env_set=1
+  _grok_model_env="${GROK_MODEL}"
+fi
+if [[ -n "${GROK_CLI_TIMEOUT_SECONDS:-}" ]]; then
+  _grok_timeout_env_set=1
+  _grok_timeout_env="${GROK_CLI_TIMEOUT_SECONDS}"
+fi
+
 # Source .env for environment variables (e.g., FLAMING_HORSE_VOICE_REF_DIR)
 if [[ -f "${ENV_FILE}" ]]; then
   # shellcheck disable=SC1090
   source "${ENV_FILE}"
+fi
+if [[ ${_grok_cli_env_set} -eq 1 ]]; then
+  GROK_CLI="${_grok_cli_env}"
+fi
+if [[ ${_grok_model_env_set} -eq 1 ]]; then
+  GROK_MODEL="${_grok_model_env}"
+fi
+if [[ ${_grok_timeout_env_set} -eq 1 ]]; then
+  GROK_CLI_TIMEOUT_SECONDS="${_grok_timeout_env}"
 fi
 
 errors=0
@@ -78,10 +103,15 @@ elif [[ ! -x "${GROK_BIN}" ]]; then
   errors=$((errors+1))
 else
   echo "✓ grok CLI available: ${GROK_BIN}"
-  if "${GROK_BIN}" models >/dev/null 2>&1; then
+  grok_models_status=0
+  grok_models_output="$("${GROK_BIN}" models 2>&1)" || grok_models_status=$?
+  if [[ "${grok_models_status}" -eq 0 && "${grok_models_output}" == *"grok-build"* ]]; then
     echo "✓ grok CLI is logged in"
   else
-    echo "✗ grok CLI is not logged in or cannot list models (run: grok login)"
+    echo "✗ grok CLI is not logged in or cannot list required model grok-build (run: grok login)"
+    if [[ -n "${grok_models_output}" ]]; then
+      echo "${grok_models_output}"
+    fi
     errors=$((errors+1))
   fi
 fi

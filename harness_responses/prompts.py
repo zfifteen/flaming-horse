@@ -27,10 +27,6 @@ DEFAULT_SPEECH_WPM = 150
 _MAX_RETRY_CONTEXT_CHARS = 6000
 
 
-def consume_last_retrieval_info() -> Dict[str, Any]:
-    return {}
-
-
 def _read_file(path: Path) -> str:
     """Read a file; fail fast if missing."""
     if not path.exists():
