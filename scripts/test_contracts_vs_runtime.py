@@ -76,11 +76,27 @@ def state_schema_phases() -> list[str]:
     return schema["properties"]["phase"]["enum"]
 
 
+def invokes_legacy_harness(script_text: str) -> bool:
+    return (
+        re.search(r"(?<![\w-])-m\s+['\"]?harness(?:\s|$|['\"])", script_text)
+        is not None
+    )
+
+
 def check_harness_contract() -> None:
     agents = read_text("AGENTS.md")
     harness_contract = read_text("docs/architecture/HARNESS_CONTRACT.md")
     build_video = read_text("scripts/build_video.sh")
     cli_phases = list(python_assignment("harness_responses/cli.py", "_IMPLEMENTED_PHASES"))
+
+    require(
+        invokes_legacy_harness("python3  -m harness'"),
+        "legacy harness detector missed quoted invocation",
+    )
+    require(
+        not invokes_legacy_harness("python3 -m harness_responses"),
+        "legacy harness detector matched harness_responses",
+    )
 
     require("harness_responses/" in agents, "AGENTS.md does not name harness_responses/")
     require(
@@ -92,7 +108,7 @@ def check_harness_contract() -> None:
         "build_video.sh does not invoke harness_responses",
     )
     require(
-        "-m harness " not in build_video and "-m harness\n" not in build_video,
+        not invokes_legacy_harness(build_video),
         "build_video.sh still invokes legacy harness",
     )
     require(cli_phases == HARNESS_PHASES, "harness_responses CLI phase list drifted")
@@ -167,8 +183,16 @@ def check_voice_backend_resolution_contract() -> None:
         "prepare_qwen_voice.py does not use shared selected_output_dir",
     )
     require(
-        "compute_fingerprint(cfg, str(model_id)" in prepare_voice,
-        "prepare_qwen_voice.py fingerprint does not use resolved model_id",
+        "compute_fingerprint(" in prepare_voice
+        and "backend," in prepare_voice
+        and "str(model_id)," in prepare_voice
+        and "str(python_path)," in prepare_voice,
+        "prepare_qwen_voice.py fingerprint does not use resolved model/backend/worker",
+    )
+    require(
+        '"backend": backend' in prepare_voice
+        and '"worker_python": worker_python' in prepare_voice,
+        "prepare_qwen_voice.py fingerprint does not include backend and worker python",
     )
 
     mlx_service = read_text("flaming_horse_voice/mlx_tts_service.py")

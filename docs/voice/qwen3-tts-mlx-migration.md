@@ -38,13 +38,12 @@ Project creation writes a backend-aware `voice_clone_config.json`:
 {
   "backend": "mlx",
   "worker_python": "/absolute/path/to/python-with-mlx-audio",
-  "qwen_python": "/absolute/path/to/python-with-mlx-audio",
   "model_id": "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit",
   "output_dir": "media/voiceovers/qwen"
 }
 ```
 
-The `qwen_python` key and `media/voiceovers/qwen` directory name are legacy compatibility surfaces. Under MLX, they do not mean PyTorch Qwen generation. The MLX worker writes the same `cache.json` and MP3 files expected by the strict cached render-time service.
+The `media/voiceovers/qwen` directory name is a legacy compatibility surface. Under MLX, it does not mean PyTorch Qwen generation. Legacy-imported configs may still contain `qwen_python`, but new MLX project configs do not synthesize it. The MLX worker writes the same `cache.json` and MP3 files expected by the strict cached render-time service.
 
 Render-time scene audio remains cache-only. The service factory returns the strict cached service for both `qwen` and `mlx`; it does not synthesize during Manim rendering and does not fall back to another backend.
 

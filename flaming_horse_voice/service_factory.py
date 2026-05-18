@@ -22,10 +22,10 @@ def get_speech_service(project_dir):
     from tts_backend_config import selected_tts_backend
 
     cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
-    selected_tts_backend(cfg)
+    _backend = selected_tts_backend(cfg)
 
-    # The cache reader is backend-neutral. MLX generation writes the same
-    # cache.json/mp3 format as the legacy Qwen path.
+    # Validate backend/config consistency before returning the backend-neutral
+    # cache reader. MLX generation writes the same cache.json/mp3 format as Qwen.
     from flaming_horse_voice.qwen_cached import QwenCachedService
 
     return QwenCachedService.from_project(project_dir)

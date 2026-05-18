@@ -1,3 +1,9 @@
+"""MLX TTS subprocess worker.
+
+Use `MLX_MODEL_ID` for import-based model override. The positional model id
+argument is supported for script/subprocess execution only.
+"""
+
 import hashlib
 import json
 import os

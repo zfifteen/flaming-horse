@@ -112,10 +112,17 @@ def find_hf_snapshot_dir(model_id: str) -> Path | None:
 
 
 def compute_fingerprint(
-    cfg: dict[str, Any], model_id: str, ref_audio: Path, ref_text: Path
+    cfg: dict[str, Any],
+    backend: str,
+    model_id: str,
+    worker_python: str,
+    ref_audio: Path,
+    ref_text: Path,
 ) -> str:
     payload = {
+        "backend": backend,
         "model_id": model_id,
+        "worker_python": worker_python,
         "device": cfg.get("device", "cpu"),
         "dtype": cfg.get("dtype", "float32"),
         "language": cfg.get("language", "English"),
@@ -191,7 +198,14 @@ def main() -> int:
     output_dir.mkdir(parents=True, exist_ok=True)
     ready_path = output_dir / "ready.json"
 
-    fingerprint = compute_fingerprint(cfg, str(model_id), ref_audio, ref_text)
+    fingerprint = compute_fingerprint(
+        cfg,
+        backend,
+        str(model_id),
+        str(python_path),
+        ref_audio,
+        ref_text,
+    )
 
     if ready_path.exists() and not args.force:
         try:
