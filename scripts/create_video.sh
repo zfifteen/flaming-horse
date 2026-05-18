@@ -38,7 +38,11 @@ ENV_FILE="${REPO_ROOT}/.env"
 
 if [[ -f "${ENV_FILE}" ]]; then
   # shellcheck disable=SC1090
+  # Auto-export .env assignments only while sourcing; set +a prevents leaking
+  # export-all behavior into later local variables.
+  set -a
   source "${ENV_FILE}"
+  set +a
 fi
 
 # Enforce Python 3.13 requirement

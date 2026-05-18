@@ -46,10 +46,11 @@ Advanced/manual flow (optional):
 
 The orchestrator (`scripts/build_video.sh`) runs one phase at a time and advances deterministically:
 
-`plan -> review -> narration -> training -> build_scenes -> scene_qc -> precache_voiceovers -> final_render -> assemble -> complete`
+`init -> plan -> review -> narration -> build_scenes -> scene_qc -> precache_voiceovers -> final_render -> assemble -> complete`
 
 Notes:
 - Projects created by `new_project.sh` start at `plan`.
+- Legacy `training` state is mapped to `build_scenes` during deterministic state normalization.
 - The loop pauses when `project_state.json.flags.needs_human_review` becomes `true`.
 
 ## Voice Policy (Mandatory)
@@ -79,7 +80,7 @@ Detailed setup: `docs/guides/INSTALLATION.md`
 
 ### Agent/harness
 
-The orchestrator calls the Python harness (`python3 -m harness`) for agent phases.
+The orchestrator calls the Responses harness (`python -m harness_responses`) for agent phases.
 Configure behavior via environment variables (typically in `.env`):
 
 **LLM Provider Configuration:**
@@ -90,7 +91,7 @@ Configure behavior via environment variables (typically in `.env`):
 
 See `.env.example` for full configuration.
 
-Harness details: `harness/README.md`
+Harness details: `docs/architecture/HARNESS_CONTRACT.md`
 
 ### Voice backend
 
@@ -157,7 +158,7 @@ The following variables are present in `.env` and are actively used by the appli
 
 | Variable | Used by | Purpose |
 | --- | --- | --- |
-| `AGENT_MODEL` | `scripts/build_video.sh`, `harness/client.py` | Global fallback model selection for harness calls. |
+| `AGENT_MODEL` | `scripts/build_video.sh`, `harness_responses/client.py` | Global fallback model selection for harness calls. |
 | `PROJECTS_BASE_DIR` | `scripts/new_project.sh`, `scripts/create_video.sh`, `scripts/build_video.sh` | Default root directory for project creation/build paths. |
 | `PROJECT_DEFAULT_NAME` | `scripts/build_video.sh` | Default project name when no project path is provided. |
 | `PHASE_RETRY_LIMIT` | `scripts/build_video.sh` | Max retry attempts for phase/scene self-heal loops. |
@@ -172,10 +173,5 @@ The following variables are present in `.env` and are actively used by the appli
 | `FLAMING_HORSE_MLX_PYTHON` | `scripts/qwen_tts_mediator.py` | Python interpreter path for MLX TTS subprocess execution. |
 | `FLAMING_HORSE_MLX_MODEL_ID` | `scripts/qwen_tts_mediator.py`, `scripts/prepare_qwen_voice.py` | Overrides MLX model identifier. |
 | `FLAMING_HORSE_VOICE_REF_DIR` | `scripts/voice_ref_mediator.py`, `scripts/build_video.sh` | Overrides voice reference directory (`ref.wav`/`ref.txt`). |
-| `LLM_PROVIDER` | `harness/client.py`, `scripts/build_video.sh` | Selects harness LLM provider (`XAI` or `MINIMAX`). |
-| `XAI_API_KEY` | `harness/client.py`, `scripts/build_video.sh`, `scripts/check_dependencies.sh`, test scripts | xAI API authentication credential. |
-| `MINIMAX_API_KEY` | `harness/client.py`, `scripts/build_video.sh` | MiniMax API authentication credential. |
-| `XAI_BASE_URL` | `harness/client.py` | Optional xAI API endpoint override. |
-| `MINIMAX_BASE_URL` | `harness/client.py` | Optional MiniMax API endpoint override. |
-| `XAI_MODEL` | `harness/client.py` | Optional xAI model override. |
-| `MINIMAX_MODEL` | `harness/client.py` | Optional MiniMax model override. |
+| `XAI_API_KEY` | `harness_responses/client.py`, `scripts/build_video.sh`, `scripts/check_dependencies.sh`, test scripts | xAI API authentication credential. |
+| `XAI_MODEL` | `harness_responses/client.py` | Optional xAI model override. |

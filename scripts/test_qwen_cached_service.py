@@ -1,10 +1,12 @@
 import importlib
 import json
+import os
 import sys
 import tempfile
 import types
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
@@ -46,8 +48,8 @@ class TestQwenCachedService(unittest.TestCase):
 
             service = self.QwenCachedService.from_project(project)
             self.assertEqual(
-                Path(service.cache_dir),
-                project / "media" / "voiceovers",
+                Path(service.cache_dir).resolve(),
+                (project / "media" / "voiceovers").resolve(),
             )
             self.assertEqual(service.cache_index["intro"], "intro.mp3")
             self.assertEqual(
@@ -76,6 +78,66 @@ class TestQwenCachedService(unittest.TestCase):
             service = self.QwenCachedService.from_project(project)
             self.assertEqual(service.cache_index["intro"], "intro.mp3")
             self.assertEqual(service.text_index["Hello"], "intro.mp3")
+
+    def test_service_factory_rejects_backend_mismatch(self):
+        with tempfile.TemporaryDirectory() as td:
+            project = Path(td)
+            (project / "voice_clone_config.json").write_text(
+                json.dumps(
+                    {
+                        "backend": "mlx",
+                        "worker_python": "/project/mlx/python",
+                        "output_dir": "media/voiceovers/qwen",
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            from flaming_horse_voice.service_factory import get_speech_service
+
+            with patch.dict(
+                os.environ, {"FLAMING_HORSE_TTS_BACKEND": "qwen"}, clear=True
+            ):
+                with self.assertRaisesRegex(ValueError, "TTS backend mismatch"):
+                    get_speech_service(project)
+
+    def test_service_factory_uses_qwen_cache_reader_for_mlx_backend(self):
+        with tempfile.TemporaryDirectory() as td:
+            project = Path(td)
+            cache_dir = project / "media" / "voiceovers" / "qwen"
+            cache_dir.mkdir(parents=True)
+            (cache_dir / "intro.mp3").write_bytes(b"")
+            (cache_dir / "cache.json").write_text(
+                json.dumps(
+                    [
+                        {
+                            "narration_key": "intro",
+                            "text": "Hello",
+                            "audio_file": "intro.mp3",
+                        }
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            (project / "voice_clone_config.json").write_text(
+                json.dumps(
+                    {
+                        "backend": "mlx",
+                        "worker_python": "/project/mlx/python",
+                        "output_dir": "media/voiceovers/qwen",
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            from flaming_horse_voice.service_factory import get_speech_service
+
+            with patch.dict(os.environ, {}, clear=True):
+                service = get_speech_service(project)
+
+            self.assertIsInstance(service, self.QwenCachedService)
+            self.assertEqual(Path(service.cache_dir).resolve(), cache_dir.resolve())
+            self.assertEqual(service.generate_from_text("Hello")["final_audio"], "intro.mp3")
 
 
 if __name__ == "__main__":

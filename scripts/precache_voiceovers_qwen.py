@@ -8,6 +8,12 @@ import time
 from pathlib import Path
 from typing import Optional
 
+from tts_backend_config import (
+    selected_model_id,
+    selected_output_dir,
+    selected_tts_backend,
+    selected_worker_python,
+)
 from voice_ref_mediator import resolve_voice_ref
 
 
@@ -100,15 +106,6 @@ def ensure_ref_text(ref_text_path: Path) -> str:
     return ref_text_path.read_text(encoding="utf-8").strip()
 
 
-def selected_tts_backend() -> str:
-    value = os.environ.get("FLAMING_HORSE_TTS_BACKEND", "qwen").strip().lower()
-    if value not in {"qwen", "mlx"}:
-        raise ValueError(
-            f"Invalid FLAMING_HORSE_TTS_BACKEND={value!r}. Expected 'qwen' or 'mlx'."
-        )
-    return value
-
-
 def build_cache_entry(
     narration_key: str,
     text: str,
@@ -185,15 +182,16 @@ def main() -> int:
     cfg = load_config(project_dir)
     script = load_script(project_dir)
 
-    backend = selected_tts_backend()
-    model_id = cfg.get("model_id", "Qwen/Qwen3-TTS-12Hz-1.7B-Base")
+    backend = selected_tts_backend(cfg)
+    model_id = selected_model_id(cfg, backend)
     device = cfg.get("device", "cpu")
     dtype_str = cfg.get("dtype", "float32")
-    python_path = cfg.get("qwen_python")
-    output_dir = cfg.get("output_dir", "media/voiceovers/qwen")
+    python_path = selected_worker_python(cfg, backend)
+    output_dir = selected_output_dir(cfg)
 
-    if not python_path:
-        raise ValueError("voice_clone_config.json must define qwen_python")
+    if not python_path.exists():
+        label = "FLAMING_HORSE_MLX_PYTHON" if backend == "mlx" else "qwen_python"
+        raise FileNotFoundError(f"{label} not found: {python_path}")
 
     if backend == "qwen" and (device != "cpu" or dtype_str != "float32"):
         raise ValueError(
@@ -291,10 +289,14 @@ def main() -> int:
     env.setdefault("HF_HUB_OFFLINE", "1")
     env.setdefault("TRANSFORMERS_OFFLINE", "1")
     env.setdefault("TOKENIZERS_PARALLELISM", "false")
+    env["FLAMING_HORSE_TTS_BACKEND"] = backend
+    if backend == "mlx":
+        env["FLAMING_HORSE_MLX_MODEL_ID"] = str(model_id)
+        env["FLAMING_HORSE_MLX_PYTHON"] = str(python_path)
     env["PYTHONUNBUFFERED"] = "1"
 
     proc = subprocess.Popen(
-        [os.path.expanduser(python_path), str(helper)],
+        [str(python_path), str(helper)],
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,

@@ -1,131 +1,81 @@
-# Qwen3-TTS MLX Migration (Completed)
-
-## Goal
-
-Migrate flaming-horse voice generation from the legacy Qwen/PyTorch path to an MLX-backed path and validate the end-to-end video pipeline with real (non-mock) voice output.
-
-## What Was Implemented
-
-### 1) Voice service routing updated for MLX
-
-- `flaming_horse_voice/__init__.py`
-  - Changed `get_speech_service()` to use `service_factory` instead of directly instantiating `QwenCachedService`.
-  - This enables runtime selection of `qwen` vs `mlx` via `FLAMING_HORSE_VOICE_SERVICE`.
-
-- `flaming_horse_voice/service_factory.py`
-  - Added explicit MLX-first behavior when `FLAMING_HORSE_VOICE_SERVICE=mlx`.
-  - Prevented auto-fallback to mock when MLX is selected (MLX should synthesize on cache miss).
-
-### 2) MLX cached speech service hardened
-
-- `flaming_horse_voice/mlx_cached.py`
-  - Updated `SERVICE_SCRIPT` to absolute module-adjacent path (`flaming_horse_voice/mlx_tts_service.py`).
-  - Allowed startup with empty cache (no hard failure on missing `cache.json`).
-  - Normalized subprocess output parsing: reads last non-empty line as JSON payload.
-  - Added WAV -> MP3 conversion via `ffmpeg` before returning to `manim_voiceover_plus`.
-    - `manim_voiceover_plus` uses mutagen MP3 duration parsing; this avoids `HeaderNotFoundError`.
-  - Updated cache bookkeeping to store and serve `.mp3` files.
-  - Set default MLX model for reliability during migration test:
-    - `mlx-community/Qwen3-TTS-12Hz-0.6B-Base-4bit`
-  - Updated MLX python path to the new Python 3.12 env:
-    - `/Users/velocityworks/IdeaProjects/flaming-horse/models/qwen3-tts-local/mlx_env312/bin/python`
-
-### 3) MLX TTS subprocess service fixed for current mlx-audio behavior
-
-- `flaming_horse_voice/mlx_tts_service.py`
-  - Default model set to `0.6B-Base-4bit` for stable first-run availability.
-  - Added output filename fallback logic:
-    - Handles `seg_000.wav`, `seg.wav`, or first matching `seg*.wav`.
-  - Retains hash-based cache naming.
-
-### 4) Pipeline scripts updated to recognize MLX path
-
-- `scripts/prepare_voice_service.py`
-  - Added `prepare_mlx_service()`.
-  - When `FLAMING_HORSE_VOICE_SERVICE=mlx`, writes:
-    - `media/voiceovers/mlx/ready.json`
-  - Keeps existing Qwen prepare path intact.
-
-- `scripts/update_project_state.py`
-  - `precache_voiceovers` now advances if **either**:
-    - `media/voiceovers/qwen/cache.json` exists, or
-    - `media/voiceovers/mlx/ready.json` exists.
-  - Updated deterministic error messaging accordingly.
-
-- `scripts/build_video.sh`
-  - Exported repo-root `PYTHONPATH` early so generated scene files can import `flaming_horse_voice` when rendering from project directory.
-  - `handle_precache_voiceovers()` now supports MLX path and writes MLX ready marker.
-  - `handle_final_render()` now treats Qwen precache as required **only** for `qwen` service type.
-
-## Environment Work Performed
-
-Created a dedicated MLX Python 3.12 environment and installed required packages:
-
-- Venv:
-  - `/Users/velocityworks/IdeaProjects/flaming-horse/models/qwen3-tts-local/mlx_env312`
-- Installed:
-  - `mlx-audio==0.3.1`
-  - `mlx==0.30.6`
-  - `transformers==5.0.0rc3`
-  - `soundfile`, `scipy`, `sounddevice`, `numpy`, and transitive deps
-
-Downloaded missing safetensors shards for the tested MLX model:
-
-- `mlx-community/Qwen3-TTS-12Hz-0.6B-Base-4bit`
-
-## Test Project and Validation
-
-Project used:
-
-- `/Users/velocityworks/IdeaProjects/flaming-horse-projects/test-mlx`
-
-Scene rendering validated with MLX-backed audio generation and real audio stream.
-
-Final assembled video:
-
-- `/Users/velocityworks/IdeaProjects/flaming-horse-projects/test-mlx/media/test-mlx.mp4`
-
-Verified streams:
-
-- `video|92.816667`
-- `audio|92.778000`
-
-Generated voice cache entries (MP3):
-
-- `/Users/velocityworks/IdeaProjects/flaming-horse-projects/test-mlx/media/voiceovers/qwen/*.mp3`
-
-Note: the directory name `voiceovers/qwen` is legacy in the current pipeline and does not imply PyTorch generation; for this migration run, generation was performed by the MLX service.
-
-## Commands Used (Key)
-
-- End-to-end run (MLX):
-  - `FLAMING_HORSE_VOICE_SERVICE=mlx ./scripts/create_video.sh test-mlx --topic "Create a short video performing speaking sounds check."`
-
-- Direct scene render checks:
-  - `FLAMING_HORSE_VOICE_SERVICE=mlx PYTHONPATH="<repo paths>" manim render scene_01.py Scene01Intro -qh`
-
-- Final manual assembly for verified output:
-  - `ffmpeg -f concat -safe 0 -i media/videos/concat_list.txt -c copy media/test-mlx.mp4`
+# Qwen3-TTS MLX Migration
 
 ## Current Status
 
-Migration is functionally complete for flaming-horse MLX integration and validated with a real generated video including audio.
+The voice pipeline now supports MLX generation through the normal user-facing entrypoint:
 
-## Mediator Backend Flag (Step 2)
+```bash
+./scripts/create_video.sh <project_name> --topic "..."
+```
 
-The pipeline workers now route synthesis through `scripts/qwen_tts_mediator.py`, which supports backend selection via:
+The active backend flag is:
 
-- `FLAMING_HORSE_TTS_BACKEND=qwen` (default)
-- `FLAMING_HORSE_TTS_BACKEND=mlx`
+```bash
+FLAMING_HORSE_TTS_BACKEND=mlx
+```
 
-Optional MLX overrides:
+Do not use the older `FLAMING_HORSE_VOICE_SERVICE=mlx` migration path. Do not manually assemble videos as a substitute for the scripted pipeline.
 
-- `FLAMING_HORSE_MLX_PYTHON` (default: `/Users/velocityworks/IdeaProjects/flaming-horse/models/qwen3-tts-local/mlx_env312/bin/python`)
-- `FLAMING_HORSE_MLX_MODEL_ID` (default: `mlx-community/Qwen3-TTS-12Hz-0.6B-Base-4bit`)
-- `FLAMING_HORSE_MLX_SERVICE_SCRIPT` (default: repo `flaming_horse_voice/mlx_tts_service.py`)
+## Expected macOS Configuration
 
-If we want to finalize cleanup next, recommended follow-ups are:
+The local MLX path uses an explicit Python environment with MLX audio dependencies:
 
-1. Rename legacy `media/voiceovers/qwen` path to a neutral path (`voiceovers/primary` or `voiceovers/mlx`) to match runtime behavior.
-2. Pin/lock the MLX env selection in project config to avoid accidental use of older Python envs.
-3. Re-run one additional project (`matrix-multiplication`) as a regression pass under MLX.
+```bash
+FLAMING_HORSE_TTS_BACKEND=mlx
+FLAMING_HORSE_MLX_PYTHON=/absolute/path/to/python-with-mlx-audio
+FLAMING_HORSE_MLX_MODEL_ID=mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit
+HF_HUB_OFFLINE=1
+TRANSFORMERS_OFFLINE=1
+```
+
+`scripts/create_video.sh` sources `.env` with exported environment semantics before calling child scripts, so these values are visible to project creation, voice preparation, voice precaching, render, and assembly.
+
+## Runtime Shape
+
+Project creation writes a backend-aware `voice_clone_config.json`:
+
+```json
+{
+  "backend": "mlx",
+  "worker_python": "/absolute/path/to/python-with-mlx-audio",
+  "model_id": "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit",
+  "output_dir": "media/voiceovers/qwen"
+}
+```
+
+The `media/voiceovers/qwen` directory name is a legacy compatibility surface. Under MLX, it does not mean PyTorch Qwen generation. Legacy-imported configs may still contain `qwen_python`, but new MLX project configs do not synthesize it. The MLX worker writes the same `cache.json` and MP3 files expected by the strict cached render-time service.
+
+Render-time scene audio remains cache-only. The service factory returns the strict cached service for both `qwen` and `mlx`; it does not synthesize during Manim rendering and does not fall back to another backend.
+
+## Validation Snapshot
+
+Normal-entrypoint smoke run:
+
+```bash
+./scripts/create_video.sh prime_numbers_mlx_smoke --topic "Prime numbers"
+```
+
+Confirmed through the scripted pipeline:
+
+- MLX voice preparation loaded the configured backend and model.
+- Voice precache generated `ready.json`, `cache.json`, and seven MP3 files under `media/voiceovers/qwen`.
+- Final render consumed cached MLX-generated MP3 files.
+- Assembly produced `generated/prime_numbers_mlx_smoke/final_video.mp4`.
+- `ffprobe` reported H.264 video and AAC audio streams, both about 250.6 seconds.
+
+The smoke run did not complete as a successful pipeline run because final QC detected a scene-level audio/video timing issue and rerouted to `build_scenes`. The subsequent scene repair loop produced truncated `SceneRepairResponse` JSON and was manually interrupted after a long API wait. That failure is in scene generation and repair behavior, not in MLX voice integration.
+
+## Focused Checks
+
+Current focused checks:
+
+```bash
+python3 -m py_compile scripts/tts_backend_config.py scripts/prepare_voice_service.py scripts/prepare_qwen_voice.py scripts/precache_voiceovers_qwen.py scripts/qwen_tts_mediator.py scripts/qwen_pipeline_preflight.py flaming_horse_voice/service_factory.py flaming_horse_voice/qwen_cached.py flaming_horse_voice/mlx_tts_service.py scripts/prepare_qwen_voice_worker.py
+python3 scripts/test_tts_backend_config.py
+python3 scripts/test_qwen_cached_service.py
+python3 scripts/test_update_project_state.py
+```
+
+## Remaining Cleanup
+
+The main naming debt is the legacy `qwen` cache path. Rename it only with a coordinated state-machine and render-time cache migration. Until then, treat the path as a compatibility directory, not as backend ownership.

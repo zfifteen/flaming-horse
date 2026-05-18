@@ -7,7 +7,9 @@ ENV_FILE="${REPO_ROOT}/.env"
 
 if [[ -f "${ENV_FILE}" ]]; then
   # shellcheck disable=SC1090
+  set -a
   source "${ENV_FILE}"
+  set +a
 fi
 
 usage() {
@@ -105,20 +107,8 @@ PROJECT_DIR="${PROJECTS_DIR}/${PROJECT_NAME}"
 
 mkdir -p "$PROJECT_DIR"
 
-# Default Qwen voice clone config (local, CPU float32)
 mkdir -p "$PROJECT_DIR/assets/voice_ref"
-cat > "$PROJECT_DIR/voice_clone_config.json" <<'EOF'
-{
-  "qwen_python": "~/IdeaProjects/flaming-horse/models/qwen3-tts-local/.venv/bin/python",
-  "model_id": "Qwen/Qwen3-TTS-12Hz-1.7B-Base",
-  "device": "cpu",
-  "dtype": "float32",
-  "language": "English",
-  "ref_audio": "assets/voice_ref/ref.wav",
-  "ref_text": "assets/voice_ref/ref.txt",
-  "output_dir": "media/voiceovers/qwen"
-}
-EOF
+python3 "$SCRIPT_DIR/tts_backend_config.py" --write-voice-config "$PROJECT_DIR/voice_clone_config.json"
 
 # Seed per-project voice reference assets if missing.
 # The voice pipeline requires these files to exist on disk.
@@ -130,7 +120,7 @@ if [[ ! -f "$PROJECT_DIR/assets/voice_ref/ref.wav" || ! -f "$PROJECT_DIR/assets/
     cp -a "$ref_template_dir/ref.wav" "$PROJECT_DIR/assets/voice_ref/ref.wav"
     cp -a "$ref_template_dir/ref.txt" "$PROJECT_DIR/assets/voice_ref/ref.txt"
   else
-    echo "❌ Missing voice reference assets for Qwen voice clone." >&2
+    echo "❌ Missing voice reference assets for cached voice clone." >&2
     echo "   Expected: $PROJECT_DIR/assets/voice_ref/ref.wav and ref.txt" >&2
     echo "   Provide a template dir via VOICE_REF_TEMPLATE_DIR, or place those files manually." >&2
     echo "   Tried template: $ref_template_dir" >&2

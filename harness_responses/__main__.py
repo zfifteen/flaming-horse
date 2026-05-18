@@ -1,7 +1,7 @@
 """
 CLI entry point for harness_responses.
 
-Allows invocation via: python3 -m harness_responses
+Allows invocation via: python -m harness_responses
 """
 
 import sys

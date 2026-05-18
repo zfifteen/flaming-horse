@@ -19,7 +19,6 @@ from typing import Any
 import torch
 
 
-DEFAULT_MLX_PYTHON = "/Users/velocityworks/IdeaProjects/flaming-horse/models/qwen3-tts-local/mlx_env312/bin/python"
 DEFAULT_MLX_MODEL_ID = "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit"
 
 
@@ -33,7 +32,13 @@ def _backend() -> str:
 
 
 def _mlx_python() -> str:
-    return os.environ.get("FLAMING_HORSE_MLX_PYTHON", DEFAULT_MLX_PYTHON).strip()
+    configured = os.environ.get("FLAMING_HORSE_MLX_PYTHON", "").strip()
+    if configured:
+        return configured
+    raise ValueError(
+        "Missing MLX worker Python. Set FLAMING_HORSE_MLX_PYTHON before "
+        "calling the MLX TTS mediator."
+    )
 
 
 def _mlx_service_script() -> str:

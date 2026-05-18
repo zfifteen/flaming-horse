@@ -1,0 +1,743 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Flaming Horse Framework Fix Track</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #17202a;
+      --muted: #5e6b77;
+      --line: #d8dde3;
+      --panel: #f7f9fb;
+      --paper: #ffffff;
+      --accent: #145c9e;
+      --accent-soft: #e8f2fb;
+      --danger: #a82929;
+      --danger-soft: #f9eaea;
+      --warn: #8a5a00;
+      --warn-soft: #fff4d6;
+      --ok: #1f6b3a;
+      --ok-soft: #e9f5ee;
+      --code: #253040;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: #eef2f6;
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+
+    .page {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 32px 22px 64px;
+    }
+
+    .hero {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 28px;
+      box-shadow: 0 10px 28px rgba(20, 40, 60, 0.08);
+    }
+
+    h1, h2, h3 {
+      line-height: 1.15;
+      margin: 0;
+    }
+
+    h1 {
+      font-size: 34px;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      font-size: 24px;
+      margin-bottom: 14px;
+    }
+
+    h3 {
+      font-size: 18px;
+      margin-bottom: 10px;
+    }
+
+    p {
+      margin: 10px 0 0;
+    }
+
+    a {
+      color: var(--accent);
+      text-decoration-thickness: 1px;
+      text-underline-offset: 3px;
+    }
+
+    code {
+      color: var(--code);
+      background: #eef1f5;
+      border: 1px solid #dce2e8;
+      border-radius: 4px;
+      padding: 1px 5px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.94em;
+    }
+
+    pre {
+      margin: 12px 0 0;
+      padding: 14px;
+      overflow-x: auto;
+      background: #16202d;
+      color: #eef4fa;
+      border-radius: 8px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .section {
+      margin-top: 22px;
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 24px;
+    }
+
+    ul, ol {
+      margin: 10px 0 0;
+      padding-left: 22px;
+    }
+
+    li + li {
+      margin-top: 6px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 14px;
+      font-size: 14px;
+    }
+
+    th, td {
+      border: 1px solid var(--line);
+      padding: 10px 12px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      background: #eef3f8;
+      color: #243447;
+      font-weight: 700;
+    }
+
+    .lede {
+      font-size: 18px;
+      color: #243447;
+      max-width: 900px;
+    }
+
+    .meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 18px;
+    }
+
+    .pill {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 5px 10px;
+      background: #f8fafc;
+      color: #334155;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 14px;
+    }
+
+    .card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 16px;
+      background: var(--panel);
+    }
+
+    .card p {
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .callout {
+      border-left: 5px solid var(--accent);
+      background: var(--accent-soft);
+      padding: 14px 16px;
+      margin-top: 14px;
+      border-radius: 6px;
+    }
+
+    .danger {
+      border-left-color: var(--danger);
+      background: var(--danger-soft);
+    }
+
+    .warn {
+      border-left-color: var(--warn);
+      background: var(--warn-soft);
+    }
+
+    .ok {
+      border-left-color: var(--ok);
+      background: var(--ok-soft);
+    }
+
+    .priority {
+      display: inline-block;
+      min-width: 44px;
+      text-align: center;
+      border-radius: 999px;
+      padding: 2px 8px;
+      font-size: 12px;
+      font-weight: 800;
+      background: var(--danger-soft);
+      color: var(--danger);
+      border: 1px solid #edcaca;
+    }
+
+    .priority.p2 {
+      background: var(--warn-soft);
+      color: var(--warn);
+      border-color: #ead59a;
+    }
+
+    .priority.p3 {
+      background: var(--accent-soft);
+      color: var(--accent);
+      border-color: #bfd7ec;
+    }
+
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 16px;
+    }
+
+    .step {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfcfe;
+      padding: 12px;
+      min-height: 110px;
+    }
+
+    .step strong {
+      display: block;
+      color: #243447;
+      margin-bottom: 6px;
+    }
+
+    .step span {
+      display: block;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .finding {
+      margin-top: 16px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      background: #fff;
+    }
+
+    .finding-head {
+      box-shadow: none;
+      border: 0;
+      border-bottom: 1px solid var(--line);
+      border-radius: 0;
+      padding: 14px 16px;
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      background: #f8fafc;
+    }
+
+    .finding h3 {
+      margin: 0;
+    }
+
+    .finding-body {
+      padding: 16px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+
+    .finding-body div {
+      border: 1px solid #e3e8ee;
+      border-radius: 8px;
+      padding: 12px;
+      background: #fbfcfe;
+    }
+
+    .finding-body strong {
+      display: block;
+      margin-bottom: 6px;
+    }
+
+    .compact td:first-child {
+      width: 190px;
+      font-weight: 700;
+    }
+
+    .footer-note {
+      color: var(--muted);
+      font-size: 13px;
+      margin-top: 18px;
+    }
+
+    @media (max-width: 860px) {
+      .grid,
+      .flow,
+      .finding-body {
+        grid-template-columns: 1fr;
+      }
+
+      h1 {
+        font-size: 28px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="hero">
+      <h1>Flaming Horse Framework Fix Track</h1>
+      <p class="lede">First-pass scene validity is not yet the effective contract. The current system protects the outer scene shape, then relies on scaffold checks, runtime dry-runs, and repair loops to converge. The repair loop is useful containment, but it is doing too much of the quality work.</p>
+      <div class="meta">
+        <span class="pill">Status: active repair map</span>
+        <span class="pill">Scope: framework contracts</span>
+        <span class="pill">Mode: assistant analysis, script execution</span>
+        <span class="pill">Updated: 2026-05-17</span>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Operating Invariant</h2>
+      <div class="callout">
+        <p><strong>Script mode and assistant mode use the same deterministic pipeline.</strong> The assistant may run the canonical entrypoint, read logs, inspect generated artifacts, explain failures, and implement source-level framework fixes. The assistant must not bypass the framework by hand-authoring scenes, skipping gates, patching generated artifacts as a workaround, or assembling outputs outside the scripted process.</p>
+      </div>
+      <table class="compact">
+        <tr>
+          <td>Canonical entrypoint</td>
+          <td><code>./scripts/create_video.sh &lt;project_name&gt; --topic "..."</code></td>
+        </tr>
+        <tr>
+          <td>Default evidence</td>
+          <td><code>project_state.json</code>, <code>build.log</code>, <code>error.log</code>, <code>conversation.log</code>, <code>scene_qc_report.md</code>, generated scenes, rendered media, voice cache files.</td>
+        </tr>
+        <tr>
+          <td>Default fix targets</td>
+          <td>Orchestrator scripts, harness schemas, prompt files, parser validation, scaffold construction, deterministic validators, and voice service integration.</td>
+        </tr>
+        <tr>
+          <td>Default non-targets</td>
+          <td>One-off edits to generated <code>projects/&lt;project_name&gt;/scene_*.py</code>, <code>plan.json</code>, <code>narration_script.py</code>, or media artifacts.</td>
+        </tr>
+      </table>
+    </div>
+
+    <div class="section">
+      <h2>Current Failure Shape</h2>
+      <div class="flow">
+        <div class="step">
+          <strong>1. Loose model output</strong>
+          <span>Structured JSON shape is required, but several semantic contracts are deferred.</span>
+        </div>
+        <div class="step">
+          <strong>2. Artifact written</strong>
+          <span>Some bad artifacts can be written before cross-artifact checks run.</span>
+        </div>
+        <div class="step">
+          <strong>3. State transition tests</strong>
+          <span><code>update_project_state.py</code> catches missing scenes, missing narration keys, and missing voice cache later.</span>
+        </div>
+        <div class="step">
+          <strong>4. Runtime gates</strong>
+          <span>Bash grep checks, syntax checks, timing checks, and Manim dry-runs detect invalid scene bodies.</span>
+        </div>
+        <div class="step">
+          <strong>5. Repair loop</strong>
+          <span><code>scene_repair</code> tries to recover after the first pass fails instead of being a rare fallback.</span>
+        </div>
+      </div>
+      <div class="callout warn">
+        <p><strong>Working thesis:</strong> Move validity checks earlier and make phase progress explicit. The pipeline should reject invalid phase output before writing durable artifacts when the contract can be checked deterministically.</p>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Priority Map</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Order</th>
+            <th>Fix area</th>
+            <th>Why it comes here</th>
+            <th>Primary files</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="priority">P0</span></td>
+            <td>Phase progress contract</td>
+            <td>The loop must detect no-progress outcomes and surface retry context instead of silently calling the same phase again.</td>
+            <td><code>scripts/build_video.sh</code>, <code>scripts/update_project_state.py</code></td>
+          </tr>
+          <tr>
+            <td><span class="priority">P0</span></td>
+            <td>Plan semantic validation</td>
+            <td>Empty scene lists should fail in the harness parser before <code>plan.json</code> is written.</td>
+            <td><code>harness_responses/schemas/plan.py</code>, <code>harness_responses/parser.py</code></td>
+          </tr>
+          <tr>
+            <td><span class="priority">P0</span></td>
+            <td>Narration semantic validation</td>
+            <td>Missing <code>SCRIPT[...]</code> keys should fail before <code>narration_script.py</code> is written.</td>
+            <td><code>harness_responses/parser.py</code>, <code>plan.json</code> reader logic</td>
+          </tr>
+          <tr>
+            <td><span class="priority p2">P1</span></td>
+            <td>Build-scenes prompt contradiction</td>
+            <td>The system prompt asks for source comments while the user prompt forbids comments. The model receives conflicting instructions.</td>
+            <td><code>harness_responses/prompts/build_scenes/system.md</code>, <code>harness_responses/prompts/build_scenes/user.md</code></td>
+          </tr>
+          <tr>
+            <td><span class="priority p2">P1</span></td>
+            <td>Prewrite scene-body validator</td>
+            <td>Known invalid Manim, timing, comments, duplicate voiceover wrappers, and forbidden scaffold fragments should be rejected before injection.</td>
+            <td><code>harness_responses/parser.py</code>, <code>scripts/build_video.sh</code></td>
+          </tr>
+          <tr>
+            <td><span class="priority p3">P2</span></td>
+            <td>Voice backend ownership</td>
+            <td>Policy, default backend, cache path, and state checks should tell one story.</td>
+            <td><code>.env.example</code>, <code>scripts/precache_voiceovers_qwen.py</code>, <code>scripts/qwen_tts_mediator.py</code>, <code>flaming_horse_voice/*</code></td>
+          </tr>
+          <tr>
+            <td><span class="priority p3">P2</span></td>
+            <td>Interpreter ownership</td>
+            <td><code>create_video.sh</code> declares a Python interpreter but still uses bare <code>python3</code> in several places.</td>
+            <td><code>scripts/create_video.sh</code>, helper scripts it calls</td>
+          </tr>
+          <tr>
+            <td><span class="priority p3">P2</span></td>
+            <td>Dead code and stale docs</td>
+            <td>Dead EOF fragments and stale docs create false mental models for agents and humans.</td>
+            <td><code>scripts/build_video.sh</code>, <code>README.md</code>, old <code>docs/harness/*</code></td>
+          </tr>
+          <tr>
+            <td><span class="priority p3">P3</span></td>
+            <td>Scene QC harness role</td>
+            <td>The harness prompt/schema exist, but the main path uses deterministic bash QC. The intended ownership should be explicit.</td>
+            <td><code>scripts/build_video.sh</code>, <code>harness_responses/prompts/scene_qc/*</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="section">
+      <h2>Detailed Findings</h2>
+
+      <div class="finding">
+        <div class="finding-head">
+          <span class="priority">P0</span>
+          <h3>No-Progress Detection In The Main Loop</h3>
+        </div>
+        <div class="finding-body">
+          <div>
+            <strong>Observed property</strong>
+            Several handlers call <code>apply_state_phase ... || true</code>. If the artifact is invalid and the state stays on the same phase while the handler returns success, the loop can repeat without preserving a clear retry failure contract.
+          </div>
+          <div>
+            <strong>Failure mechanism</strong>
+            A phase can appear operationally successful even though it produced no valid state transition. The next loop sees the same phase again, but the failure is not necessarily represented as a phase failure with actionable retry context.
+          </div>
+          <div>
+            <strong>Framework fix</strong>
+            After each phase handler, compare previous phase/index/state fingerprint to the new one. If no progress occurred and the phase is not intentionally waiting for human review, return a phase failure with explicit diagnostic context.
+          </div>
+          <div>
+            <strong>Verification contract</strong>
+            Create fixtures where <code>plan.json</code> has zero scenes, narration misses keys, and precache is skipped with no cache. Each should fail once with a clear error rather than silently re-entering the same phase.
+          </div>
+        </div>
+      </div>
+
+      <div class="finding">
+        <div class="finding-head">
+          <span class="priority">P0</span>
+          <h3>Plan Validation Allows Empty Scenes</h3>
+        </div>
+        <div class="finding-body">
+          <div>
+            <strong>Observed property</strong>
+            <code>PlanResponse.scenes</code> is a list without a minimum length. <code>validate_and_write_plan</code> computes <code>scene_count</code> and iterates scenes, but an empty list passes that loop.
+          </div>
+          <div>
+            <strong>Failure mechanism</strong>
+            A structurally valid but semantically useless plan is written. The state updater later rejects it because there are no scenes, moving the failure away from the model-output boundary.
+          </div>
+          <div>
+            <strong>Framework fix</strong>
+            Enforce <code>min_length=1</code> in the schema or reject <code>not parsed.scenes</code> in the parser before writing <code>plan.json</code>. Keep the error in <code>responses_last_response.json</code>.
+          </div>
+          <div>
+            <strong>Verification contract</strong>
+            Add parser-level tests proving an empty scene list exits through semantic validation and leaves no durable bad <code>plan.json</code>.
+          </div>
+        </div>
+      </div>
+
+      <div class="finding">
+        <div class="finding-head">
+          <span class="priority">P0</span>
+          <h3>Narration Validation Does Not Require Plan Scene Keys</h3>
+        </div>
+        <div class="finding-body">
+          <div>
+            <strong>Observed property</strong>
+            <code>NarrationResponse.script</code> requires a non-empty mapping, but validation does not require the mapping to cover every scene narration key from <code>plan.json</code>.
+          </div>
+          <div>
+            <strong>Failure mechanism</strong>
+            <code>narration_script.py</code> can be written without keys that scaffolded scenes later import through <code>SCRIPT["scene_XX"]</code>. The state updater catches the mismatch after the harness has reported success.
+          </div>
+          <div>
+            <strong>Framework fix</strong>
+            Load <code>plan.json</code> during narration artifact validation, compute required narration keys, and reject missing or extra keys according to an explicit contract.
+          </div>
+          <div>
+            <strong>Verification contract</strong>
+            Add tests for missing key, empty key, placeholder value, and complete key coverage. Only complete coverage writes <code>narration_script.py</code>.
+          </div>
+        </div>
+      </div>
+
+      <div class="finding">
+        <div class="finding-head">
+          <span class="priority p2">P1</span>
+          <h3>Build-Scenes Prompt Contradiction</h3>
+        </div>
+        <div class="finding-body">
+          <div>
+            <strong>Observed property</strong>
+            The build-scenes system prompt instructs the model to cite retrieved sources in inline comments. The user prompt instructs the model not to include comments.
+          </div>
+          <div>
+            <strong>Failure mechanism</strong>
+            The model is asked to satisfy incompatible output rules inside the same phase. This weakens first-pass scene validity and makes repair more likely.
+          </div>
+          <div>
+            <strong>Framework fix</strong>
+            Remove inline source-comment requirements from scene-body generation. If retrieval provenance is needed, record it outside <code>scene_body</code> in logs or diagnostics.
+          </div>
+          <div>
+            <strong>Verification contract</strong>
+            Prompt compliance checks should fail if any build-scenes prompt asks for comments inside <code>scene_body</code>.
+          </div>
+        </div>
+      </div>
+
+      <div class="finding">
+        <div class="finding-head">
+          <span class="priority p2">P1</span>
+          <h3>Manim API Contract Is Mostly Post-Hoc</h3>
+        </div>
+        <div class="finding-body">
+          <div>
+            <strong>Observed property</strong>
+            Invalid APIs such as unsupported <code>FadeIn</code> keyword patterns and old animation names such as <code>ShowCreation</code> are detected by bash checks and render dry-runs after scene injection.
+          </div>
+          <div>
+            <strong>Failure mechanism</strong>
+            The parser writes a scene body that is syntactically valid but predictably incompatible with the local Manim runtime. The repair loop then becomes the enforcement mechanism.
+          </div>
+          <div>
+            <strong>Framework fix</strong>
+            Add a deterministic prewrite scene-body validator in the harness parser. Reject forbidden imports, class definitions, comments, duplicate voiceover wrappers, invalid known API patterns, unsafe timing patterns, and scaffold marker leakage before injection.
+          </div>
+          <div>
+            <strong>Verification contract</strong>
+            Unit-test each rejected pattern at parser level, then keep dry-run validation as an execution gate rather than the first semantic line of defense.
+          </div>
+        </div>
+      </div>
+
+      <div class="finding">
+        <div class="finding-head">
+          <span class="priority p3">P2</span>
+          <h3>Voice Backend State Is Split</h3>
+        </div>
+        <div class="finding-body">
+          <div>
+            <strong>Observed property</strong>
+            The project policy describes cached Qwen voice. The example environment defaults <code>FLAMING_HORSE_TTS_BACKEND=mlx</code>. Runtime state checks still look under <code>media/voiceovers/qwen/cache.json</code>, while the mediator can route synthesis through MLX.
+          </div>
+          <div>
+            <strong>Failure mechanism</strong>
+            Backend choice, cache path naming, and policy language are not owned by one contract. The system may work, but future changes can easily fix the wrong layer.
+          </div>
+          <div>
+            <strong>Framework fix</strong>
+            Choose one explicit story: either Qwen-only for now, or backend-agnostic local cached voice with a neutral cache path and one state check. Rename or document legacy paths deliberately.
+          </div>
+          <div>
+            <strong>Verification contract</strong>
+            One project fixture should prove the selected backend creates the cache path that <code>update_project_state.py</code>, render-time service lookup, and QC all expect.
+          </div>
+        </div>
+      </div>
+
+      <div class="finding">
+        <div class="finding-head">
+          <span class="priority p3">P2</span>
+          <h3>Interpreter Ownership Is Inconsistent</h3>
+        </div>
+        <div class="finding-body">
+          <div>
+            <strong>Observed property</strong>
+            <code>create_video.sh</code> establishes <code>${PYTHON:-python3.13}</code>, but path resolution, voice prep, and build-arg parsing still use bare <code>python3</code>.
+          </div>
+          <div>
+            <strong>Failure mechanism</strong>
+            A run can validate one interpreter but execute helper code under another interpreter. That matters for local Manim, xAI SDK, and voice dependencies.
+          </div>
+          <div>
+            <strong>Framework fix</strong>
+            Define one interpreter variable at entry and use it for all Python subprocesses in that script and child scripts where practical.
+          </div>
+          <div>
+            <strong>Verification contract</strong>
+            Run an entrypoint smoke test with <code>PYTHON</code> pointed at a known interpreter and assert all subprocess Python calls report the same executable.
+          </div>
+        </div>
+      </div>
+
+      <div class="finding">
+        <div class="finding-head">
+          <span class="priority p3">P2</span>
+          <h3>Stale Or Dead Surfaces Confuse Repair Work</h3>
+        </div>
+        <div class="finding-body">
+          <div>
+            <strong>Observed property</strong>
+            Some docs still point at old <code>harness/</code> paths and the README still shows <code>training</code> in the phase chain. Prior inspection also identified dead or stray lines near the end of <code>scripts/build_video.sh</code>.
+          </div>
+          <div>
+            <strong>Failure mechanism</strong>
+            Agents and humans form the wrong mental model before they touch code. That produces fixes against old paths or legacy phase names.
+          </div>
+          <div>
+            <strong>Framework fix</strong>
+            Clean stale docs after the core contracts are fixed. Remove dead code only with a focused diff and shell syntax verification.
+          </div>
+          <div>
+            <strong>Verification contract</strong>
+            A targeted stale-harness search should return only historical docs that are clearly labeled as historical.
+          </div>
+        </div>
+      </div>
+
+      <div class="finding">
+        <div class="finding-head">
+          <span class="priority p3">P3</span>
+          <h3>Scene QC Harness Prompt Exists But Main Path Uses Bash QC</h3>
+        </div>
+        <div class="finding-body">
+          <div>
+            <strong>Observed property</strong>
+            <code>harness_responses</code> implements <code>scene_qc</code>, but <code>build_video.sh</code> runs deterministic scene QC directly and writes <code>scene_qc_report.md</code>.
+          </div>
+          <div>
+            <strong>Failure mechanism</strong>
+            Two apparent owners exist for the same phase. If this is intentional, the harness phase is auxiliary or legacy. If not, the architecture is unclear.
+          </div>
+          <div>
+            <strong>Framework fix</strong>
+            Decide ownership. Prefer deterministic QC as the render-blocking authority, and either remove, rename, or document LLM QC as non-blocking analysis.
+          </div>
+          <div>
+            <strong>Verification contract</strong>
+            The phase docs and code should agree on whether <code>scene_qc</code> is script-owned or harness-owned.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Recommended Work Order</h2>
+      <ol>
+        <li><strong>Make phase progress explicit.</strong> A phase that does not advance, pause for human review, or fail clearly is a framework bug.</li>
+        <li><strong>Reject bad plan output before writing.</strong> Empty scenes are not a valid plan.</li>
+        <li><strong>Reject bad narration output before writing.</strong> Narration must cover every scene key in the plan.</li>
+        <li><strong>Resolve prompt contradictions.</strong> The build-scenes phase should have one scene-body contract.</li>
+        <li><strong>Add parser-level scene-body validation.</strong> Known forbidden constructs should be blocked before scaffold injection.</li>
+        <li><strong>Then normalize voice and interpreter ownership.</strong> These are important, but first-pass scene validity and loop progress are the tighter failure drivers.</li>
+        <li><strong>Then clean stale docs and dead surfaces.</strong> Documentation drift matters, but should follow the core contract repair.</li>
+      </ol>
+    </div>
+
+    <div class="section">
+      <h2>Acceptance Standard</h2>
+      <div class="grid">
+        <div class="card">
+          <h3>First-pass contract</h3>
+          <p>A bad model response fails before writing durable artifacts when the invalidity is deterministic and knowable at parse time.</p>
+        </div>
+        <div class="card">
+          <h3>Progress contract</h3>
+          <p>Every phase iteration advances, pauses, or fails with a durable diagnostic. No silent same-phase success.</p>
+        </div>
+        <div class="card">
+          <h3>Assistant contract</h3>
+          <p>The assistant interprets the scripted framework and fixes source contracts. It does not route around the framework to manufacture a video.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Restart Brief For Future Sessions</h2>
+      <pre>Read order:
+1. docs/policies/USER_PREFERENCES.md
+2. AGENTS.md
+3. docs/framework-fixes/index.html
+4. Relevant docs/architecture/* contract
+
+Start point:
+- Do not run around the pipeline.
+- Start with phase progress detection, then parser semantic validation.
+- Treat generated project artifacts as evidence.
+- Fix framework source, not one-off outputs.
+
+First implementation target:
+- scripts/build_video.sh progress detection around phase handlers.
+- Tests or fixtures that prove no-progress outcomes fail explicitly.</pre>
+      <p class="footer-note">This file is a working repair map. Verify claims against runtime code before changing behavior. Runtime code remains authoritative for current execution; this document records the intended repair direction.</p>
+    </div>
+  </div>
+</body>
+</html>

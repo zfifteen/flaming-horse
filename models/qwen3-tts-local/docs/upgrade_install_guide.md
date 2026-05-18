@@ -64,7 +64,6 @@ These defaults should point to `1.7B-Base-8bit`:
 
 - `scripts/qwen_tts_mediator.py`
 - `scripts/prepare_qwen_voice.py`
-- `flaming_horse_voice/mlx_cached.py`
 - `flaming_horse_voice/mlx_tts_service.py`
 
 ## 5. Project Voice Config
