@@ -119,7 +119,7 @@ def synthesize_batch(
                     )
                 wav_path = candidates[0]
         # Rename to cache key
-        cached_path = OUTPUT_DIR / f"{key}.wav"
+        cached_path = output_dir / f"{key}.wav"
         wav_path.rename(cached_path)
         duration = len(sf.read(cached_path)[0]) / 24000
         results.append(

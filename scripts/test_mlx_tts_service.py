@@ -26,16 +26,24 @@ def load_service_module(output_dir: Path, load_calls: list[str] | None = None):
     utils_mod = types.ModuleType("mlx_audio.tts.utils")
     soundfile_mod = types.ModuleType("soundfile")
 
-    generate_mod.generate_audio = lambda *args, **kwargs: None
+    def fake_generate_audio(**kwargs):
+        Path(f"{kwargs['file_prefix']}_000.wav").write_bytes(b"fake wav")
+
+    generate_mod.generate_audio = fake_generate_audio
     if load_calls is None:
         load_calls = []
 
+    class FakeModel:
+        def parameters(self):
+            return []
+
     def fake_load_model(model_id):
         load_calls.append(model_id)
-        return object()
+        return FakeModel()
 
     utils_mod.load_model = fake_load_model
     soundfile_mod.read = lambda path: ([0.0], 24000)
+    mlx_core.eval = lambda params: None
 
     modules = {
         "mlx": mlx_pkg,
@@ -104,6 +112,23 @@ class TestMlxTtsService(unittest.TestCase):
             missing = Path(td) / "missing.wav"
             with self.assertRaisesRegex(ValueError, "Unable to read MLX reference audio"):
                 module.cache_key("hello", missing)
+
+    def test_synthesize_batch_writes_cache_to_resolved_output_dir(self):
+        with tempfile.TemporaryDirectory() as td:
+            output_dir = Path(td)
+            ref_audio = output_dir / "voice.flac"
+            ref_audio.write_bytes(b"reference")
+            (output_dir / "voice.txt").write_text("reference transcript\n", encoding="utf-8")
+
+            module = load_service_module(output_dir)
+            with patch.dict(os.environ, {"MLX_OUTPUT_DIR": str(output_dir)}):
+                result = module.synthesize_batch([{"id": "seg1", "text": "hello"}])
+
+            self.assertEqual(len(result), 1)
+            cached_path = Path(result[0]["path"])
+            self.assertEqual(cached_path.parent, output_dir)
+            self.assertTrue(cached_path.exists())
+            self.assertFalse(result[0]["from_cache"])
 
 
 if __name__ == "__main__":
