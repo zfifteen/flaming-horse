@@ -359,7 +359,18 @@ def _validate_scene_body_contract(
             and node.func.value.id == "self"
         )
 
+    def is_tracker_duration(node: ast.AST) -> bool:
+        return (
+            isinstance(node, ast.Attribute)
+            and node.attr == "duration"
+            and isinstance(node.value, ast.Name)
+            and node.value.id == "tracker"
+        )
+
+    uses_tracker_duration = False
     for node in ast.walk(tree):
+        if is_tracker_duration(node):
+            uses_tracker_duration = True
         if isinstance(node, ast.Assign) and any(target_touches_config(t) for t in node.targets):
             fail("scene_body must not modify Manim config")
         if isinstance(node, ast.AnnAssign) and target_touches_config(node.target):
@@ -396,7 +407,7 @@ def _validate_scene_body_contract(
                 if first_name == "harmonious_color":
                     fail("select a concrete Manim-compatible color before set_color(...)")
 
-    if "tracker.duration" not in scene_body:
+    if not uses_tracker_duration:
         fail("scene_body must use tracker.duration for narration-synced timing")
 
 

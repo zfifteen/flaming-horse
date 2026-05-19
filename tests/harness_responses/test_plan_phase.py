@@ -603,6 +603,10 @@ class TestArtifactWriters:
                 "tracker.duration",
             ),
             (
+                "title = Text('tracker.duration')\nself.wait(1)",
+                "tracker.duration",
+            ),
+            (
                 "self.play(ShowCreation(Line()), run_time=tracker.duration * 0.2)",
                 "ShowCreation",
             ),

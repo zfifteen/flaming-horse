@@ -229,6 +229,7 @@ def check_first_pass_scene_creation_contract() -> None:
         "attribute_root_name",
         "target_touches_config",
         "is_self_voiceover_call",
+        "is_tracker_duration",
         "tracker.duration",
         "ShowCreation",
         '"lag_ratio"',
