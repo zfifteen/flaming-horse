@@ -100,6 +100,51 @@ class ResolveSceneMetadataTests(unittest.TestCase):
             fields = result.stdout.strip().split("|")
             self.assertEqual(fields, ["__NO_SCENE__", "", "", ""])
 
+    def test_rejects_malformed_scene_id(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_dir = Path(temp_dir)
+            _write_state(project_dir, {"current_scene_index": 0, "scenes": [{"id": None}]})
+
+            result = _run(project_dir, "--json")
+
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("scene[0].id must be a non-empty string", result.stderr)
+
+    def test_rejects_malformed_optional_scene_metadata(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_dir = Path(temp_dir)
+            _write_state(
+                project_dir,
+                {
+                    "current_scene_index": 0,
+                    "scenes": [{"id": "scene_01", "narration_key": 12}],
+                },
+            )
+
+            result = _run(project_dir, "--json")
+
+            self.assertEqual(result.returncode, 1)
+            self.assertIn(
+                "scene[0].narration_key must be a non-empty string when present",
+                result.stderr,
+            )
+
+            _write_state(
+                project_dir,
+                {
+                    "current_scene_index": 0,
+                    "scenes": [{"id": "scene_01", "class_name": ""}],
+                },
+            )
+
+            result = _run(project_dir, "--json")
+
+            self.assertEqual(result.returncode, 1)
+            self.assertIn(
+                "scene[0].class_name must be a non-empty string when present",
+                result.stderr,
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

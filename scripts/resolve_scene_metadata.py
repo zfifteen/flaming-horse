@@ -35,6 +35,20 @@ def _load_state(project_dir: Path) -> dict[str, Any]:
     return state
 
 
+def _required_non_empty_string(value: Any, field: str, scene_index: int) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"scene[{scene_index}].{field} must be a non-empty string")
+    return value
+
+
+def _optional_non_empty_string(value: Any, field: str, scene_index: int) -> str:
+    if value is None:
+        return ""
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"scene[{scene_index}].{field} must be a non-empty string when present")
+    return value
+
+
 def resolve_scene_metadata(project_dir: Path, scene_index: int | None = None) -> dict[str, Any]:
     state = _load_state(project_dir)
     scenes = state.get("scenes") or []
@@ -51,12 +65,12 @@ def resolve_scene_metadata(project_dir: Path, scene_index: int | None = None) ->
     if not isinstance(raw_scene, dict):
         raise ValueError(f"scene[{idx}] must be an object")
 
-    scene_id = str(raw_scene.get("id") or "")
+    scene_id = _required_non_empty_string(raw_scene.get("id"), "id", idx)
     # build_scenes scaffolding and update_project_state.py both use <scene_id>.py.
     # Keep this resolver aligned with that runtime contract.
     scene_file = f"{scene_id}.py"
-    narration_key = str(raw_scene.get("narration_key") or scene_id)
-    scene_class = str(raw_scene.get("class_name") or "")
+    narration_key = _optional_non_empty_string(raw_scene.get("narration_key"), "narration_key", idx) or scene_id
+    scene_class = _optional_non_empty_string(raw_scene.get("class_name"), "class_name", idx)
     if not scene_class:
         scene_class = camel_from_scene_id(scene_id)
 
