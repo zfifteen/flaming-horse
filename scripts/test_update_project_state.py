@@ -78,6 +78,43 @@ def test_normalize_restores_missing_flags() -> None:
         require(state["flags"]["needs_human_review"] is False, "default flags missing")
 
 
+def test_record_error_sets_human_review_and_history() -> None:
+    with tempfile.TemporaryDirectory() as d:
+        tmp = Path(d)
+        project_dir = make_project_dir(tmp)
+        write_state_raw(
+            project_dir,
+            '{"project_name":"x","phase":"build_scenes","created_at":"t","updated_at":"t","run_count":0,"scenes":[],"current_scene_index":0,"errors":[],"history":[],"flags":{"needs_human_review":false,"dry_run":false,"force_replan":false}}',
+        )
+        cp = run(
+            "--project-dir",
+            str(project_dir),
+            "--mode",
+            "record-error",
+            "--phase",
+            "build_scenes",
+            "--message",
+            "build_scenes failed: bad scene id",
+            "--needs-human-review",
+            "--history-action",
+            "invalid_scene_id",
+        )
+        require(cp.returncode == 0, f"record-error failed: {cp.stderr}")
+        state = read_state(project_dir)
+        require(
+            "build_scenes failed: bad scene id" in state["errors"],
+            "record-error did not append the state error",
+        )
+        require(
+            state["flags"]["needs_human_review"] is True,
+            "record-error did not set human review",
+        )
+        require(
+            state["history"][-1]["action"] == "invalid_scene_id",
+            "record-error did not append history action",
+        )
+
+
 def test_apply_plan_reads_plan_json() -> None:
     with tempfile.TemporaryDirectory() as d:
         tmp = Path(d)
@@ -431,6 +468,7 @@ def main() -> int:
     tests = [
         test_normalize_repairs_trailing_garbage,
         test_normalize_restores_missing_flags,
+        test_record_error_sets_human_review_and_history,
         test_apply_plan_reads_plan_json,
         test_apply_build_scenes_marks_built,
         test_apply_narration_stays_when_script_missing_scene_keys,

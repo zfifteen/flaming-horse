@@ -2,6 +2,10 @@
 
 Semantic validation checks for scaffolded Manim + Voiceover scenes in the flaming-horse pipeline.
 
+Status: historical validation note. The current first-pass validation owner is
+`scripts/scene_validator.py`; live orchestration routes through
+`scripts/build_video.sh`.
+
 ## Overview
 
 The scene validation layer catches scene issues before expensive render checks, then drives a repair loop when validation fails.
@@ -92,18 +96,16 @@ export SCENE_QC_BACKOFF_BASE=2
 ## Integration Points
 
 ### `build_video.sh`
-- Source `scripts/scene_validation.sh`
+- Call `scripts/scene_validator.py --json`
 - During `scene_qc`:
-  - run `validate_scene_files_consistency`
-  - run `validate_scene_semantics`
+  - run deterministic scene validation gates
   - on failure, run `self_heal_scene_with_optimization`
 
 ### Validation flow
 
 ```text
 scene_qc
-  -> validate_scene_files_consistency
-  -> validate_scene_semantics
+  -> scene_validator.py
       -> pass: continue render validation
       -> fail: self_heal_scene_with_optimization
           -> healed: continue render validation
@@ -162,6 +164,6 @@ class Scene01Intro(VoiceoverScene):
 ## See Also
 
 - `AGENTS.md`
-- `scripts/scene_validation.sh`
-- `harness/prompt_templates/repair_system.md`
-- `harness/prompt_templates/build_scenes_system.md`
+- `scripts/scene_validator.py`
+- `harness_responses/prompts/scene_repair/system.md`
+- `harness_responses/prompts/build_scenes/system.md`

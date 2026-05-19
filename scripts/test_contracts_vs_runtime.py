@@ -177,6 +177,7 @@ def check_harness_docs_contract() -> None:
 
 
 def check_phase_contract() -> None:
+    create_video = read_text("scripts/create_video.sh")
     build_video = read_text("scripts/build_video.sh")
     build_phases = shell_array(build_video, "PHASE_SEQUENCE")
     update_phases = list(python_assignment("scripts/update_project_state.py", "PHASE_SEQUENCE"))
@@ -185,6 +186,11 @@ def check_phase_contract() -> None:
     require(build_phases == BUILD_PHASES, "build_video.sh phase sequence drifted")
     require(update_phases == STATE_PHASES, "update_project_state.py phase sequence drifted")
     require(schema_phases == STATE_PHASES, "state_schema.json phase enum drifted")
+    create_video_after_python = create_video.split('PYTHON_BIN="${PYTHON:-python3.13}"', 1)[1]
+    require(
+        not re.search(r"(?<![\w$])python3(?:\s|$)", create_video_after_python),
+        "create_video.sh uses bare python3 after selecting PYTHON_BIN",
+    )
 
 
 def check_scaffold_contract() -> None:
@@ -201,6 +207,7 @@ def check_scaffold_contract() -> None:
 
 def check_first_pass_scene_creation_contract() -> None:
     build_video = read_text("scripts/build_video.sh")
+    scene_validator = read_text("scripts/scene_validator.py")
     parser = read_text("harness_responses/parser.py")
     build_system = read_text("harness_responses/prompts/build_scenes/system.md")
     build_user = read_text("harness_responses/prompts/build_scenes/user.md")
@@ -256,23 +263,70 @@ def check_first_pass_scene_creation_contract() -> None:
         "repair_build_scene_first_pass_failure()" in build_video,
         "build_video.sh does not route build_scenes failures through diagnostic wrapper",
     )
+    require(
+        "invoke_scene_repair_for_gate()" in build_video
+        and 'REPAIR_DIAG_FILE="${LOG_DIR}/scene_repair_diagnostics.jsonl"' in build_video
+        and '"attempt_count": attempt_count' in build_video,
+        "build_video.sh does not centralize scene repair invocation diagnostics",
+    )
+    require(
+        "validate_scene_first_pass_with_owner()" in build_video
+        and "scene_validator.py" in build_video
+        and "--json" in build_video,
+        "build_video.sh does not route build_scenes validation through scene_validator.py",
+    )
+    require(
+        "resolve_scene_metadata.py" in build_video,
+        "build_video.sh does not resolve build_scenes metadata through the shared resolver",
+    )
     for gate in (
         "template_structure",
         "python_syntax",
         "import_api",
         "voiceover_sync",
+        "timing_budget",
         "semantic_quality",
         "runtime_dry_run",
     ):
-        require(gate in build_video, f"build_scenes first-pass gate not classified: {gate}")
+        require(
+            gate in build_video or gate in scene_validator,
+            f"build_scenes first-pass gate not classified: {gate}",
+        )
     require(
-        build_video.count("repair_scene_until_valid") >= 4,
-        "scene repair calls appear to have been removed or weakened",
+        'repair_scene_until_valid "$scene_id" "$scene_file" "$scene_class" "$reason"'
+        in build_video,
+        "central repair wrapper no longer invokes repair_scene_until_valid",
+    )
+    require(
+        build_video.count("invoke_scene_repair_for_gate") >= 6,
+        "scene repair call sites are not routed through the central wrapper",
+    )
+    for required in (
+        "capture_phase_progress_state()",
+        "ensure_phase_made_progress()",
+        "mark_phase_no_progress()",
+        '"action": "phase_no_progress_detected"',
+    ):
+        require(required in build_video, f"build_video.sh missing no-progress sentinel surface: {required}")
+    require(
+        '[[ "$phase" == "plan" ]] || return 0' in build_video,
+        "no-progress sentinel is not scoped to the plan phase first",
+    )
+    updater = read_text("scripts/update_project_state.py")
+    require(
+        '"record-error"' in updater and "def record_error(" in updater,
+        "update_project_state.py does not own deterministic record-error mutations",
+    )
+    require(
+        "--mode record-error" in build_video,
+        "build_video.sh does not use update_project_state.py for selected record-error mutation",
     )
 
 
 def check_voice_contract() -> None:
     service_factory = read_text("flaming_horse_voice/service_factory.py")
+    build_video = read_text("scripts/build_video.sh")
+    ensure_voice_cache = read_text("scripts/ensure_voice_cache.py")
     require(
         "voice_clone_config.json" in service_factory,
         "service_factory does not load voice_clone_config.json",
@@ -288,6 +342,18 @@ def check_voice_contract() -> None:
     require(
         "return QwenCachedService.from_project(project_dir)" in service_factory,
         "service_factory return path no longer uses QwenCachedService.from_project",
+    )
+    require(
+        "def check_voice_cache(" in ensure_voice_cache
+        and "selected_output_dir(cfg)" in ensure_voice_cache
+        and "cache.json" in ensure_voice_cache,
+        "ensure_voice_cache.py does not own voice cache readiness",
+    )
+    require(
+        "ensure_voice_cache.py" in build_video
+        and "precache_voiceovers_qwen.py" in build_video
+        and "voice_cache_index_path()" not in build_video,
+        "build_video.sh does not route voice cache readiness through ensure_voice_cache.py",
     )
 
 
@@ -344,9 +410,38 @@ def check_voice_backend_resolution_contract() -> None:
     )
 
 
+def check_final_render_contract() -> None:
+    build_video = read_text("scripts/build_video.sh")
+    verify_scene = read_text("scripts/verify_scene_video.py")
+    record_scene = read_text("scripts/record_scene_rendered.py")
+    require(
+        "verify_scene_video.py" in build_video,
+        "build_video.sh does not use verify_scene_video.py for final render verification",
+    )
+    require(
+        "record_scene_rendered.py" in build_video,
+        "build_video.sh does not use record_scene_rendered.py for rendered scene state",
+    )
+    require(
+        "def verify_scene_video(" in verify_scene and "-select_streams" in verify_scene,
+        "verify_scene_video.py does not own scene video/audio verification",
+    )
+    require(
+        "def record_scene_rendered(" in record_scene and '"status" = "rendered"' not in build_video,
+        "record_scene_rendered.py does not own rendered scene state recording",
+    )
+
+
 def check_removed_live_surfaces() -> None:
     removed_service = "MLX" + "CachedService"
     removed_module = "flaming_horse_voice" + ".mlx_cached"
+    removed_validation_files = [
+        REPO_ROOT / "scripts" / "scene_validation.sh",
+        REPO_ROOT / "scripts" / "build_video_validation_integration.patch",
+    ]
+    for path in removed_validation_files:
+        require(not path.exists(), f"dead validation surface still exists: {path.name}")
+
     live_files = [
         *Path(REPO_ROOT / "flaming_horse_voice").glob("*.py"),
         *Path(REPO_ROOT / "scripts").glob("*.py"),
@@ -372,6 +467,7 @@ def main() -> int:
     check_first_pass_scene_creation_contract()
     check_voice_contract()
     check_voice_backend_resolution_contract()
+    check_final_render_contract()
     check_removed_live_surfaces()
     print("OK")
     return 0

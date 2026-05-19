@@ -156,7 +156,7 @@ if [[ "${PROJECTS_DIR}" = /* ]]; then
 else
   PROJECTS_DIR_RAW="${INITIAL_PWD}/${PROJECTS_DIR}"
 fi
-PROJECTS_DIR="$(python3 -c 'import os,sys; print(os.path.abspath(sys.argv[1]))' "${PROJECTS_DIR_RAW}")"
+PROJECTS_DIR="$("$PYTHON_BIN" -c 'import os,sys; print(os.path.abspath(sys.argv[1]))' "${PROJECTS_DIR_RAW}")"
 
 PROJECT_DIR="${PROJECTS_DIR%/}/${PROJECT_NAME}"
 STATE_FILE="${PROJECT_DIR}/project_state.json"
@@ -189,7 +189,7 @@ fi
 
 echo ""
 echo "═══════════════════════════════════════════"
-echo "Python version: $("${PYTHON:-python3.13}" -c 'import sys; print(sys.version)')"
+echo "Python version: $("$PYTHON_BIN" -c 'import sys; print(sys.version)')"
 echo "═══════════════════════════════════════════"
 
 echo ""
@@ -197,14 +197,14 @@ echo "════════════════════════�
 echo "Preparing voice service"
 echo "═══════════════════════════════════════════"
 
-python3 "${SCRIPT_DIR}/prepare_voice_service.py" --project-dir "${PROJECT_DIR}"
+"$PYTHON_BIN" "${SCRIPT_DIR}/prepare_voice_service.py" --project-dir "${PROJECT_DIR}"
 echo "✓ Voice service preparation complete"
 
 BUILD_ARGS=()
 if [[ -n "${BUILD_ARGS_STR}" ]]; then
   while IFS= read -r -d '' arg; do
     BUILD_ARGS+=("$arg")
-  done < <(BUILD_ARGS_STR="${BUILD_ARGS_STR}" python3 - <<'PY'
+  done < <(BUILD_ARGS_STR="${BUILD_ARGS_STR}" "$PYTHON_BIN" - <<'PY'
 import os
 import shlex
 import sys

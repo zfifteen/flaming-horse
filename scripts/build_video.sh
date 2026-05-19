@@ -198,6 +198,7 @@ LOG_FILE="${LOG_DIR}/build.log"
 ERROR_LOG="${LOG_DIR}/error.log"
 CRASH_DIAG_FILE="${LOG_DIR}/crash_diag.log"
 FIRST_PASS_DIAG_FILE="${LOG_DIR}/scene_first_pass_diagnostics.jsonl"
+REPAIR_DIAG_FILE="${LOG_DIR}/scene_repair_diagnostics.jsonl"
 HEARTBEAT_FILE="${LOG_DIR}/heartbeat.txt"
 HEARTBEAT_INTERVAL_SECONDS="${HEARTBEAT_INTERVAL_SECONDS:-5}"
 HEARTBEAT_PID=""
@@ -276,6 +277,49 @@ event = {
     "gate": os.environ.get("GATE", ""),
     "failure_summary": summary[:2000],
     "repair_invoked": os.environ.get("REPAIR_INVOKED", "").lower() == "true",
+    "attempt_count": attempt_count,
+}
+
+with path.open("a", encoding="utf-8") as handle:
+    json.dump(event, handle, ensure_ascii=False)
+    handle.write("\n")
+PY
+}
+
+record_scene_repair_diagnostic() {
+  local scene_id="$1"
+  local gate="$2"
+  local reason="$3"
+  local outcome="$4"
+  local attempt_count="${5:-0}"
+
+  SCENE_REPAIR_DIAG_FILE="$REPAIR_DIAG_FILE" \
+  SCENE_ID="$scene_id" \
+  GATE="$gate" \
+  REPAIR_REASON="$reason" \
+  REPAIR_OUTCOME="$outcome" \
+  ATTEMPT_COUNT="$attempt_count" \
+  "$PYTHON_BIN" - <<'PY'
+import json
+import os
+from datetime import datetime, timezone
+from pathlib import Path
+
+path = Path(os.environ["SCENE_REPAIR_DIAG_FILE"])
+path.parent.mkdir(parents=True, exist_ok=True)
+
+attempt_raw = os.environ.get("ATTEMPT_COUNT", "0")
+try:
+    attempt_count = int(attempt_raw)
+except ValueError:
+    attempt_count = 0
+
+event = {
+    "timestamp_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+    "scene_id": os.environ.get("SCENE_ID", ""),
+    "gate": os.environ.get("GATE", ""),
+    "reason": os.environ.get("REPAIR_REASON", "")[:2000],
+    "outcome": os.environ.get("REPAIR_OUTCOME", ""),
     "attempt_count": attempt_count,
 }
 
@@ -397,6 +441,99 @@ get_phase() {
 get_run_count() {
   normalize_state_json >/dev/null 2>&1 || true
   $PYTHON_BIN -c "import json; print(json.load(open('${STATE_FILE}'))['run_count'])"
+}
+
+capture_phase_progress_state() {
+  normalize_state_json >/dev/null 2>&1 || true
+  "$PYTHON_BIN" - <<PY
+import json
+
+with open("${STATE_FILE}", "r", encoding="utf-8") as f:
+    state = json.load(f)
+
+snapshot = {
+    "phase": state.get("phase"),
+    "current_scene_index": state.get("current_scene_index", 0),
+    "needs_human_review": bool(state.get("flags", {}).get("needs_human_review", False)),
+}
+print(json.dumps(snapshot, separators=(",", ":")))
+PY
+}
+
+mark_phase_no_progress() {
+  local phase="$1"
+  local message="$2"
+
+  NO_PROGRESS_PHASE="$phase" \
+  NO_PROGRESS_MESSAGE="$message" \
+  STATE_FILE="$STATE_FILE" \
+  "$PYTHON_BIN" - <<'PY'
+import json
+import os
+from datetime import datetime, UTC
+from pathlib import Path
+
+state_path = Path(os.environ["STATE_FILE"])
+with state_path.open("r", encoding="utf-8") as f:
+    state = json.load(f)
+
+message = os.environ["NO_PROGRESS_MESSAGE"]
+phase = os.environ["NO_PROGRESS_PHASE"]
+state.setdefault("errors", []).append(message)
+state.setdefault("flags", {})["needs_human_review"] = True
+state["updated_at"] = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+state.setdefault("history", []).append(
+    {
+        "timestamp": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "phase": phase,
+        "action": "phase_no_progress_detected",
+        "reason": message,
+    }
+)
+
+with state_path.open("w", encoding="utf-8") as f:
+    json.dump(state, f, indent=2)
+PY
+}
+
+ensure_phase_made_progress() {
+  local phase="$1"
+  local before_json="$2"
+
+  [[ "$phase" == "plan" ]] || return 0
+
+  BEFORE_PROGRESS_JSON="$before_json" STATE_FILE="$STATE_FILE" "$PYTHON_BIN" - <<'PY'
+import json
+import os
+import sys
+from pathlib import Path
+
+before = json.loads(os.environ["BEFORE_PROGRESS_JSON"])
+state_path = Path(os.environ["STATE_FILE"])
+with state_path.open("r", encoding="utf-8") as f:
+    after = json.load(f)
+
+before_phase = before.get("phase")
+before_index = before.get("current_scene_index", 0)
+after_phase = after.get("phase")
+after_index = after.get("current_scene_index", 0)
+needs_review = bool(after.get("flags", {}).get("needs_human_review", False))
+
+if after_phase != before_phase:
+    raise SystemExit(0)
+if after_index != before_index:
+    raise SystemExit(0)
+if after_phase == "complete":
+    raise SystemExit(0)
+if needs_review:
+    raise SystemExit(0)
+
+print(
+    f"Phase {before_phase} reported success but made no deterministic progress "
+    f"(phase={after_phase}, current_scene_index={after_index})"
+)
+raise SystemExit(1)
+PY
 }
 
 increment_run_count() {
@@ -545,12 +682,6 @@ if not output_path.is_absolute():
     output_path = project_dir / output_path
 print(output_path.resolve())
 PY
-}
-
-voice_cache_index_path() {
-  local output_dir
-  output_dir="$(voice_output_dir_abs)" || return 1
-  printf '%s\n' "${output_dir}/cache.json"
 }
 
 prepare_rerender_final() {
@@ -1026,6 +1157,71 @@ validate_scene_semantics() {
   return 0
 }
 
+SCENE_VALIDATOR_GATE=""
+SCENE_VALIDATOR_REASON=""
+
+validate_scene_first_pass_with_owner() {
+  local scene_file="$1"
+  local validator_output parsed_output
+
+  SCENE_VALIDATOR_GATE=""
+  SCENE_VALIDATOR_REASON=""
+
+  validator_output="$(mktemp "${TMPDIR:-/tmp}/flaming-horse-scene-validator.XXXXXX.json")"
+  parsed_output="$(mktemp "${TMPDIR:-/tmp}/flaming-horse-scene-validator-fields.XXXXXX")"
+
+  echo "→ Running deterministic scene validator for ${scene_file}..." | tee -a "$LOG_FILE"
+
+  local validator_status
+  set +e
+  "$PYTHON_BIN" "${SCRIPT_DIR}/scene_validator.py" \
+    --scene-file "$scene_file" \
+    --project-dir "$PROJECT_DIR" \
+    --auto-adjust-timing \
+    --json \
+    > "$validator_output" \
+    2> >(tee -a "$LOG_FILE" >&2)
+  validator_status=$?
+  set -e
+
+  cat "$validator_output" >> "$LOG_FILE"
+
+  if ! "$PYTHON_BIN" - "$validator_output" "$parsed_output" <<'PY'; then
+import json
+import sys
+from pathlib import Path
+
+payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+gate = payload.get("first_failed_gate") or ""
+summary = payload.get("failure_summary") or ""
+Path(sys.argv[2]).write_text(f"{gate}\n{summary}", encoding="utf-8")
+PY
+    SCENE_VALIDATOR_GATE="scene_validator"
+    SCENE_VALIDATOR_REASON="Scene validator failed to emit parseable JSON."
+    rm -f "$validator_output" "$parsed_output"
+    return 1
+  fi
+
+  SCENE_VALIDATOR_GATE="$(sed -n '1p' "$parsed_output")"
+  SCENE_VALIDATOR_REASON="$(sed -n '2,$p' "$parsed_output")"
+  rm -f "$validator_output" "$parsed_output"
+
+  if [[ $validator_status -eq 0 ]]; then
+    echo "✓ Deterministic scene validator passed for ${scene_file}" | tee -a "$LOG_FILE"
+    return 0
+  fi
+
+  if [[ -z "$SCENE_VALIDATOR_GATE" ]]; then
+    SCENE_VALIDATOR_GATE="scene_validator"
+  fi
+  if [[ -z "$SCENE_VALIDATOR_REASON" ]]; then
+    SCENE_VALIDATOR_REASON="Scene validator failed for ${scene_file}."
+  fi
+
+  echo "✗ Deterministic scene validator failed at ${SCENE_VALIDATOR_GATE}: ${SCENE_VALIDATOR_REASON}" | tee -a "$LOG_FILE"
+  return 1
+}
+
 validate_scene_runtime() {
   local scene_file="$1"
   local scene_class="$2"
@@ -1064,10 +1260,7 @@ validate_scene_runtime() {
 }
 
 ensure_qwen_cache_index() {
-  local voice_output_dir cache_index
-  voice_output_dir="$(voice_output_dir_abs)" || return 1
-  cache_index="${voice_output_dir}/cache.json"
-  if [[ -f "$cache_index" ]]; then
+  if $PYTHON_BIN "${SCRIPT_DIR}/ensure_voice_cache.py" --project-dir "$PROJECT_DIR" --check >/dev/null 2>&1; then
     return 0
   fi
 
@@ -1079,8 +1272,10 @@ ensure_qwen_cache_index() {
     return 1
   fi
 
-  if [[ ! -f "$cache_index" ]]; then
-    echo "✗ ERROR: Precache finished but cache index still missing: $cache_index" | tee -a "$LOG_FILE"
+  if ! $PYTHON_BIN "${SCRIPT_DIR}/ensure_voice_cache.py" --project-dir "$PROJECT_DIR" --check \
+    > >(tee -a "$LOG_FILE") \
+    2> >(tee -a "$LOG_FILE" >&2); then
+    echo "✗ ERROR: Precache finished but voice cache is still not ready" | tee -a "$LOG_FILE"
     return 1
   fi
 
@@ -1586,6 +1781,33 @@ repair_scene_until_valid() {
   return 1
 }
 
+invoke_scene_repair_for_gate() {
+  local scene_id="$1"
+  local scene_file="$2"
+  local scene_class="$3"
+  local gate="$4"
+  local reason="$5"
+
+  record_scene_repair_diagnostic "$scene_id" "$gate" "$reason" "invoked" "0"
+  if repair_scene_until_valid "$scene_id" "$scene_file" "$scene_class" "$reason"; then
+    record_scene_repair_diagnostic \
+      "$scene_id" \
+      "$gate" \
+      "$reason" \
+      "resolved" \
+      "${REPAIR_ATTEMPT_COUNT:-0}"
+    return 0
+  fi
+
+  record_scene_repair_diagnostic \
+    "$scene_id" \
+    "$gate" \
+    "$reason" \
+    "unresolved" \
+    "${REPAIR_ATTEMPT_COUNT:-0}"
+  return 1
+}
+
 repair_build_scene_first_pass_failure() {
   local scene_id="$1"
   local scene_file="$2"
@@ -1594,7 +1816,7 @@ repair_build_scene_first_pass_failure() {
   local reason="$5"
 
   record_scene_first_pass_diagnostic "$scene_id" "$gate" "$reason" "true" "0"
-  if repair_scene_until_valid "$scene_id" "$scene_file" "$scene_class" "$reason"; then
+  if invoke_scene_repair_for_gate "$scene_id" "$scene_file" "$scene_class" "$gate" "$reason"; then
     record_scene_first_pass_diagnostic \
       "$scene_id" \
       "${gate}:resolved" \
@@ -1877,9 +2099,7 @@ handle_precache_voiceovers() {
   # Skip entirely if --skip-precache flag is set
   if [[ -n "${SKIP_PRECACHE}" ]]; then
     echo "→ --skip-precache enabled; skipping voice precaching phase." | tee -a "$LOG_FILE"
-    local cache_index
-    cache_index="$(voice_cache_index_path)" || return 1
-    if [[ -f "$cache_index" ]]; then
+    if $PYTHON_BIN "${SCRIPT_DIR}/ensure_voice_cache.py" --project-dir "$PROJECT_DIR" --check >/dev/null 2>&1; then
       echo "→ Using existing voice cache." | tee -a "$LOG_FILE"
       apply_state_phase "precache_voiceovers" || true
       return 0
@@ -1918,40 +2138,10 @@ handle_build_scenes() {
   cd "$PROJECT_DIR"
 
   local scene_meta
-  scene_meta=$($PYTHON_BIN - <<PY
-import json
-import re
-
-def camel_from_scene_id(scene_id: str) -> str:
-    m_simple = re.match(r"^scene_(\d+)$", scene_id)
-    if m_simple:
-        return f"Scene{m_simple.group(1)}"
-    m = re.match(r"^scene_(\d+)_([a-z0-9_]+)$", scene_id)
-    if not m:
-        return ""
-    num = m.group(1)
-    slug = m.group(2)
-    parts = [p for p in slug.split("_") if p]
-    title = "".join(p.capitalize() for p in parts)
-    return f"Scene{num}{title}" if title else f"Scene{num}"
-
-state = json.load(open("${STATE_FILE}", "r"))
-idx = int(state.get("current_scene_index") or 0)
-scenes = state.get("scenes") or []
-if not isinstance(scenes, list) or idx >= len(scenes):
-    print("__NO_SCENE__||||")
-    raise SystemExit(0)
-
-scene = scenes[idx] if isinstance(scenes[idx], dict) else {}
-scene_id = str(scene.get("id") or "")
-narration_key = str(scene.get("narration_key") or scene_id)
-scene_class = str(scene.get("class_name") or "")
-if not scene_class:
-    scene_class = camel_from_scene_id(scene_id)
-
-print(f"{scene_id}|{scene_id}.py|{scene_class}|{narration_key}")
-PY
-)
+  if ! scene_meta="$($PYTHON_BIN "${SCRIPT_DIR}/resolve_scene_metadata.py" --project-dir "$PROJECT_DIR")"; then
+    echo "✗ ERROR: Could not resolve current scene metadata from project_state.json" | tee -a "$LOG_FILE" >&2
+    return 1
+  fi
 
   local scene_id scene_file scene_class narration_key
   IFS='|' read -r scene_id scene_file scene_class narration_key <<< "$scene_meta"
@@ -1963,11 +2153,6 @@ PY
     return 0
   fi
 
-  narration_key="$(get_scene_narration_key "$scene_id")"
-  if [[ -z "$narration_key" ]]; then
-    narration_key="$scene_id"
-  fi
-
   if [[ -z "$scene_id" || -z "$scene_file" || -z "$scene_class" ]]; then
     echo "✗ ERROR: Could not determine current scene metadata from project_state.json" | tee -a "$LOG_FILE" >&2
     return 1
@@ -1975,20 +2160,13 @@ PY
 
   if [[ ! "$scene_id" =~ ^scene_[0-9]+(_[a-z0-9_]+)?$ ]]; then
     echo "✗ ERROR: Invalid scene id format '${scene_id}'. Expected scene_N or scene_N_slug (where N is one or more digits, e.g., scene_1 or scene_1_intro)." | tee -a "$LOG_FILE" >&2
-    $PYTHON_BIN - <<PY
-import json
-from datetime import datetime, UTC
-
-with open("${STATE_FILE}", "r") as f:
-    state = json.load(f)
-
-state.setdefault("errors", []).append("build_scenes failed: scene id must match ^scene_[0-9]+(_[a-z0-9_]+)?$")
-state.setdefault("flags", {})["needs_human_review"] = True
-state["updated_at"] = datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')
-
-with open("${STATE_FILE}", "w") as f:
-    json.dump(state, f, indent=2)
-PY
+    $PYTHON_BIN "${SCRIPT_DIR}/update_project_state.py" \
+      --project-dir "$PROJECT_DIR" \
+      --mode record-error \
+      --phase build_scenes \
+      --message "build_scenes failed: scene id must match ^scene_[0-9]+(_[a-z0-9_]+)?$" \
+      --needs-human-review \
+      --history-action invalid_scene_id
     return 1
   fi
 
@@ -2021,59 +2199,16 @@ PY
   local new_scene="$scene_file"
   echo "→ Target scene file: $new_scene" | tee -a "$LOG_FILE"
 
-  # VALIDATION GATE 0: Check template structure first (before TTS cache)
-  if ! validate_scene_template_structure "$new_scene"; then
-    echo "✗ Template structure validation failed for $new_scene. Attempting self-heal..." | tee -a "$LOG_FILE"
-    local template_reason
-    template_reason=$(extract_recent_error_excerpt "$new_scene")
-    if ! repair_build_scene_first_pass_failure "$scene_id" "$new_scene" "$scene_class" "template_structure" "$template_reason"; then
-      echo "✗ Self-heal failed after template validation error in $new_scene" | tee -a "$LOG_FILE" >&2
-      return 1
-    fi
-  fi
-
-  # Syntax validation (Python) with self-heal on failure.
-  if ! $PYTHON_BIN -m py_compile "$new_scene" \
-    > >(tee -a "$LOG_FILE") \
-    2> >(tee -a "$LOG_FILE" >&2); then
-    echo "✗ Syntax check failed for $new_scene. Attempting self-heal..." | tee -a "$LOG_FILE"
-    local syntax_reason
-    syntax_reason=$(scene_python_syntax_error_excerpt "$new_scene")
-    if ! repair_build_scene_first_pass_failure "$scene_id" "$new_scene" "$scene_class" "python_syntax" "$syntax_reason"; then
-      echo "✗ Self-heal failed after syntax error in $new_scene" | tee -a "$LOG_FILE" >&2
-      return 1
-    fi
-  fi
-
-  # VALIDATION GATE 1: Check imports
-  if ! validate_scene_imports "$new_scene"; then
-    echo "✗ Import validation failed for $new_scene. Attempting self-heal..." | tee -a "$LOG_FILE"
-    local import_reason
-    import_reason=$(extract_recent_error_excerpt "$new_scene")
-    if ! repair_build_scene_first_pass_failure "$scene_id" "$new_scene" "$scene_class" "import_api" "$import_reason"; then
-      echo "✗ Self-heal failed after import/API error in $new_scene" | tee -a "$LOG_FILE" >&2
-      return 1
-    fi
-  fi
-  
-  # VALIDATION GATE 2: Check voiceover sync patterns
-  if ! validate_voiceover_sync "$new_scene"; then
-    echo "✗ Voiceover sync validation failed for $new_scene. Attempting self-heal..." | tee -a "$LOG_FILE"
-    local sync_reason
-    sync_reason=$(extract_recent_error_excerpt "$new_scene")
-    if ! repair_build_scene_first_pass_failure "$scene_id" "$new_scene" "$scene_class" "voiceover_sync" "$sync_reason"; then
-      echo "✗ Self-heal failed after sync error in $new_scene" | tee -a "$LOG_FILE" >&2
-      return 1
-    fi
-  fi
-  
-  # VALIDATION GATE 3: Check semantic quality (no scaffold artifacts)
-  if ! validate_scene_semantics "$new_scene"; then
-    echo "✗ Semantic quality validation failed for $new_scene. Attempting self-heal..." | tee -a "$LOG_FILE"
-    local semantic_reason
-    semantic_reason=$(extract_recent_error_excerpt "$new_scene")
-    if ! repair_build_scene_first_pass_failure "$scene_id" "$new_scene" "$scene_class" "semantic_quality" "$semantic_reason"; then
-      echo "✗ Self-heal failed after semantic validation error in $new_scene" | tee -a "$LOG_FILE" >&2
+  # Deterministic first-pass validation before runtime dry-run.
+  if ! validate_scene_first_pass_with_owner "$new_scene"; then
+    echo "✗ First-pass scene validation failed for $new_scene. Attempting self-heal..." | tee -a "$LOG_FILE"
+    if ! repair_build_scene_first_pass_failure \
+      "$scene_id" \
+      "$new_scene" \
+      "$scene_class" \
+      "$SCENE_VALIDATOR_GATE" \
+      "$SCENE_VALIDATOR_REASON"; then
+      echo "✗ Self-heal failed after ${SCENE_VALIDATOR_GATE} error in $new_scene" | tee -a "$LOG_FILE" >&2
       return 1
     fi
   fi
@@ -2176,7 +2311,7 @@ EOF
     rewrite_required_count=$((rewrite_required_count + 1))
     echo "⚠ scene_qc: runtime error in ${scene_id}; invoking rewrite flow" | tee -a "$LOG_FILE"
     local reason="Runtime validation failed for ${candidate_file} during deterministic scene_qc."
-    if repair_scene_until_valid "$scene_id" "$candidate_file" "$scene_class" "$reason"; then
+    if invoke_scene_repair_for_gate "$scene_id" "$candidate_file" "$scene_class" "scene_qc_runtime" "$reason"; then
       if runtime_validate_scene_with_preconditions "$candidate_file" "$scene_class"; then
         echo "- ${scene_id}: rewrite_required=true, blocking_error=runtime_exception, resolved=true" >> "$qc_report"
       else
@@ -2249,10 +2384,7 @@ PY
 
   # Ensure voice cache exists (precache step). If missing, generate it now.
   # Skip this check if --skip-precache flag is set.
-  local voice_output_dir cache_index
-  voice_output_dir="$(voice_output_dir_abs)" || return 1
-  cache_index="${voice_output_dir}/cache.json"
-  if [[ -z "${SKIP_PRECACHE}" && ! -f "$cache_index" ]]; then
+  if [[ -z "${SKIP_PRECACHE}" ]] && ! $PYTHON_BIN "${SCRIPT_DIR}/ensure_voice_cache.py" --project-dir "$PROJECT_DIR" --check >/dev/null 2>&1; then
     echo "→ Missing voice cache index; running precache step..." | tee -a "$LOG_FILE"
     if ! handle_precache_voiceovers; then
       echo "❌ Precaching voiceovers failed; cannot render." | tee -a "$LOG_FILE" >&2
@@ -2415,74 +2547,28 @@ PY
     exit 1
   fi
 
+  local voice_output_dir
+  voice_output_dir="$(voice_output_dir_abs)" || return 1
+
   # Helper: verify a rendered scene video exists and has audio
   verify_scene_video() {
     local scene_id="$1"
     local class_name="$2"
-    local video_path="media/videos/${scene_id}/1440p60/${class_name}.mp4"
-
-    if [[ ! -f "$video_path" ]]; then
-      echo "✗ Render output missing: $video_path" | tee -a "$LOG_FILE" >&2
-      return 1
-    fi
-    if [[ ! -s "$video_path" ]]; then
-      echo "✗ Render output empty: $video_path" | tee -a "$LOG_FILE" >&2
-      return 1
-    fi
-    if ! command -v ffprobe >/dev/null 2>&1; then
-      echo "⚠ WARNING: ffprobe not found; skipping audio verification" | tee -a "$LOG_FILE"
-      return 0
-    fi
-    local audio_stream
-    audio_stream=$(ffprobe -v error -select_streams a:0 -show_entries stream=codec_type -of csv=p=0 "$video_path" 2>/dev/null || true)
-    if [[ -z "$audio_stream" ]]; then
-      echo "✗ No audio stream detected: $video_path" | tee -a "$LOG_FILE" >&2
-      return 1
-    fi
-    return 0
+    "$PYTHON_BIN" "${SCRIPT_DIR}/verify_scene_video.py" \
+      --project-dir "$PROJECT_DIR" \
+      --scene-id "$scene_id" \
+      --class-name "$class_name" \
+      > >(tee -a "$LOG_FILE") \
+      2> >(tee -a "$LOG_FILE" >&2)
   }
 
   update_state_rendered() {
     local scene_id="$1"
     local class_name="$2"
-    local est_duration="$3"
-
-    local video_path="media/videos/${scene_id}/1440p60/${class_name}.mp4"
-    local file_size
-    file_size=$(stat -f%z "$video_path" 2>/dev/null || echo 0)
-    local duration_sec="0"
-    if command -v ffprobe >/dev/null 2>&1; then
-      duration_sec=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$video_path" 2>/dev/null || echo 0)
-    fi
-
-    $PYTHON_BIN - <<PY
-import json
-from datetime import datetime, UTC
-
-scene_id = "${scene_id}"
-class_name = "${class_name}"
-video_file = "${video_path}"
-file_size = int("${file_size}") if "${file_size}".isdigit() else 0
-duration = float("${duration_sec}" or 0)
-
-with open("${STATE_FILE}", "r") as f:
-    state = json.load(f)
-
-for s in state.get("scenes", []):
-    if s.get("id") == scene_id:
-        s["status"] = "rendered"
-        s["video_file"] = video_file
-        s["verification"] = {
-            "file_size_bytes": file_size,
-            "duration_seconds": duration,
-            "audio_present": True,
-            "verified_at": datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ'),
-        }
-        break
-
-with open("${STATE_FILE}", "w") as f:
-    json.dump(state, f, indent=2)
-PY
+    "$PYTHON_BIN" "${SCRIPT_DIR}/record_scene_rendered.py" \
+      --project-dir "$PROJECT_DIR" \
+      --scene-id "$scene_id" \
+      --class-name "$class_name"
   }
 
   echo "→ Rendering scenes sequentially (cached voice backend: ${FLAMING_HORSE_TTS_BACKEND:-qwen})" | tee -a "$LOG_FILE"
@@ -2496,7 +2582,7 @@ PY
       echo "⚠ Pre-render syntax check failed for ${scene_file}. Starting self-heal..." | tee -a "$LOG_FILE"
       local syntax_reason
       syntax_reason=$(extract_recent_error_excerpt "$scene_file")
-      if ! repair_scene_until_valid "$scene_id" "$scene_file" "$scene_class" "$syntax_reason"; then
+      if ! invoke_scene_repair_for_gate "$scene_id" "$scene_file" "$scene_class" "final_render_syntax" "$syntax_reason"; then
         echo "❌ Could not repair ${scene_file} after ${PHASE_RETRY_LIMIT} attempts" | tee -a "$LOG_FILE" >&2
         $PYTHON_BIN - <<PY
 import json
@@ -2521,7 +2607,7 @@ PY
       echo "⚠ Invalid animation detected (ShowCreation) in ${scene_file}. Starting self-heal..." | tee -a "$LOG_FILE"
       local invalid_reason
       invalid_reason="Invalid animation 'ShowCreation' detected. Use Create(...) for mobjects/curves." 
-      if ! repair_scene_until_valid "$scene_id" "$scene_file" "$scene_class" "$invalid_reason"; then
+      if ! invoke_scene_repair_for_gate "$scene_id" "$scene_file" "$scene_class" "final_render_invalid_animation" "$invalid_reason"; then
         echo "❌ Could not repair ${scene_file} after ${PHASE_RETRY_LIMIT} attempts" | tee -a "$LOG_FILE" >&2
         $PYTHON_BIN - <<PY
 import json
@@ -2553,7 +2639,7 @@ PY
       fi
     fi
     if [[ $needs_rerender -eq 0 ]]; then
-      update_state_rendered "$scene_id" "$scene_class" "$est_duration"
+      update_state_rendered "$scene_id" "$scene_class"
       echo "✓ Already rendered + verified: $scene_id" | tee -a "$LOG_FILE"
       continue
     fi
@@ -2625,7 +2711,7 @@ PY
       fi
 
       echo "⚠ Render failed for ${scene_id}; attempting self-heal (${attempt}/${PHASE_RETRY_LIMIT})" | tee -a "$LOG_FILE"
-      if ! repair_scene_until_valid "$scene_id" "$scene_file" "$scene_class" "$failure_reason"; then
+      if ! invoke_scene_repair_for_gate "$scene_id" "$scene_file" "$scene_class" "final_render_render_failure" "$failure_reason"; then
         break
       fi
     done
@@ -2691,7 +2777,7 @@ PY
       exit 1
     fi
 
-    update_state_rendered "$scene_id" "$scene_class" "$est_duration"
+    update_state_rendered "$scene_id" "$scene_class"
     set_diag_context "final_render" "scene_verified" "$scene_id" "$attempt" "${DIAG_ITERATION}"
     echo "✓ Rendered + verified: $scene_id" | tee -a "$LOG_FILE"
   done <<< "$scene_lines"
@@ -3157,7 +3243,9 @@ while true; do
     local phase_ok=0
     local attempt=0
     local phase_retry_file
+    local phase_progress_before
     phase_retry_file="$(get_retry_context_file "$current_phase")"
+    phase_progress_before="$(capture_phase_progress_state)"
 
     while true; do
       attempt=$((attempt + 1))
@@ -3234,6 +3322,15 @@ while true; do
 
     # Normalize again in case apply_phase repaired missing keys, etc.
     normalize_state_json || true
+
+    local progress_message
+    if ! progress_message="$(ensure_phase_made_progress "$current_phase" "$phase_progress_before" 2>&1)"; then
+      echo "❌ Phase made no deterministic progress: $current_phase" | tee -a "$LOG_FILE" >&2
+      echo "   ${progress_message}" | tee -a "$LOG_FILE" >&2
+      mark_phase_no_progress "$current_phase" "$progress_message"
+      log_error_event "$current_phase" "phase reported success without deterministic progress" "$attempt" "$PHASE_RETRY_LIMIT"
+      exit 1
+    fi
     
     increment_run_count
 

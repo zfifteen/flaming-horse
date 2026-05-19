@@ -1,0 +1,356 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Flaming Horse Redundancy Reduction Fix Plan</title>
+  <style>
+    :root {
+      --ink: #17202a;
+      --muted: #5d6875;
+      --line: #d8dde3;
+      --panel: #f7f9fb;
+      --paper: #ffffff;
+      --code: #263142;
+      --accent: #145c9e;
+      --warn: #8a5a00;
+      --danger: #a82929;
+      --ok: #1f6b3a;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: #eef2f6;
+      color: var(--ink);
+      font: 13px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    .page {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 28px 20px 56px;
+    }
+    .hero, .section {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 20px;
+      margin-top: 16px;
+    }
+    .hero { margin-top: 0; }
+    h1, h2, h3 { line-height: 1.2; margin: 0; }
+    h1 { font-size: 2.05rem; letter-spacing: 0; }
+    h2 { font-size: 1.28rem; margin-bottom: 10px; }
+    h3 { font-size: 1rem; margin-bottom: 6px; }
+    p { margin: 8px 0 0; }
+    code {
+      color: var(--code);
+      background: #eef1f5;
+      border: 1px solid #dce2e8;
+      border-radius: 4px;
+      padding: 1px 4px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: .94em;
+    }
+    pre {
+      margin: 10px 0 0;
+      padding: 12px;
+      overflow-x: auto;
+      background: #16202d;
+      color: #edf4fa;
+      border-radius: 7px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+      line-height: 1.45;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+    th, td {
+      border: 1px solid var(--line);
+      padding: 8px 10px;
+      text-align: left;
+      vertical-align: top;
+    }
+    th { background: #eef3f8; }
+    ul, ol { margin: 8px 0 0; padding-left: 20px; }
+    li + li { margin-top: 4px; }
+    .lede {
+      max-width: 940px;
+      color: #27394d;
+      font-size: 1.05rem;
+    }
+    .meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .pill {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 4px 9px;
+      background: var(--panel);
+      font-weight: 650;
+      color: #334155;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      padding: 12px;
+    }
+    .card p { color: var(--muted); }
+    .note {
+      border-left: 4px solid var(--accent);
+      background: #e8f2fb;
+      border-radius: 6px;
+      padding: 10px 12px;
+      margin-top: 10px;
+    }
+    .warn {
+      border-left-color: var(--warn);
+      background: #fff4d6;
+    }
+    .ok {
+      border-left-color: var(--ok);
+      background: #e9f5ee;
+    }
+    .danger {
+      border-left-color: var(--danger);
+      background: #f9eaea;
+    }
+    .priority {
+      display: inline-block;
+      min-width: 38px;
+      text-align: center;
+      border-radius: 999px;
+      padding: 2px 7px;
+      margin-right: 7px;
+      font-size: 11px;
+      font-weight: 800;
+      color: var(--danger);
+      border: 1px solid #edcaca;
+      background: #f9eaea;
+    }
+    .priority.p2 { color: var(--warn); border-color: #ead498; background: #fff4d6; }
+    .priority.p3 { color: var(--ok); border-color: #b9dec8; background: #e9f5ee; }
+    @media (max-width: 860px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="hero">
+      <h1>Redundancy Reduction Fix Plan</h1>
+      <p class="lede">The fix track is to reduce overlapping ownership one responsibility at a time. The first target is scene validation because it is the highest-risk overlap and the best test seam for future refactoring.</p>
+      <div class="meta">
+        <span class="pill">Status: execution plan</span>
+        <span class="pill">Updated: 2026-05-19</span>
+        <span class="pill">Audience: future Codex runs</span>
+        <span class="pill">Source: redundancy audit</span>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Execution Invariant</h2>
+      <div class="note">
+        <p><strong>Do not combine cleanup targets.</strong> Each patch must extract or consolidate one responsibility, add a focused test seam, and preserve the canonical entrypoint: <code>./scripts/create_video.sh &lt;project_name&gt; --topic "..."</code>.</p>
+      </div>
+      <div class="grid">
+        <div class="card">
+          <h3>Preserve</h3>
+          <p>Scripted phase sequence, generated-artifact boundary, local cached voice policy, repair as fallback, and deterministic state ownership.</p>
+        </div>
+        <div class="card">
+          <h3>Measure</h3>
+          <p>Validation gates, repair invocations, dry-run count, render attempts, voice-cache checks, and lines removed from <code>build_video.sh</code>.</p>
+        </div>
+        <div class="card">
+          <h3>Stop</h3>
+          <p>If a refactor changes runtime behavior without an intentional contract update, stop and split the change into extraction first, behavior change second.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Ordered Fix Sequence</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Order</th>
+            <th>Patch</th>
+            <th>Purpose</th>
+            <th>Implementation Shape</th>
+            <th>Required Tests</th>
+            <th>Done When</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="priority">1</span></td>
+            <td>Extract scene validation owner.</td>
+            <td>Remove the worst overlap before touching repair, prompts, or final render behavior.</td>
+            <td>Add <code>scripts/scene_validator.py</code> with named gates and stable JSON output. Port existing parser/build-script/timing checks without adding new rules. Keep <code>build_video.sh</code> behavior unchanged in this first patch unless a tiny call-site adapter is needed for testability.</td>
+            <td><code>python3 scripts/test_scene_validator.py</code>; <code>python3 -m py_compile scripts/scene_validator.py</code>; existing parser and contract tests.</td>
+            <td>A fixture scene can be classified without invoking the full pipeline, Manim, Grok, voice generation, or ffmpeg.</td>
+          </tr>
+          <tr>
+            <td><span class="priority">2</span></td>
+            <td>Route build-scene validation through the owner.</td>
+            <td>Make first-pass scene creation use one validation contract.</td>
+            <td>Replace duplicated <code>build_video.sh</code> checks in <code>handle_build_scenes</code> with <code>scene_validator.py --json</code>. Keep repair invocation and diagnostics intact.</td>
+            <td>Build-scenes static test proving the validator is called; first-pass diagnostic test; <code>bash -n scripts/build_video.sh</code>.</td>
+            <td>One scene-body failure produces one named validator gate before repair is invoked.</td>
+          </tr>
+          <tr>
+            <td><span class="priority">3</span></td>
+            <td>Add phase no-progress sentinel.</td>
+            <td>Prevent hidden success when a phase handler returns success but state does not advance.</td>
+            <td>Add a narrow sentinel around <code>plan</code> first. A successful handler must advance phase/index, set human review, mark complete, or return nonzero.</td>
+            <td>Focused shell/static test or Python harness fixture for unchanged phase; <code>python3 scripts/test_update_project_state.py</code>; <code>bash -n scripts/build_video.sh</code>.</td>
+            <td>A no-progress phase fails at the first divergence point instead of looping with stale state.</td>
+          </tr>
+          <tr>
+            <td><span class="priority p2">4</span></td>
+            <td>Centralize repair invocation.</td>
+            <td>Keep repair available while making repair volume measurable and comparable.</td>
+            <td>Add one <code>invoke_scene_repair_for_gate</code> shell wrapper or small Python command. Route live repair calls through it. Do not weaken repair and do not change repair prompts.</td>
+            <td>Static test for all live repair calls using the wrapper; diagnostic JSONL shape test; existing scene-repair tests.</td>
+            <td>Every repair event has <code>scene_id</code>, <code>gate</code>, <code>reason</code>, and <code>attempt_count</code> recorded by one path.</td>
+          </tr>
+          <tr>
+            <td><span class="priority p2">5</span></td>
+            <td>Centralize scene metadata resolution.</td>
+            <td>Remove repeated inference for scene id, file, class, and narration key.</td>
+            <td>Add <code>scripts/resolve_scene_metadata.py</code> returning one JSON object. Replace the <code>build_scenes</code> resolver first, then final-render metadata repair in a later patch.</td>
+            <td>Fixture states for complete, partial, malformed, and legacy scene entries; existing state contract tests.</td>
+            <td>Build-scene and final-render paths agree on the same scene metadata for the same state.</td>
+          </tr>
+          <tr>
+            <td><span class="priority p2">6</span></td>
+            <td>Consolidate state mutation operations.</td>
+            <td>Make <code>update_project_state.py</code> the practical owner of repeated state writes.</td>
+            <td>Add one narrow operation such as <code>--mode record-error</code> or <code>--mode record-scene-diagnostic</code>. Replace one repeated inline JSON mutation cluster only.</td>
+            <td><code>python3 scripts/test_update_project_state.py</code>; new focused test for the added mode; shell syntax check.</td>
+            <td>The selected mutation appears in one Python owner and is removed from <code>build_video.sh</code>.</td>
+          </tr>
+          <tr>
+            <td><span class="priority p2">7</span></td>
+            <td>Centralize voice cache readiness.</td>
+            <td>Stop repeated voice-cache checks and backend-neutral/Qwen-named behavior from drifting.</td>
+            <td>Add <code>scripts/ensure_voice_cache.py --check</code> first. Replace <code>ensure_qwen_cache_index</code> only. Defer generation/build mode until check mode is stable.</td>
+            <td>Fixtures for complete cache, missing index, missing mp3, and backend mismatch; existing TTS config and cached service tests.</td>
+            <td>Final render can verify cache readiness without duplicating cache-index rules.</td>
+          </tr>
+          <tr>
+            <td><span class="priority p2">8</span></td>
+            <td>Normalize entrypoint interpreter ownership.</td>
+            <td>Make helper execution match the interpreter validated by <code>create_video.sh</code>.</td>
+            <td>In <code>scripts/create_video.sh</code>, replace bare <code>python3</code> helper calls with the already resolved interpreter variable. Keep this patch one file.</td>
+            <td><code>bash -n scripts/create_video.sh</code>; static search for bare helper calls in that file; existing smoke-compatible tests.</td>
+            <td>The entrypoint validates and uses the same orchestration interpreter.</td>
+          </tr>
+          <tr>
+            <td><span class="priority p3">9</span></td>
+            <td>Retire dead validation surfaces.</td>
+            <td>Prevent agents from following stale validation code and patch files.</td>
+            <td>After <code>scene_validator.py</code> is live, remove or explicitly mark historical <code>scripts/scene_validation.sh</code>, <code>scripts/build_video_validation_integration.patch</code>, and stale docs that describe them as current.</td>
+            <td>Contract drift sentinel; targeted <code>rg</code> for removed live surfaces.</td>
+            <td>Only one current scene-validation path is documented and executable.</td>
+          </tr>
+          <tr>
+            <td><span class="priority p3">10</span></td>
+            <td>Split final-render verification.</td>
+            <td>Make final render testable without full video production.</td>
+            <td>Extract <code>verify_scene_video.py</code> and then <code>record_scene_rendered</code> or equivalent state update. Use fake media fixtures first.</td>
+            <td>MP4 fixture tests with audio, without audio, and missing output; final-render static integration check.</td>
+            <td>Render verification and state recording can be tested independently from Manim execution.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="section">
+      <h2>Patch Template For Future Codex Runs</h2>
+      <pre>For each patch:
+1. Read AGENTS.md, USER_PREFERENCES.md, focused architecture contract, this plan, and the redundancy audit.
+2. State the single responsibility being extracted or consolidated.
+3. Add characterization fixtures before changing the live caller.
+4. Preserve canonical entrypoint behavior.
+5. Run focused tests plus syntax checks.
+6. Report lines removed, owner chosen, remaining duplicate surfaces, and any behavior intentionally changed.</pre>
+    </section>
+
+    <section class="section">
+      <h2>Baseline Commands</h2>
+      <pre>python3 scripts/test_contracts_vs_runtime.py
+python3 scripts/test_update_project_state.py
+python3 -m py_compile scripts/update_project_state.py harness_responses/parser.py harness_responses/prompts.py
+bash -n scripts/create_video.sh scripts/new_project.sh scripts/build_video.sh</pre>
+      <div class="note warn">
+        <p>Do not require a full video smoke test for every extraction patch. Use the smallest deterministic test that exercises the moved responsibility. Run a full smoke only after a live caller changes or after multiple extraction patches land.</p>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Success Metrics</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Metric</th>
+            <th>Direction</th>
+            <th>Measurement Source</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>build_video.sh</code> lines</td>
+            <td>Down, without moving complexity into larger untested modules.</td>
+            <td><code>wc -l scripts/build_video.sh</code> and focused module line counts.</td>
+          </tr>
+          <tr>
+            <td>Duplicate live owners</td>
+            <td>Down to one owner per responsibility.</td>
+            <td>Targeted <code>rg</code> searches from each patch plan.</td>
+          </tr>
+          <tr>
+            <td>Repair invocations per successful video</td>
+            <td>Down over time, but not forced to zero by hiding failures.</td>
+            <td><code>log/scene_first_pass_diagnostics.jsonl</code> and repair wrapper diagnostics.</td>
+          </tr>
+          <tr>
+            <td>Full-pipeline runs needed during refactor</td>
+            <td>Down.</td>
+            <td>Use fixture-level tests for extracted owners.</td>
+          </tr>
+          <tr>
+            <td>Unclassified failures</td>
+            <td>Down.</td>
+            <td>Named gate output from validators and state operations.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="section">
+      <h2>Non-Goals</h2>
+      <ul>
+        <li>Do not redesign the phase sequence.</li>
+        <li>Do not add a slide renderer or alternate generation mode.</li>
+        <li>Do not weaken scene repair while consolidating it.</li>
+        <li>Do not patch generated projects as a substitute for framework fixes.</li>
+        <li>Do not mix visual-quality prompt work with ownership extraction patches.</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>
