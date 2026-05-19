@@ -2081,8 +2081,11 @@ handle_precache_voiceovers() {
       apply_state_phase "precache_voiceovers" || true
       return 0
     else
-      echo "⚠ WARNING: No existing voice cache found. Rendering may fail without voice." | tee -a "$LOG_FILE"
-      return 0
+      echo "✗ ERROR: --skip-precache requires an existing complete voice cache." | tee -a "$LOG_FILE"
+      $PYTHON_BIN "${SCRIPT_DIR}/ensure_voice_cache.py" --project-dir "$PROJECT_DIR" --check \
+        > >(tee -a "$LOG_FILE") \
+        2> >(tee -a "$LOG_FILE" >&2) || true
+      return 1
     fi
   fi
   echo "🎙️  Precaching voiceovers (backend: ${FLAMING_HORSE_TTS_BACKEND:-qwen})..." | tee -a "$LOG_FILE"

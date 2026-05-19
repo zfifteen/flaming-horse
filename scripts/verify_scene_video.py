@@ -16,25 +16,38 @@ def scene_video_path(project_dir: Path, scene_id: str, class_name: str) -> Path:
     return project_dir / "media" / "videos" / scene_id / "1440p60" / f"{class_name}.mp4"
 
 
-def _result(ok: bool, video_path: Path, reason: str, audio_checked: bool) -> dict[str, Any]:
+def _result(
+    ok: bool,
+    video_path: Path,
+    reason: str,
+    audio_checked: bool,
+    audio_present: bool | None,
+) -> dict[str, Any]:
     return {
         "ok": ok,
         "video_path": str(video_path),
         "reason": reason,
         "audio_checked": audio_checked,
+        "audio_present": audio_present,
     }
 
 
 def verify_scene_video(project_dir: Path, scene_id: str, class_name: str) -> dict[str, Any]:
     video_path = scene_video_path(project_dir, scene_id, class_name)
     if not video_path.exists():
-        return _result(False, video_path, "render output missing", False)
+        return _result(False, video_path, "render output missing", False, None)
     if video_path.stat().st_size <= 0:
-        return _result(False, video_path, "render output empty", False)
+        return _result(False, video_path, "render output empty", False, None)
 
     ffprobe = shutil.which("ffprobe")
     if not ffprobe:
-        return _result(True, video_path, "ffprobe not found; skipped audio verification", False)
+        return _result(
+            True,
+            video_path,
+            "ffprobe not found; skipped audio verification",
+            False,
+            None,
+        )
 
     probe = subprocess.run(
         [
@@ -54,8 +67,8 @@ def verify_scene_video(project_dir: Path, scene_id: str, class_name: str) -> dic
         check=False,
     )
     if not probe.stdout.strip():
-        return _result(False, video_path, "no audio stream detected", True)
-    return _result(True, video_path, "render output verified", True)
+        return _result(False, video_path, "no audio stream detected", True, False)
+    return _result(True, video_path, "render output verified", True, True)
 
 
 def main() -> int:

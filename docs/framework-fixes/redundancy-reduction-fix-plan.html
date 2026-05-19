@@ -295,7 +295,9 @@
       <pre>python3 scripts/test_contracts_vs_runtime.py
 python3 scripts/test_update_project_state.py
 python3 -m py_compile scripts/update_project_state.py harness_responses/parser.py harness_responses/prompts.py
-bash -n scripts/create_video.sh scripts/new_project.sh scripts/build_video.sh</pre>
+bash -n scripts/create_video.sh
+bash -n scripts/new_project.sh
+bash -n scripts/build_video.sh</pre>
       <div class="note warn">
         <p>Do not require a full video smoke test for every extraction patch. Use the smallest deterministic test that exercises the moved responsibility. Run a full smoke only after a live caller changes or after multiple extraction patches land.</p>
       </div>

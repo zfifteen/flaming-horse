@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import ast
 import json
 import sys
 from pathlib import Path
@@ -74,11 +75,49 @@ def _cache_audio_file(entry: dict[str, Any]) -> str:
     return ""
 
 
-def _validate_cache_entries(cache_dir: Path, cache_data: list[Any]) -> str:
+def _load_script(script_path: Path) -> dict[str, str]:
+    if not script_path.exists():
+        raise ValueError(f"narration_script.py missing: {script_path}")
+    try:
+        tree = ast.parse(script_path.read_text(encoding="utf-8"), filename=str(script_path))
+    except (OSError, SyntaxError, ValueError) as exc:
+        raise ValueError(f"narration_script.py could not be parsed: {exc}") from exc
+
+    for node in tree.body:
+        if not isinstance(node, ast.Assign):
+            continue
+        for target in node.targets:
+            if isinstance(target, ast.Name) and target.id == "SCRIPT":
+                try:
+                    value = ast.literal_eval(node.value)
+                except (ValueError, TypeError) as exc:
+                    raise ValueError("narration_script.py SCRIPT must be a literal dict") from exc
+                if not isinstance(value, dict):
+                    raise ValueError("narration_script.py SCRIPT must be a dict")
+                result: dict[str, str] = {}
+                for key, text in value.items():
+                    if isinstance(key, str) and isinstance(text, str) and key.strip():
+                        result[key] = text
+                if not result:
+                    raise ValueError("narration_script.py SCRIPT has no usable entries")
+                return result
+    raise ValueError("narration_script.py does not define SCRIPT")
+
+
+def _normalize_text(text: str) -> str:
+    return " ".join(str(text).split())
+
+
+def _validate_cache_entries(
+    cache_dir: Path,
+    cache_data: list[Any],
+    required_script: dict[str, str],
+) -> str:
     if not cache_data:
         return "cache index contains no entries"
 
-    usable_entries = 0
+    key_index: dict[str, str] = {}
+    text_index: dict[str, str] = {}
     for index, entry in enumerate(cache_data):
         if not isinstance(entry, dict):
             return f"cache entry {index} must be an object"
@@ -95,10 +134,24 @@ def _validate_cache_entries(cache_dir: Path, cache_data: list[Any]) -> str:
         if not (cache_dir / audio_file).exists():
             return f"cache entry {index} audio file missing: {audio_file}"
 
-        usable_entries += 1
+        if has_narration_key:
+            key_index[str(narration_key).strip()] = audio_file
+        text = _cache_text(entry)
+        if text:
+            text_index[_normalize_text(text)] = audio_file
 
-    if usable_entries == 0:
+    if not key_index and not text_index:
         return "cache index contains no usable entries"
+
+    missing = []
+    for key, text in required_script.items():
+        if key in key_index:
+            continue
+        if _normalize_text(text) in text_index:
+            continue
+        missing.append(key)
+    if missing:
+        return "cache missing required narration key: " + missing[0]
     return ""
 
 
@@ -138,7 +191,18 @@ def check_voice_cache(project_dir: Path) -> dict[str, Any]:
             cache_index=cache_index,
             reason="cache index root must be a list",
         )
-    entry_error = _validate_cache_entries(cache_dir, cache_data)
+    try:
+        required_script = _load_script(project_dir / "narration_script.py")
+    except ValueError as exc:
+        return _result(
+            ok=False,
+            project_dir=project_dir,
+            cache_dir=cache_dir,
+            cache_index=cache_index,
+            reason=str(exc),
+        )
+
+    entry_error = _validate_cache_entries(cache_dir, cache_data, required_script)
     if entry_error:
         return _result(
             ok=False,

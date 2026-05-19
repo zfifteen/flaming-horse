@@ -2,6 +2,7 @@
 import json
 import os
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 import unittest
@@ -61,6 +62,46 @@ class RecordSceneRenderedTests(unittest.TestCase):
             self.assertEqual(scene["verification"]["duration_seconds"], 12.5)
             self.assertTrue(scene["verification"]["audio_present"])
             self.assertTrue(scene["verification"]["audio_checked"])
+
+    def test_records_unknown_audio_when_ffprobe_unavailable(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_dir = Path(temp_dir)
+            (project_dir / "project_state.json").write_text(
+                json.dumps({"scenes": [{"id": "scene_01"}]}) + "\n",
+                encoding="utf-8",
+            )
+            video = project_dir / "media/videos/scene_01/1440p60/Scene01.mp4"
+            video.parent.mkdir(parents=True)
+            video.write_bytes(b"fake mp4")
+            bin_dir = project_dir / "bin"
+            bin_dir.mkdir()
+            (bin_dir / "python3").symlink_to(Path(sys.executable))
+            old_path = os.environ.get("PATH", "")
+            try:
+                os.environ["PATH"] = str(bin_dir)
+                result = subprocess.run(
+                    [
+                        "python3",
+                        str(SCRIPT_PATH),
+                        "--project-dir",
+                        str(project_dir),
+                        "--scene-id",
+                        "scene_01",
+                        "--class-name",
+                        "Scene01",
+                    ],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+            finally:
+                os.environ["PATH"] = old_path
+
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            state = json.loads((project_dir / "project_state.json").read_text(encoding="utf-8"))
+            verification = state["scenes"][0]["verification"]
+            self.assertIsNone(verification["audio_present"])
+            self.assertFalse(verification["audio_checked"])
 
     def test_missing_scene_fails(self):
         with tempfile.TemporaryDirectory() as temp_dir:

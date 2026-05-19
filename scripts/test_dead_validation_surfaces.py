@@ -29,6 +29,8 @@ def main() -> None:
         "scripts/scene_validation.sh",
         "build_video_validation_integration.patch",
         "validate_scene_files_consistency",
+        "SCENE_QC_MAX_ATTEMPTS",
+        "SCENE_QC_BACKOFF_BASE",
     ]
     for path in active_docs:
         text = path.read_text(encoding="utf-8")

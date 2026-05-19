@@ -26,6 +26,14 @@ def _run(project_dir: Path) -> subprocess.CompletedProcess:
     )
 
 
+def _write_script(project_dir: Path, entries: dict[str, str] | None = None) -> None:
+    payload = entries if entries is not None else {"scene_01": "Narration"}
+    (project_dir / "narration_script.py").write_text(
+        "SCRIPT = " + repr(payload) + "\n",
+        encoding="utf-8",
+    )
+
+
 def _write_cache_entry(cache_dir: Path, audio_file: str = "scene_01.mp3") -> None:
     cache_dir.mkdir(parents=True, exist_ok=True)
     (cache_dir / audio_file).write_bytes(b"fake mp3")
@@ -65,6 +73,7 @@ class EnsureVoiceCacheTests(unittest.TestCase):
                 encoding="utf-8",
             )
             cache_dir = project_dir / "custom_voice_cache"
+            _write_script(project_dir)
             _write_cache_entry(cache_dir)
 
             result = _run(project_dir)
@@ -74,9 +83,47 @@ class EnsureVoiceCacheTests(unittest.TestCase):
             self.assertTrue(payload["ok"])
             self.assertEqual(Path(payload["cache_index"]), (cache_dir / "cache.json").resolve())
 
+    def test_partial_cache_missing_script_key_fails(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_dir = Path(temp_dir)
+            _write_script(
+                project_dir,
+                {
+                    "scene_01": "Narration one",
+                    "scene_02": "Narration two",
+                },
+            )
+            cache_dir = project_dir / "media" / "voiceovers" / "qwen"
+            _write_cache_entry(cache_dir)
+
+            result = _run(project_dir)
+
+            self.assertEqual(result.returncode, 1)
+            payload = json.loads(result.stdout)
+            self.assertEqual(payload["reason"], "cache missing required narration key: scene_02")
+
+    def test_text_index_can_satisfy_script_key(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_dir = Path(temp_dir)
+            _write_script(project_dir, {"scene_01": "Narration by text"})
+            cache_dir = project_dir / "media" / "voiceovers" / "qwen"
+            cache_dir.mkdir(parents=True, exist_ok=True)
+            (cache_dir / "voice.mp3").write_bytes(b"fake mp3")
+            (cache_dir / "cache.json").write_text(
+                json.dumps([{"text": "Narration by text", "audio_file": "voice.mp3"}]),
+                encoding="utf-8",
+            )
+
+            result = _run(project_dir)
+
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertTrue(payload["ok"])
+
     def test_empty_cache_index_fails(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             project_dir = Path(temp_dir)
+            _write_script(project_dir)
             cache_dir = project_dir / "media" / "voiceovers" / "qwen"
             cache_dir.mkdir(parents=True)
             (cache_dir / "cache.json").write_text("[]\n", encoding="utf-8")
@@ -90,6 +137,7 @@ class EnsureVoiceCacheTests(unittest.TestCase):
     def test_missing_audio_file_fails(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             project_dir = Path(temp_dir)
+            _write_script(project_dir)
             cache_dir = project_dir / "media" / "voiceovers" / "qwen"
             cache_dir.mkdir(parents=True)
             (cache_dir / "cache.json").write_text(

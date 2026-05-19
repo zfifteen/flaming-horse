@@ -66,35 +66,6 @@ Scene files are searched in:
 - `${project_dir}/${scene_file}`
 - `${project_dir}/scenes/${scene_file}`
 
-## Self-Heal Optimization
-
-### Features
-- **Early termination**: Stops when file hash is unchanged between attempts
-- **Exponential backoff**: Retries with increasing delay (capped)
-- **Repair hook**: Calls repair hook when available (`invoke_scene_fix_agent`, fallback `scene_repair`)
-- **Max attempts**: Controlled by env var
-
-### Configuration
-
-```bash
-# Maximum retry attempts (default: 15)
-export SCENE_QC_MAX_ATTEMPTS=15
-
-# Backoff multiplier base (default: 2)
-export SCENE_QC_BACKOFF_BASE=2
-```
-
-### Backoff schedule example (`SCENE_QC_BACKOFF_BASE=2`)
-
-| Attempt | Backoff |
-| --- | --- |
-| 1 | 0s |
-| 2 | 1s |
-| 3 | 2s |
-| 4 | 4s |
-| 5 | 8s |
-| 6+ | 16s (capped) |
-
 ## Integration Points
 
 ### `build_video.sh`
@@ -120,10 +91,9 @@ build_scenes
 - Confirm scene file path resolves from `project_state.json`
 - Check repair hook availability and logs in `build.log`
 
-### Self-heal does not converge
-- Increase `SCENE_QC_MAX_ATTEMPTS`
-- Improve scene repair prompt constraints
-- Check whether repairs are modifying the file (hash should change)
+### Scene repair does not converge
+- Improve scene repair prompt constraints.
+- Check whether repairs are modifying the file and whether the same validator gate is failing repeatedly.
 
 ### Suspected false positives
 - Compare scene code against scaffold conventions in `scripts/scaffold_scene.py`

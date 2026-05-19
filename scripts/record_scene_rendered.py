@@ -66,7 +66,7 @@ def record_scene_rendered(project_dir: Path, scene_id: str, class_name: str) -> 
     matching_scene["verification"] = {
         "file_size_bytes": file_size,
         "duration_seconds": duration,
-        "audio_present": bool(verification["audio_checked"]),
+        "audio_present": verification["audio_present"],
         "audio_checked": bool(verification["audio_checked"]),
         "verification_reason": verification["reason"],
         "verified_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
