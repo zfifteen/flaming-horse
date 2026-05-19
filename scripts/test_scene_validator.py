@@ -10,7 +10,7 @@ import unittest
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT_PATH = REPO_ROOT / "scripts" / "scene_validator.py"
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
-from scene_validator import validate_voiceover_sync
+from scene_validator import validate_template_structure, validate_voiceover_sync
 
 
 def _scene_text(body: str) -> str:
@@ -91,6 +91,19 @@ class SceneValidatorTests(unittest.TestCase):
             self.assertEqual(result.returncode, 1)
             payload = json.loads(result.stdout)
             self.assertEqual(payload["first_failed_gate"], "template_structure")
+
+    def test_template_structure_accepts_spaced_multiline_script_voiceover(self):
+        scene_text = _scene_text(
+            "            title = Text('Timing')\n"
+            "            self.play(Write(title), run_time=tracker.duration * 0.2)"
+        ).replace(
+            'with self.voiceover(text=SCRIPT["scene_01"]) as tracker:',
+            'with self.voiceover(\n            text = SCRIPT["scene_01"]\n        ) as tracker:',
+        )
+
+        result = validate_template_structure(scene_text)
+
+        self.assertTrue(result.ok, result.message)
 
     def test_scene_body_contract_rejects_known_invalid_pattern(self):
         with tempfile.TemporaryDirectory() as temp_dir:

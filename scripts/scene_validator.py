@@ -33,7 +33,7 @@ REQUIRED_SCAFFOLD_SIGNATURES = [
 ]
 
 VOICEOVER_SCRIPT_RE = re.compile(
-    r"with\s+self\.voiceover\(text=SCRIPT\[[^\]]+\]\)\s+as\s+tracker:"
+    r"with\s+self\.voiceover\(\s*text\s*=\s*SCRIPT\[[^\]]+\]\s*\)\s+as\s+tracker:"
 )
 
 
