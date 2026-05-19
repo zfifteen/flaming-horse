@@ -101,6 +101,42 @@ class Dummy:
 
             self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
 
+    def test_malformed_voice_config_falls_back_to_default_cache(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_dir = Path(temp_dir)
+            scene_id = "scene_01_intro"
+            scene_file = project_dir / f"{scene_id}.py"
+            (project_dir / "voice_clone_config.json").write_text("{bad json", encoding="utf-8")
+            _write_cache(project_dir, scene_id, 20.0)
+            _write_scene(
+                scene_file,
+                """
+class Dummy:
+    def construct(self):
+        self.play(FadeIn(title), run_time=tracker.duration * 0.5)
+        self.wait(tracker.duration * 0.2)
+""".strip(),
+            )
+
+            result = subprocess.run(
+                [
+                    "python3",
+                    str(SCRIPT_PATH),
+                    "--scene-file",
+                    str(scene_file),
+                    "--project-dir",
+                    str(project_dir),
+                    "--min-ratio",
+                    "0.90",
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+            self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
+            self.assertIn("WARN: ignoring unreadable voice_clone_config.json", result.stdout)
+
     def test_fail_when_ratio_below_threshold(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             project_dir = Path(temp_dir)

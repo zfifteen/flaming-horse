@@ -88,7 +88,11 @@ def _load_voice_config(project_dir: Path) -> dict[str, Any]:
     config_path = project_dir / "voice_clone_config.json"
     if not config_path.exists():
         return {}
-    data = json.loads(config_path.read_text(encoding="utf-8"))
+    try:
+        data = json.loads(config_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        print(f"[timing-budget] WARN: ignoring unreadable voice_clone_config.json: {exc}")
+        return {}
     if not isinstance(data, dict):
         return {}
     return data

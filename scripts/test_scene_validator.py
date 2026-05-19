@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import json
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 import unittest
@@ -8,6 +9,8 @@ import unittest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT_PATH = REPO_ROOT / "scripts" / "scene_validator.py"
+sys.path.insert(0, str(REPO_ROOT / "scripts"))
+from scene_validator import validate_voiceover_sync
 
 
 def _scene_text(body: str) -> str:
@@ -157,6 +160,36 @@ class SceneValidatorTests(unittest.TestCase):
             self.assertFalse(payload["ok"])
             self.assertEqual(payload["first_failed_gate"], "scene_file")
             self.assertIn("could not be read", payload["failure_summary"])
+
+    def test_voiceover_sync_rejects_hardcoded_text_with_spacing(self):
+        scene_text = """
+class Scene01:
+    def construct(self):
+        with self.voiceover(
+            text = "Hardcoded narration"
+        ) as tracker:
+            self.wait(tracker.duration)
+""".strip()
+
+        result = validate_voiceover_sync(scene_text)
+
+        self.assertFalse(result.ok)
+        self.assertEqual(result.gate, "voiceover_sync")
+        self.assertIn("hardcoded narration", result.message)
+
+    def test_voiceover_sync_accepts_script_subscript_with_spacing(self):
+        scene_text = """
+class Scene01:
+    def construct(self):
+        with self.voiceover(
+            text = SCRIPT["scene_01"]
+        ) as tracker:
+            self.wait(tracker.duration)
+""".strip()
+
+        result = validate_voiceover_sync(scene_text)
+
+        self.assertTrue(result.ok, result.message)
 
 
 if __name__ == "__main__":

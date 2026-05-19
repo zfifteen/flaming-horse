@@ -208,6 +208,14 @@ def _is_tracker_duration(node: ast.AST) -> bool:
     )
 
 
+def _is_script_subscript(node: ast.AST) -> bool:
+    return (
+        isinstance(node, ast.Subscript)
+        and isinstance(node.value, ast.Name)
+        and node.value.id == "SCRIPT"
+    )
+
+
 def validate_scene_body_contract(scene_body: str) -> GateResult:
     candidate = textwrap.dedent(scene_body).strip()
     if not candidate:
@@ -303,16 +311,22 @@ def validate_scene_body_contract(scene_body: str) -> GateResult:
 
 
 def validate_voiceover_sync(scene_text: str) -> GateResult:
-    if 'voiceover(text="' in scene_text or "voiceover(text='" in scene_text:
-        return _fail(
-            "voiceover_sync",
-            "Scene uses hardcoded narration text instead of SCRIPT dictionary",
-        )
-    if 'voiceover(text=f"' in scene_text or "voiceover(text=f'" in scene_text:
-        return _fail(
-            "voiceover_sync",
-            "Scene uses f-string narration instead of SCRIPT dictionary",
-        )
+    try:
+        tree = ast.parse(scene_text)
+    except SyntaxError as exc:
+        return _fail("voiceover_sync", f"Scene has syntax errors: {exc}")
+
+    for node in ast.walk(tree):
+        if not _is_self_voiceover_call(node):
+            continue
+        text_arg = next((kw.value for kw in node.keywords if kw.arg == "text"), None)
+        if text_arg is None:
+            return _fail("voiceover_sync", "Scene voiceover call must use SCRIPT dictionary text")
+        if not _is_script_subscript(text_arg):
+            return _fail(
+                "voiceover_sync",
+                "Scene uses hardcoded narration text instead of SCRIPT dictionary",
+            )
     if "tracker.duration" not in scene_text:
         return _fail(
             "voiceover_sync",
