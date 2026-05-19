@@ -9,8 +9,11 @@ Responsibilities:
 No dependencies on harness/.
 """
 
+import ast
+import io
 import json
 import re
+import tokenize
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -276,7 +279,136 @@ def _normalize_and_validate_scene_body(
             extracted_content,
             f"{phase}.scene_body cannot be empty",
         )
+    _validate_scene_body_contract(
+        phase=phase,
+        scene_body=candidate,
+        project_dir=project_dir,
+        raw_response=raw_response,
+        extracted_content=extracted_content,
+    )
     return candidate
+
+
+def _validate_scene_body_contract(
+    *,
+    phase: str,
+    scene_body: str,
+    project_dir: Path,
+    raw_response: Any,
+    extracted_content: Any,
+) -> None:
+    def fail(msg: str) -> None:
+        _fail_with_diag(project_dir, raw_response, extracted_content, f"{phase}.{msg}")
+
+    try:
+        for token in tokenize.generate_tokens(io.StringIO(scene_body).readline):
+            if token.type == tokenize.COMMENT:
+                fail(f"scene_body line {token.start[0]} must not contain comments")
+    except tokenize.TokenError as exc:
+        fail(f"scene_body must be valid Python statements: {exc}")
+
+    try:
+        tree = ast.parse(scene_body)
+    except SyntaxError as exc:
+        fail(f"scene_body must be valid Python statements: {exc}")
+
+    forbidden_nodes = (
+        ast.Import,
+        ast.ImportFrom,
+        ast.ClassDef,
+        ast.FunctionDef,
+        ast.AsyncFunctionDef,
+    )
+    for node in ast.walk(tree):
+        if isinstance(node, forbidden_nodes):
+            fail(
+                "scene_body must not include imports, class definitions, "
+                "or function definitions"
+            )
+
+    def call_name(node: ast.AST) -> str:
+        if isinstance(node, ast.Name):
+            return node.id
+        if isinstance(node, ast.Attribute):
+            return node.attr
+        return ""
+
+    def attribute_root_name(node: ast.AST) -> str:
+        current = node
+        while isinstance(current, ast.Attribute):
+            current = current.value
+        if isinstance(current, ast.Name):
+            return current.id
+        return ""
+
+    def target_touches_config(target: ast.AST) -> bool:
+        return (
+            isinstance(target, ast.Name)
+            and target.id == "config"
+        ) or (
+            isinstance(target, ast.Attribute)
+            and attribute_root_name(target) == "config"
+        )
+
+    def is_self_voiceover_call(node: ast.AST) -> bool:
+        return (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "voiceover"
+            and isinstance(node.func.value, ast.Name)
+            and node.func.value.id == "self"
+        )
+
+    def is_tracker_duration(node: ast.AST) -> bool:
+        return (
+            isinstance(node, ast.Attribute)
+            and node.attr == "duration"
+            and isinstance(node.value, ast.Name)
+            and node.value.id == "tracker"
+        )
+
+    uses_tracker_duration = False
+    for node in ast.walk(tree):
+        if is_tracker_duration(node):
+            uses_tracker_duration = True
+        if isinstance(node, ast.Assign) and any(target_touches_config(t) for t in node.targets):
+            fail("scene_body must not modify Manim config")
+        if isinstance(node, ast.AnnAssign) and target_touches_config(node.target):
+            fail("scene_body must not modify Manim config")
+        if isinstance(node, ast.AugAssign) and target_touches_config(node.target):
+            fail("scene_body must not modify Manim config")
+        if isinstance(node, ast.With):
+            for item in node.items:
+                if is_self_voiceover_call(item.context_expr):
+                    fail("scaffold owns the voiceover wrapper")
+        if isinstance(node, ast.Name) and node.id == "random":
+            fail("scene_body must be deterministic and not use random")
+        if isinstance(node, ast.Attribute) and (
+            node.attr == "random" or attribute_root_name(node) == "random"
+        ):
+            fail("scene_body must be deterministic and not use random")
+        if not isinstance(node, ast.Call):
+            continue
+        name = call_name(node.func)
+        if name == "ShowCreation":
+            fail("Use Create(...) instead of ShowCreation(...)")
+        if name == "FadeIn":
+            kw_names = {kw.arg for kw in node.keywords if kw.arg}
+            if "lag_ratio" in kw_names:
+                fail("Use LaggedStart(..., lag_ratio=...) instead of FadeIn(..., lag_ratio=...)")
+            if "scale_factor" in kw_names:
+                fail("FadeIn(..., scale_factor=...) is unsupported")
+        if name == "set_color" and node.args:
+            first_arg = node.args[0]
+            if isinstance(first_arg, ast.Call):
+                first_name = call_name(first_arg.func)
+                if first_name == "list":
+                    fail("set_color(list(...)) is not Manim-compatible")
+                if first_name == "harmonious_color":
+                    fail("select a concrete Manim-compatible color before set_color(...)")
+
+    if not uses_tracker_duration:
+        fail("scene_body must use tracker.duration for narration-synced timing")
 
 
 def _resolve_scene_file_for_build(project_dir: Path) -> Path:

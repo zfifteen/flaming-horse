@@ -199,6 +199,78 @@ def check_scaffold_contract() -> None:
     )
 
 
+def check_first_pass_scene_creation_contract() -> None:
+    build_video = read_text("scripts/build_video.sh")
+    parser = read_text("harness_responses/parser.py")
+    build_system = read_text("harness_responses/prompts/build_scenes/system.md")
+    build_user = read_text("harness_responses/prompts/build_scenes/user.md")
+    prompt_text = f"{build_system}\n{build_user}"
+
+    for required in (
+        "first-pass-valid",
+        "scaffold structure",
+        "Python syntax",
+        "import/API validation",
+        "voiceover sync",
+        "timing budget validation",
+        "semantic placeholder checks",
+        "manim render --dry_run",
+        "ShowCreation",
+        "FadeIn(..., lag_ratio=...)",
+        "FadeIn(..., scale_factor=...)",
+        "set_color(list(...))",
+        "set_color(harmonious_color(...))",
+    ):
+        require(required in prompt_text, f"build_scenes prompt missing {required}")
+
+    for required in (
+        "_validate_scene_body_contract",
+        "tokenize.COMMENT",
+        "attribute_root_name",
+        "target_touches_config",
+        "is_self_voiceover_call",
+        "is_tracker_duration",
+        "tracker.duration",
+        "ShowCreation",
+        '"lag_ratio"',
+        '"scale_factor"',
+        '"list"',
+        '"harmonious_color"',
+    ):
+        require(required in parser, f"parser missing first-pass scene validation: {required}")
+
+    require(
+        "FIRST_PASS_DIAG_FILE=\"${LOG_DIR}/scene_first_pass_diagnostics.jsonl\""
+        in build_video,
+        "build_video.sh does not define first-pass diagnostics JSONL path",
+    )
+    require(
+        "record_scene_first_pass_diagnostic()" in build_video,
+        "build_video.sh does not define first-pass diagnostic writer",
+    )
+    require(
+        "json.dump(event" in build_video and '"attempt_count": attempt_count' in build_video,
+        "first-pass diagnostic writer does not emit JSON with attempt_count",
+    )
+    require(
+        "repair_build_scene_first_pass_failure()" in build_video,
+        "build_video.sh does not route build_scenes failures through diagnostic wrapper",
+    )
+    for gate in (
+        "template_structure",
+        "python_syntax",
+        "import_api",
+        "voiceover_sync",
+        "semantic_quality",
+        "runtime_dry_run",
+    ):
+        require(gate in build_video, f"build_scenes first-pass gate not classified: {gate}")
+    require(
+        build_video.count("repair_scene_until_valid") >= 4,
+        "scene repair calls appear to have been removed or weakened",
+    )
+
+
 def check_voice_contract() -> None:
     service_factory = read_text("flaming_horse_voice/service_factory.py")
     require(
@@ -297,6 +369,7 @@ def main() -> int:
     check_harness_docs_contract()
     check_phase_contract()
     check_scaffold_contract()
+    check_first_pass_scene_creation_contract()
     check_voice_contract()
     check_voice_backend_resolution_contract()
     check_removed_live_surfaces()

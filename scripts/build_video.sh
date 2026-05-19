@@ -197,9 +197,11 @@ LOG_DIR="${PROJECT_DIR}/log"
 LOG_FILE="${LOG_DIR}/build.log"
 ERROR_LOG="${LOG_DIR}/error.log"
 CRASH_DIAG_FILE="${LOG_DIR}/crash_diag.log"
+FIRST_PASS_DIAG_FILE="${LOG_DIR}/scene_first_pass_diagnostics.jsonl"
 HEARTBEAT_FILE="${LOG_DIR}/heartbeat.txt"
 HEARTBEAT_INTERVAL_SECONDS="${HEARTBEAT_INTERVAL_SECONDS:-5}"
 HEARTBEAT_PID=""
+REPAIR_ATTEMPT_COUNT=0
 DIAG_PHASE="startup"
 DIAG_STAGE="boot"
 DIAG_SCENE=""
@@ -237,6 +239,50 @@ diagnostics_log() {
       "$ts" "$level" "$$" "$PPID" "${DIAG_PHASE:-}" "${DIAG_STAGE:-}" "${DIAG_SCENE:-}" \
       "${DIAG_ITERATION:-}" "${DIAG_ATTEMPT:-}" "$message"
   } >> "$CRASH_DIAG_FILE"
+}
+
+record_scene_first_pass_diagnostic() {
+  local scene_id="$1"
+  local gate="$2"
+  local failure_summary="$3"
+  local repair_invoked="$4"
+  local attempt_count="${5:-0}"
+
+  SCENE_FIRST_PASS_DIAG_FILE="$FIRST_PASS_DIAG_FILE" \
+  SCENE_ID="$scene_id" \
+  GATE="$gate" \
+  FAILURE_SUMMARY="$failure_summary" \
+  REPAIR_INVOKED="$repair_invoked" \
+  ATTEMPT_COUNT="$attempt_count" \
+  "$PYTHON_BIN" - <<'PY'
+import json
+import os
+from datetime import datetime, timezone
+from pathlib import Path
+
+path = Path(os.environ["SCENE_FIRST_PASS_DIAG_FILE"])
+path.parent.mkdir(parents=True, exist_ok=True)
+
+attempt_raw = os.environ.get("ATTEMPT_COUNT", "0")
+try:
+    attempt_count = int(attempt_raw)
+except ValueError:
+    attempt_count = 0
+
+summary = os.environ.get("FAILURE_SUMMARY", "")
+event = {
+    "timestamp_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+    "scene_id": os.environ.get("SCENE_ID", ""),
+    "gate": os.environ.get("GATE", ""),
+    "failure_summary": summary[:2000],
+    "repair_invoked": os.environ.get("REPAIR_INVOKED", "").lower() == "true",
+    "attempt_count": attempt_count,
+}
+
+with path.open("a", encoding="utf-8") as handle:
+    json.dump(event, handle, ensure_ascii=False)
+    handle.write("\n")
+PY
 }
 
 write_heartbeat() {
@@ -1477,8 +1523,10 @@ repair_scene_until_valid() {
   local reason="$4"
 
   local attempt=0
+  REPAIR_ATTEMPT_COUNT=0
   while [[ $attempt -lt $PHASE_RETRY_LIMIT ]]; do
     attempt=$((attempt + 1))
+    REPAIR_ATTEMPT_COUNT=$attempt
     echo "🛠 Self-heal scene ${scene_id} attempt ${attempt}/${PHASE_RETRY_LIMIT}" | tee -a "$LOG_FILE"
 
     if ! reset_scene_from_scaffold "$scene_id" "$scene_file" "$scene_class"; then
@@ -1535,6 +1583,33 @@ repair_scene_until_valid() {
   done
 
   echo "✗ Self-heal exhausted for ${scene_file}" | tee -a "$LOG_FILE"
+  return 1
+}
+
+repair_build_scene_first_pass_failure() {
+  local scene_id="$1"
+  local scene_file="$2"
+  local scene_class="$3"
+  local gate="$4"
+  local reason="$5"
+
+  record_scene_first_pass_diagnostic "$scene_id" "$gate" "$reason" "true" "0"
+  if repair_scene_until_valid "$scene_id" "$scene_file" "$scene_class" "$reason"; then
+    record_scene_first_pass_diagnostic \
+      "$scene_id" \
+      "${gate}:resolved" \
+      "$reason" \
+      "true" \
+      "${REPAIR_ATTEMPT_COUNT:-0}"
+    return 0
+  fi
+
+  record_scene_first_pass_diagnostic \
+    "$scene_id" \
+    "${gate}:unresolved" \
+    "$reason" \
+    "true" \
+    "${REPAIR_ATTEMPT_COUNT:-0}"
   return 1
 }
 
@@ -1951,7 +2026,7 @@ PY
     echo "✗ Template structure validation failed for $new_scene. Attempting self-heal..." | tee -a "$LOG_FILE"
     local template_reason
     template_reason=$(extract_recent_error_excerpt "$new_scene")
-    if ! repair_scene_until_valid "$scene_id" "$new_scene" "$scene_class" "$template_reason"; then
+    if ! repair_build_scene_first_pass_failure "$scene_id" "$new_scene" "$scene_class" "template_structure" "$template_reason"; then
       echo "✗ Self-heal failed after template validation error in $new_scene" | tee -a "$LOG_FILE" >&2
       return 1
     fi
@@ -1964,7 +2039,7 @@ PY
     echo "✗ Syntax check failed for $new_scene. Attempting self-heal..." | tee -a "$LOG_FILE"
     local syntax_reason
     syntax_reason=$(scene_python_syntax_error_excerpt "$new_scene")
-    if ! repair_scene_until_valid "$scene_id" "$new_scene" "$scene_class" "$syntax_reason"; then
+    if ! repair_build_scene_first_pass_failure "$scene_id" "$new_scene" "$scene_class" "python_syntax" "$syntax_reason"; then
       echo "✗ Self-heal failed after syntax error in $new_scene" | tee -a "$LOG_FILE" >&2
       return 1
     fi
@@ -1975,7 +2050,7 @@ PY
     echo "✗ Import validation failed for $new_scene. Attempting self-heal..." | tee -a "$LOG_FILE"
     local import_reason
     import_reason=$(extract_recent_error_excerpt "$new_scene")
-    if ! repair_scene_until_valid "$scene_id" "$new_scene" "$scene_class" "$import_reason"; then
+    if ! repair_build_scene_first_pass_failure "$scene_id" "$new_scene" "$scene_class" "import_api" "$import_reason"; then
       echo "✗ Self-heal failed after import/API error in $new_scene" | tee -a "$LOG_FILE" >&2
       return 1
     fi
@@ -1986,7 +2061,7 @@ PY
     echo "✗ Voiceover sync validation failed for $new_scene. Attempting self-heal..." | tee -a "$LOG_FILE"
     local sync_reason
     sync_reason=$(extract_recent_error_excerpt "$new_scene")
-    if ! repair_scene_until_valid "$scene_id" "$new_scene" "$scene_class" "$sync_reason"; then
+    if ! repair_build_scene_first_pass_failure "$scene_id" "$new_scene" "$scene_class" "voiceover_sync" "$sync_reason"; then
       echo "✗ Self-heal failed after sync error in $new_scene" | tee -a "$LOG_FILE" >&2
       return 1
     fi
@@ -1997,7 +2072,7 @@ PY
     echo "✗ Semantic quality validation failed for $new_scene. Attempting self-heal..." | tee -a "$LOG_FILE"
     local semantic_reason
     semantic_reason=$(extract_recent_error_excerpt "$new_scene")
-    if ! repair_scene_until_valid "$scene_id" "$new_scene" "$scene_class" "$semantic_reason"; then
+    if ! repair_build_scene_first_pass_failure "$scene_id" "$new_scene" "$scene_class" "semantic_quality" "$semantic_reason"; then
       echo "✗ Self-heal failed after semantic validation error in $new_scene" | tee -a "$LOG_FILE" >&2
       return 1
     fi
@@ -2009,7 +2084,7 @@ PY
     echo "✗ Runtime validation failed for $new_scene. Attempting self-heal..." | tee -a "$LOG_FILE"
     local runtime_reason
     runtime_reason=$(extract_recent_error_excerpt "$new_scene")
-    if ! repair_scene_until_valid "$scene_id" "$new_scene" "$scene_class" "$runtime_reason"; then
+    if ! repair_build_scene_first_pass_failure "$scene_id" "$new_scene" "$scene_class" "runtime_dry_run" "$runtime_reason"; then
       echo "✗ Self-heal failed after runtime error in $new_scene" | tee -a "$LOG_FILE" >&2
       return 1
     fi
