@@ -52,7 +52,9 @@ def resolve_scene_metadata(project_dir: Path, scene_index: int | None = None) ->
         raise ValueError(f"scene[{idx}] must be an object")
 
     scene_id = str(raw_scene.get("id") or "")
-    scene_file = str(raw_scene.get("file") or f"{scene_id}.py")
+    # build_scenes scaffolding and update_project_state.py both use <scene_id>.py.
+    # Keep this resolver aligned with that runtime contract.
+    scene_file = f"{scene_id}.py"
     narration_key = str(raw_scene.get("narration_key") or scene_id)
     scene_class = str(raw_scene.get("class_name") or "")
     if not scene_class:

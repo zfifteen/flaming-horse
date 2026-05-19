@@ -44,7 +44,7 @@ class ResolveSceneMetadataTests(unittest.TestCase):
             self.assertEqual(payload["class_name"], "Scene01Intro")
             self.assertEqual(payload["narration_key"], "intro")
 
-    def test_respects_existing_file_and_class_name(self):
+    def test_uses_scene_id_file_to_match_state_applier(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             project_dir = Path(temp_dir)
             _write_state(
@@ -65,7 +65,7 @@ class ResolveSceneMetadataTests(unittest.TestCase):
             result = _run(project_dir, "--json")
             self.assertEqual(result.returncode, 0, result.stderr)
             payload = json.loads(result.stdout)
-            self.assertEqual(payload["file"], "custom_scene.py")
+            self.assertEqual(payload["file"], "scene_02.py")
             self.assertEqual(payload["class_name"], "CustomScene")
             self.assertEqual(payload["narration_key"], "scene_02")
 

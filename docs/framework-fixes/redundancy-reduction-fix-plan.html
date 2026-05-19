@@ -255,15 +255,15 @@
             <td><span class="priority p2">8</span></td>
             <td>Normalize entrypoint interpreter ownership.</td>
             <td>Make helper execution match the interpreter validated by <code>create_video.sh</code>.</td>
-            <td>In <code>scripts/create_video.sh</code>, replace bare <code>python3</code> helper calls with the already resolved interpreter variable. Keep this patch one file.</td>
-            <td><code>bash -n scripts/create_video.sh</code>; static search for bare helper calls in that file; existing smoke-compatible tests.</td>
+            <td>In entrypoint and project-creation scripts, replace bare Python helper calls with the already resolved interpreter variable.</td>
+            <td><code>bash -n scripts/create_video.sh</code>; <code>bash -n scripts/new_project.sh</code>; static search for bare helper calls in those files; existing smoke-compatible tests.</td>
             <td>The entrypoint validates and uses the same orchestration interpreter.</td>
           </tr>
           <tr>
             <td><span class="priority p3">9</span></td>
             <td>Retire dead validation surfaces.</td>
             <td>Prevent agents from following stale validation code and patch files.</td>
-            <td>After <code>scene_validator.py</code> is live, remove or explicitly mark historical <code>scripts/scene_validation.sh</code>, <code>scripts/build_video_validation_integration.patch</code>, and stale docs that describe them as current.</td>
+            <td>After <code>scene_validator.py</code> is live, remove dead validation artifacts and keep stale docs from describing them as current.</td>
             <td>Contract drift sentinel; targeted <code>rg</code> for removed live surfaces.</td>
             <td>Only one current scene-validation path is documented and executable.</td>
           </tr>

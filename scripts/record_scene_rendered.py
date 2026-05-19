@@ -10,6 +10,8 @@ import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
 
+from verify_scene_video import verify_scene_video
+
 
 def scene_video_path(project_dir: Path, scene_id: str, class_name: str) -> Path:
     return project_dir / "media" / "videos" / scene_id / "1440p60" / f"{class_name}.mp4"
@@ -44,23 +46,31 @@ def record_scene_rendered(project_dir: Path, scene_id: str, class_name: str) -> 
     project_dir = project_dir.resolve()
     state_file = project_dir / "project_state.json"
     video_path = scene_video_path(project_dir, scene_id, class_name)
-    file_size = video_path.stat().st_size if video_path.exists() else 0
-    duration = probe_duration(video_path)
-
     state = json.loads(state_file.read_text(encoding="utf-8"))
+    matching_scene = None
     for scene in state.get("scenes", []):
         if scene.get("id") == scene_id:
-            scene["status"] = "rendered"
-            scene["video_file"] = str(video_path.relative_to(project_dir))
-            scene["verification"] = {
-                "file_size_bytes": file_size,
-                "duration_seconds": duration,
-                "audio_present": True,
-                "verified_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
-            }
+            matching_scene = scene
             break
-    else:
+    if matching_scene is None:
         raise ValueError(f"scene not found in project_state.json: {scene_id}")
+
+    verification = verify_scene_video(project_dir, scene_id, class_name)
+    if not verification["ok"]:
+        raise ValueError(f"render artifact is not ready: {verification['reason']}")
+    file_size = video_path.stat().st_size
+    duration = probe_duration(video_path)
+
+    matching_scene["status"] = "rendered"
+    matching_scene["video_file"] = str(video_path.relative_to(project_dir))
+    matching_scene["verification"] = {
+        "file_size_bytes": file_size,
+        "duration_seconds": duration,
+        "audio_present": bool(verification["audio_checked"]),
+        "audio_checked": bool(verification["audio_checked"]),
+        "verification_reason": verification["reason"],
+        "verified_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+    }
 
     state_file.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
 

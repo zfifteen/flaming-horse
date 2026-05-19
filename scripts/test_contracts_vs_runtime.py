@@ -178,6 +178,7 @@ def check_harness_docs_contract() -> None:
 
 def check_phase_contract() -> None:
     create_video = read_text("scripts/create_video.sh")
+    new_project = read_text("scripts/new_project.sh")
     build_video = read_text("scripts/build_video.sh")
     build_phases = shell_array(build_video, "PHASE_SEQUENCE")
     update_phases = list(python_assignment("scripts/update_project_state.py", "PHASE_SEQUENCE"))
@@ -190,6 +191,11 @@ def check_phase_contract() -> None:
     require(
         not re.search(r"(?<![\w$])python3(?:\s|$)", create_video_after_python),
         "create_video.sh uses bare python3 after selecting PYTHON_BIN",
+    )
+    new_project_after_python = new_project.split('PYTHON_BIN="${PYTHON:-python3.13}"', 1)[1]
+    require(
+        not re.search(r"(?<![\w$])python3(?:\s|$)", new_project_after_python),
+        "new_project.sh uses bare python3 after selecting PYTHON_BIN",
     )
 
 
@@ -427,7 +433,9 @@ def check_final_render_contract() -> None:
         "verify_scene_video.py does not own scene video/audio verification",
     )
     require(
-        "def record_scene_rendered(" in record_scene and '"status" = "rendered"' not in build_video,
+        "def record_scene_rendered(" in record_scene
+        and 's["status"] = "rendered"' not in build_video
+        and 'scene["status"] = "rendered"' not in build_video,
         "record_scene_rendered.py does not own rendered scene state recording",
     )
 

@@ -5,6 +5,7 @@ import re
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CREATE_VIDEO = REPO_ROOT / "scripts" / "create_video.sh"
+NEW_PROJECT = REPO_ROOT / "scripts" / "new_project.sh"
 
 
 def require(condition: bool, message: str) -> None:
@@ -14,6 +15,7 @@ def require(condition: bool, message: str) -> None:
 
 def main() -> None:
     script = CREATE_VIDEO.read_text(encoding="utf-8")
+    new_project = NEW_PROJECT.read_text(encoding="utf-8")
     require(
         'PYTHON_BIN="${PYTHON:-python3.13}"' in script,
         "create_video.sh does not define the orchestration interpreter",
@@ -37,6 +39,17 @@ def main() -> None:
     require(
         '${PYTHON:-python3.13}' not in body_after_assignment,
         "create_video.sh still re-resolves PYTHON after PYTHON_BIN selection",
+    )
+
+    require(
+        'PYTHON_BIN="${PYTHON:-python3.13}"' in new_project,
+        "new_project.sh does not define the orchestration interpreter",
+    )
+    new_project_after_python = new_project.split('PYTHON_BIN="${PYTHON:-python3.13}"', 1)[1]
+    bare_new_project_python = re.search(r"(?<![\w$])python3(?:\s|$)", new_project_after_python)
+    require(
+        bare_new_project_python is None,
+        "new_project.sh still uses bare python3 after PYTHON_BIN selection",
     )
     print("OK")
 

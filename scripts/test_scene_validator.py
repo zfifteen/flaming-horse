@@ -144,6 +144,19 @@ class SceneValidatorTests(unittest.TestCase):
             payload = json.loads(result.stdout)
             self.assertEqual(payload["first_failed_gate"], "python_syntax")
 
+    def test_missing_scene_file_returns_stable_json_failure(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_dir = Path(temp_dir)
+            scene_file = project_dir / "missing_scene.py"
+
+            result = _run_validator(scene_file)
+
+            self.assertEqual(result.returncode, 1)
+            payload = json.loads(result.stdout)
+            self.assertFalse(payload["ok"])
+            self.assertEqual(payload["first_failed_gate"], "scene_file")
+            self.assertIn("could not be read", payload["failure_summary"])
+
 
 if __name__ == "__main__":
     unittest.main()

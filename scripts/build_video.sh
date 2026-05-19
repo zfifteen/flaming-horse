@@ -1729,10 +1729,7 @@ repair_scene_until_valid() {
       continue
     fi
 
-    if validate_scene_template_structure "$scene_file" && \
-       validate_scene_imports "$scene_file" && \
-       validate_voiceover_sync "$scene_file" && \
-       validate_scene_semantics "$scene_file" && \
+    if validate_scene_first_pass_with_owner "$scene_file" && \
        runtime_validate_scene_with_preconditions "$scene_file" "$scene_class"; then
       echo "✓ Self-heal reset produced a valid scene file: ${scene_file}" | tee -a "$LOG_FILE"
       return 0
@@ -1743,28 +1740,8 @@ repair_scene_until_valid() {
       continue
     fi
 
-    if ! validate_scene_template_structure "$scene_file"; then
-      reason="Scene failed template structure validation after repair."
-      continue
-    fi
-
-    if ! scene_python_syntax_ok "$scene_file"; then
-      reason="$(scene_python_syntax_error_excerpt "$scene_file")"
-      continue
-    fi
-
-    if ! validate_scene_imports "$scene_file"; then
-      reason="Scene failed import validation after repair."
-      continue
-    fi
-
-    if ! validate_voiceover_sync "$scene_file"; then
-      reason="Scene failed voiceover sync validation after repair."
-      continue
-    fi
-    
-    if ! validate_scene_semantics "$scene_file"; then
-      reason="Scene failed semantic quality validation after repair."
+    if ! validate_scene_first_pass_with_owner "$scene_file"; then
+      reason="${SCENE_VALIDATOR_REASON:-Scene failed deterministic first-pass validation after repair.}"
       continue
     fi
 

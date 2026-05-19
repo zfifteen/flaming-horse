@@ -541,19 +541,15 @@ Alternative field aliases accepted by `QwenCachedService`:
 
 Every scene goes through multiple validation layers in sequence during `build_scenes` and `final_render`.
 
-### Layer 1 — First-Pass Scene Validation
+### Layer 1 — First-Pass Scene Validation (`scene_validator.py`)
 
-`scripts/scene_validator.py` owns the deterministic first-pass scene validation gates. It checks scaffold structure, Python syntax, import/API patterns, voiceover synchronization, timing budget, and semantic placeholder failures before repair is invoked.
+`scripts/scene_validator.py` owns the deterministic first-pass scene validation gates. It checks scaffold structure, Python syntax, import/API patterns, voiceover synchronization, semantic placeholder failures, and invokes `validate_scene_timing_budget.py` for timing-budget analysis before repair is accepted.
 
-### Layer 2 — Timing Budget (`validate_scene_timing_budget.py`)
-
-Verifies that the sum of explicit `run_time` arguments plus narration duration falls within the allowed budget. Fails with exit code 1 if the scene will over- or under-run its estimated duration (default min-ratio: 0.90).
-
-### Layer 5 — Layout Overlap (`validate_layout.py` + `layout_validator.py`)
+### Layer 2 — Layout Overlap (`validate_layout.py` + `layout_validator.py`)
 
 Static analysis of the scene body to detect mobjects positioned such that their bounding boxes overlap beyond a threshold. Uses the `LayoutValidator` class (`harness/util/layout_validator.py`), which is also integrated into `parser.py` at parse time.
 
-### Layer 6 — SCRIPT Reference (`validate_scene_content.py`)
+### Layer 3 — SCRIPT Reference (`validate_scene_content.py`)
 
 Checks that:
 - Each `SCRIPT[key]` reference corresponds to an existing key in `narration_script.py`.
@@ -561,7 +557,7 @@ Checks that:
 - Text mobjects respect horizontal bounds.
 - No excessively long `Wait()` calls (>1.0s).
 
-### Layer 7 — Kitchen Sink Boilerplate Detection (`parser.py`)
+### Layer 4 — Kitchen Sink Boilerplate Detection (`parser.py`)
 
 `has_kitchen_sink_boilerplate()` rejects responses that include:
 - Kitchen Sink example class definitions verbatim.

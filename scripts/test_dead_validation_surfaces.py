@@ -22,6 +22,8 @@ def main() -> None:
         REPO_ROOT / "CURRENT_STATE.md",
         REPO_ROOT / "TECH_SPEC.md",
         REPO_ROOT / "docs" / "validation" / "VALIDATION.md",
+        REPO_ROOT / "docs" / "framework-fixes" / "redundancy-and-complexity-audit.html",
+        REPO_ROOT / "docs" / "framework-fixes" / "redundancy-reduction-fix-plan.html",
     ]
     forbidden = [
         "scripts/scene_validation.sh",

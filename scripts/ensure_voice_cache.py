@@ -49,6 +49,59 @@ def resolve_cache_dir(project_dir: Path, cfg: dict[str, Any]) -> Path:
     return output_dir.resolve()
 
 
+def _cache_text(entry: dict[str, Any]) -> str:
+    text = entry.get("text")
+    if isinstance(text, str) and text.strip():
+        return text.strip()
+
+    input_text = entry.get("input_text")
+    if isinstance(input_text, str) and input_text.strip():
+        return input_text.strip()
+
+    input_data = entry.get("input_data")
+    if isinstance(input_data, dict):
+        nested_text = input_data.get("text")
+        if isinstance(nested_text, str) and nested_text.strip():
+            return nested_text.strip()
+    return ""
+
+
+def _cache_audio_file(entry: dict[str, Any]) -> str:
+    for key in ("audio_file", "final_audio", "original_audio"):
+        value = entry.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return ""
+
+
+def _validate_cache_entries(cache_dir: Path, cache_data: list[Any]) -> str:
+    if not cache_data:
+        return "cache index contains no entries"
+
+    usable_entries = 0
+    for index, entry in enumerate(cache_data):
+        if not isinstance(entry, dict):
+            return f"cache entry {index} must be an object"
+
+        narration_key = entry.get("narration_key")
+        has_narration_key = isinstance(narration_key, str) and bool(narration_key.strip())
+        has_text = bool(_cache_text(entry))
+        audio_file = _cache_audio_file(entry)
+
+        if not audio_file:
+            return f"cache entry {index} has no audio file"
+        if not has_narration_key and not has_text:
+            return f"cache entry {index} has neither narration_key nor text"
+        if not (cache_dir / audio_file).exists():
+            return f"cache entry {index} audio file missing: {audio_file}"
+
+        usable_entries += 1
+
+    if usable_entries == 0:
+        return "cache index contains no usable entries"
+    return ""
+
+
 def check_voice_cache(project_dir: Path) -> dict[str, Any]:
     project_dir = project_dir.resolve()
     try:
@@ -84,6 +137,15 @@ def check_voice_cache(project_dir: Path) -> dict[str, Any]:
             cache_dir=cache_dir,
             cache_index=cache_index,
             reason="cache index root must be a list",
+        )
+    entry_error = _validate_cache_entries(cache_dir, cache_data)
+    if entry_error:
+        return _result(
+            ok=False,
+            project_dir=project_dir,
+            cache_dir=cache_dir,
+            cache_index=cache_index,
+            reason=entry_error,
         )
 
     return _result(

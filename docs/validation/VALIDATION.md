@@ -2,13 +2,15 @@
 
 Semantic validation checks for scaffolded Manim + Voiceover scenes in the flaming-horse pipeline.
 
-Status: historical validation note. The current first-pass validation owner is
-`scripts/scene_validator.py`; live orchestration routes through
-`scripts/build_video.sh`.
+Status: current validation note. The current first-pass validation owner is
+`scripts/scene_validator.py`; live orchestration calls it from
+`handle_build_scenes` and from the scene repair loop in `scripts/build_video.sh`.
 
 ## Overview
 
-The scene validation layer catches scene issues before expensive render checks, then drives a repair loop when validation fails.
+The scene validation layer catches scene issues before expensive render checks.
+When validation fails, `build_video.sh` invokes scene repair and then runs the
+same owner validator again before accepting the repaired scene.
 
 ## Semantic Validation Checks
 
@@ -96,26 +98,25 @@ export SCENE_QC_BACKOFF_BASE=2
 ## Integration Points
 
 ### `build_video.sh`
-- Call `scripts/scene_validator.py --json`
-- During `scene_qc`:
-  - run deterministic scene validation gates
-  - on failure, run `self_heal_scene_with_optimization`
+- During `build_scenes`, call `scripts/scene_validator.py --json`.
+- During scene repair, re-run the same validator after scaffold reset and after model repair.
+- During `scene_qc`, run deterministic Manim dry-run validation.
 
 ### Validation flow
 
 ```text
-scene_qc
+build_scenes
   -> scene_validator.py
       -> pass: continue render validation
-      -> fail: self_heal_scene_with_optimization
-          -> healed: continue render validation
+      -> fail: scene_repair
+          -> repaired: scene_validator.py again
           -> exhausted: fail phase
 ```
 
 ## Troubleshooting
 
 ### Validation keeps failing
-- Inspect `.scene_validation_<scene_id>.log`
+- Inspect `log/build.log`
 - Confirm scene file path resolves from `project_state.json`
 - Check repair hook availability and logs in `build.log`
 

@@ -155,11 +155,11 @@
       <div class="grid">
         <div class="card">
           <h3>Largest gravity well</h3>
-          <p><code>scripts/build_video.sh</code> is about 3,264 lines and owns orchestration, validation, repair, render, QC, state mutation, diagnostics, and notification.</p>
+          <p><code>scripts/build_video.sh</code> is still the largest runtime surface and owns orchestration, validation, repair, render, QC, state mutation, diagnostics, and notification.</p>
         </div>
         <div class="card">
-          <h3>Half-extracted modules</h3>
-          <p><code>scripts/scene_validation.sh</code> and <code>scripts/build_video_validation_integration.patch</code> exist, but the live path still carries scene validation inside <code>build_video.sh</code>.</p>
+          <h3>Extraction underway</h3>
+          <p>The live path now has a dedicated scene validator, but several validation, state, cache, and render checks still need ownership cleanup.</p>
         </div>
         <div class="card">
           <h3>Best next test seam</h3>
@@ -184,7 +184,7 @@
           <tr>
             <td><span class="priority">P1</span></td>
             <td>Scene validation has multiple owners.</td>
-            <td><code>harness_responses/parser.py</code>, <code>scripts/build_video.sh</code> validation functions, <code>scripts/validate_scene_timing_budget.py</code>, <code>scripts/scene_validation.sh</code>, <code>scene_qc</code>, final render guards.</td>
+            <td><code>harness_responses/parser.py</code>, <code>scripts/scene_validator.py</code>, <code>scripts/build_video.sh</code> validation functions, <code>scripts/validate_scene_timing_budget.py</code>, <code>scene_qc</code>, final render guards.</td>
             <td>The same bad scene pattern can be accepted, rejected, repaired, or logged differently depending on the phase. This makes refactors hard and wastes dry-run/render work.</td>
             <td>Create <code>scripts/scene_validator.py</code> with named gates and JSON output. First port only existing checks; do not add new rules in the extraction patch.</td>
           </tr>
@@ -205,7 +205,7 @@
           <tr>
             <td><span class="priority p2">P2</span></td>
             <td>Repair entry points are scattered.</td>
-            <td><code>build_scenes</code> gate repair, <code>scene_qc</code> runtime repair, <code>final_render</code> syntax repair, <code>final_render</code> <code>ShowCreation</code> repair, render-failure repair, unused <code>self_heal_scene_with_optimization</code>.</td>
+            <td><code>build_scenes</code> gate repair, <code>scene_qc</code> runtime repair, <code>final_render</code> syntax repair, <code>final_render</code> <code>ShowCreation</code> repair, render-failure repair, and removed legacy self-heal surfaces.</td>
             <td>Repair remains available in too many contexts with different reasons, counters, and diagnostics. That makes it hard to measure whether first-pass generation is improving.</td>
             <td>Introduce one <code>invoke_scene_repair_for_gate(scene, gate, reason)</code> wrapper and route all live repair calls through it. Keep behavior identical.</td>
           </tr>
@@ -219,7 +219,7 @@
           <tr>
             <td><span class="priority p2">P2</span></td>
             <td>Scene metadata inference is duplicated.</td>
-            <td><code>handle_build_scenes</code> inline metadata resolver, <code>infer_scene_class_name</code>, <code>get_current_scene_id</code>, <code>get_scene_narration_key</code>, <code>scene_validation.sh resolve_scene_metadata</code>, final-render metadata repair.</td>
+            <td><code>scripts/resolve_scene_metadata.py</code>, <code>infer_scene_class_name</code>, <code>get_current_scene_id</code>, <code>get_scene_narration_key</code>, final-render metadata repair.</td>
             <td>Scene id, file, class name, and narration key can be inferred differently in different code paths. This threatens deterministic behavior when generated state is partial.</td>
             <td>Create one Python resolver that returns <code>{scene_id,file,class_name,narration_key}</code> for an index. Use it in <code>build_scenes</code> first.</td>
           </tr>
@@ -233,16 +233,16 @@
           <tr>
             <td><span class="priority p2">P2</span></td>
             <td>Interpreter ownership is still inconsistent outside the core build runner.</td>
-            <td><code>create_video.sh</code> validates <code>${PYTHON:-python3.13}</code> but later uses bare <code>python3</code>; <code>new_project.sh</code> uses bare <code>python3</code>; <code>scene_validation.sh</code> uses bare <code>python3</code>.</td>
+            <td>Entrypoint and project-creation helpers now share <code>PYTHON_BIN</code>; remaining interpreter drift should be checked in any new helper scripts.</td>
             <td>The entrypoint can validate one interpreter and run helper code under another. That hurts reproducibility and makes local Mac setup bugs harder to classify.</td>
             <td>In <code>create_video.sh</code>, use <code>PYTHON_BIN</code> for path resolution, voice prep, and build-arg parsing. Keep this as a one-file patch.</td>
           </tr>
           <tr>
             <td><span class="priority p3">P3</span></td>
             <td>Stale docs and dead patch files describe non-live paths.</td>
-            <td><code>scripts/build_video_validation_integration.patch</code>, <code>docs/validation/VALIDATION.md</code>, <code>CURRENT_STATE.md</code>, parts of <code>TECH_SPEC.md</code>, historical <code>harness/</code> docs.</td>
+            <td><code>docs/validation/VALIDATION.md</code>, <code>CURRENT_STATE.md</code>, parts of <code>TECH_SPEC.md</code>, historical <code>harness/</code> docs.</td>
             <td>Agents and humans can follow a non-live path and make fixes against old surfaces. This creates wasted review rounds.</td>
-            <td>Mark stale docs historical or remove dead patch artifacts. Start with <code>build_video_validation_integration.patch</code> because it is not executable runtime.</td>
+            <td>Keep active docs pointed at live runtime surfaces and keep historical docs clearly labeled.</td>
           </tr>
           <tr>
             <td><span class="priority p3">P3</span></td>
@@ -263,7 +263,6 @@
   validate_scene_timing_budget.py timing analysis
   scene_qc dry-run loop
   final_render pre-render guards
-  scene_validation.sh unused parallel validator
 
 State ownership:
   update_project_state.py canonical normalizer/applier
@@ -282,7 +281,7 @@ Repair ownership:
   build_scenes first-pass gate repair
   scene_qc runtime repair
   final_render syntax/API/render repair
-  scene_validation.sh optimized self-heal surface</pre>
+  legacy shell validator optimized self-heal surface</pre>
     </section>
 
     <section class="section">

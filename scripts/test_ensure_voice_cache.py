@@ -26,6 +26,24 @@ def _run(project_dir: Path) -> subprocess.CompletedProcess:
     )
 
 
+def _write_cache_entry(cache_dir: Path, audio_file: str = "scene_01.mp3") -> None:
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    (cache_dir / audio_file).write_bytes(b"fake mp3")
+    (cache_dir / "cache.json").write_text(
+        json.dumps(
+            [
+                {
+                    "narration_key": "scene_01",
+                    "text": "Narration",
+                    "audio_file": audio_file,
+                }
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+
 class EnsureVoiceCacheTests(unittest.TestCase):
     def test_reports_missing_default_cache_index(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -47,8 +65,7 @@ class EnsureVoiceCacheTests(unittest.TestCase):
                 encoding="utf-8",
             )
             cache_dir = project_dir / "custom_voice_cache"
-            cache_dir.mkdir()
-            (cache_dir / "cache.json").write_text("[]\n", encoding="utf-8")
+            _write_cache_entry(cache_dir)
 
             result = _run(project_dir)
 
@@ -56,6 +73,35 @@ class EnsureVoiceCacheTests(unittest.TestCase):
             payload = json.loads(result.stdout)
             self.assertTrue(payload["ok"])
             self.assertEqual(Path(payload["cache_index"]), (cache_dir / "cache.json").resolve())
+
+    def test_empty_cache_index_fails(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_dir = Path(temp_dir)
+            cache_dir = project_dir / "media" / "voiceovers" / "qwen"
+            cache_dir.mkdir(parents=True)
+            (cache_dir / "cache.json").write_text("[]\n", encoding="utf-8")
+
+            result = _run(project_dir)
+
+            self.assertEqual(result.returncode, 1)
+            payload = json.loads(result.stdout)
+            self.assertEqual(payload["reason"], "cache index contains no entries")
+
+    def test_missing_audio_file_fails(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_dir = Path(temp_dir)
+            cache_dir = project_dir / "media" / "voiceovers" / "qwen"
+            cache_dir.mkdir(parents=True)
+            (cache_dir / "cache.json").write_text(
+                json.dumps([{"narration_key": "scene_01", "audio_file": "scene_01.mp3"}]),
+                encoding="utf-8",
+            )
+
+            result = _run(project_dir)
+
+            self.assertEqual(result.returncode, 1)
+            payload = json.loads(result.stdout)
+            self.assertIn("audio file missing", payload["reason"])
 
     def test_rejects_malformed_cache_index(self):
         with tempfile.TemporaryDirectory() as temp_dir:

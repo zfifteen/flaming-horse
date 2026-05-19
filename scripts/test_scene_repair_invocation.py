@@ -62,6 +62,12 @@ def main() -> None:
     ):
         require(gate in phase_region, f"repair gate is not routed through wrapper: {gate}")
 
+    repair_loop = function_body(script, "repair_scene_until_valid", "invoke_scene_repair_for_gate")
+    require(
+        repair_loop.count('validate_scene_first_pass_with_owner "$scene_file"') >= 2,
+        "repair loop does not enforce the owner validator after reset and repair",
+    )
+
     print("OK")
 
 

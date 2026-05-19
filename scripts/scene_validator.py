@@ -377,8 +377,12 @@ def validate_scene_file(
     min_timing_ratio: str = "0.90",
     auto_adjust_timing: bool = False,
 ) -> dict[str, Any]:
-    scene_text = _read_text(scene_file)
     checks: list[GateResult] = []
+    try:
+        scene_text = _read_text(scene_file)
+    except OSError as exc:
+        checks.append(_fail("scene_file", f"Scene file could not be read: {exc}"))
+        return _result(scene_file, checks)
 
     for check in (
         validate_template_structure(scene_text),
