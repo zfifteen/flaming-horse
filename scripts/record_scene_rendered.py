@@ -17,10 +17,10 @@ def scene_video_path(project_dir: Path, scene_id: str, class_name: str) -> Path:
     return project_dir / "media" / "videos" / scene_id / "1440p60" / f"{class_name}.mp4"
 
 
-def probe_duration(video_path: Path) -> float:
+def probe_duration(video_path: Path) -> float | None:
     ffprobe = shutil.which("ffprobe")
     if not ffprobe:
-        return 0.0
+        return None
     result = subprocess.run(
         [
             ffprobe,
@@ -37,9 +37,9 @@ def probe_duration(video_path: Path) -> float:
         check=False,
     )
     try:
-        return float((result.stdout or "0").strip() or "0")
+        return float((result.stdout or "").strip())
     except ValueError:
-        return 0.0
+        return None
 
 
 def record_scene_rendered(project_dir: Path, scene_id: str, class_name: str) -> None:

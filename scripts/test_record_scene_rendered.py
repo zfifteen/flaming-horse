@@ -100,8 +100,50 @@ class RecordSceneRenderedTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             state = json.loads((project_dir / "project_state.json").read_text(encoding="utf-8"))
             verification = state["scenes"][0]["verification"]
+            self.assertIsNone(verification["duration_seconds"])
             self.assertIsNone(verification["audio_present"])
             self.assertFalse(verification["audio_checked"])
+
+    def test_records_unknown_duration_when_probe_output_is_invalid(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_dir = Path(temp_dir)
+            (project_dir / "project_state.json").write_text(
+                json.dumps({"scenes": [{"id": "scene_01"}]}) + "\n",
+                encoding="utf-8",
+            )
+            video = project_dir / "media/videos/scene_01/1440p60/Scene01.mp4"
+            video.parent.mkdir(parents=True)
+            video.write_bytes(b"fake mp4")
+            bin_dir = project_dir / "bin"
+            bin_dir.mkdir()
+            _write_fake_ffprobe(bin_dir, "not-a-duration")
+            old_path = os.environ.get("PATH", "")
+            try:
+                os.environ["PATH"] = f"{bin_dir}:{old_path}"
+                result = subprocess.run(
+                    [
+                        "python3",
+                        str(SCRIPT_PATH),
+                        "--project-dir",
+                        str(project_dir),
+                        "--scene-id",
+                        "scene_01",
+                        "--class-name",
+                        "Scene01",
+                    ],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+            finally:
+                os.environ["PATH"] = old_path
+
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            state = json.loads((project_dir / "project_state.json").read_text(encoding="utf-8"))
+            verification = state["scenes"][0]["verification"]
+            self.assertIsNone(verification["duration_seconds"])
+            self.assertTrue(verification["audio_present"])
+            self.assertTrue(verification["audio_checked"])
 
     def test_missing_scene_fails(self):
         with tempfile.TemporaryDirectory() as temp_dir:
