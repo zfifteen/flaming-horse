@@ -2096,7 +2096,8 @@ handle_build_scenes() {
   cd "$PROJECT_DIR"
 
   local scene_meta
-  if ! scene_meta="$($PYTHON_BIN "${SCRIPT_DIR}/resolve_scene_metadata.py" --project-dir "$PROJECT_DIR")"; then
+  if ! scene_meta="$("$PYTHON_BIN" "${SCRIPT_DIR}/resolve_scene_metadata.py" --project-dir "$PROJECT_DIR" \
+    2> >(tee -a "$LOG_FILE" >&2))"; then
     echo "✗ ERROR: Could not resolve current scene metadata from project_state.json" | tee -a "$LOG_FILE" >&2
     return 1
   fi
@@ -2111,20 +2112,25 @@ handle_build_scenes() {
     return 0
   fi
 
-  if [[ -z "$scene_id" || -z "$scene_file" || -z "$scene_class" ]]; then
+  if [[ -z "$scene_id" || -z "$scene_file" || -z "$narration_key" ]]; then
     echo "✗ ERROR: Could not determine current scene metadata from project_state.json" | tee -a "$LOG_FILE" >&2
     return 1
   fi
 
   if [[ ! "$scene_id" =~ ^scene_[0-9]+(_[a-z0-9_]+)?$ ]]; then
     echo "✗ ERROR: Invalid scene id format '${scene_id}'. Expected scene_N or scene_N_slug (where N is one or more digits, e.g., scene_1 or scene_1_intro)." | tee -a "$LOG_FILE" >&2
-    $PYTHON_BIN "${SCRIPT_DIR}/update_project_state.py" \
+    "$PYTHON_BIN" "${SCRIPT_DIR}/update_project_state.py" \
       --project-dir "$PROJECT_DIR" \
       --mode record-error \
       --phase build_scenes \
       --message "build_scenes failed: scene id must match ^scene_[0-9]+(_[a-z0-9_]+)?$" \
       --needs-human-review \
       --history-action invalid_scene_id
+    return 1
+  fi
+
+  if [[ -z "$scene_class" ]]; then
+    echo "✗ ERROR: Could not determine current scene metadata from project_state.json" | tee -a "$LOG_FILE" >&2
     return 1
   fi
 

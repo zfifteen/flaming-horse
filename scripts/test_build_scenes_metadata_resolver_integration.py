@@ -28,6 +28,10 @@ def main() -> None:
         "handle_build_scenes does not use resolve_scene_metadata.py",
     )
     require(
+        '2> >(tee -a "$LOG_FILE" >&2)' in build_scenes,
+        "handle_build_scenes does not preserve resolver stderr in build.log",
+    )
+    require(
         "def camel_from_scene_id" not in build_scenes,
         "handle_build_scenes still carries inline class-name inference",
     )
@@ -39,6 +43,12 @@ def main() -> None:
         "IFS='|' read -r scene_id scene_file scene_class narration_key" in build_scenes,
         "handle_build_scenes pipe contract changed unexpectedly",
     )
+    required_idx = build_scenes.find('[[ -z "$scene_id" || -z "$scene_file" || -z "$narration_key" ]]')
+    invalid_idx = build_scenes.find('[[ ! "$scene_id" =~ ^scene_[0-9]+(_[a-z0-9_]+)?$ ]]')
+    class_idx = build_scenes.find('[[ -z "$scene_class" ]]')
+    require(required_idx > 0, "handle_build_scenes no longer checks required metadata")
+    require(invalid_idx > required_idx, "invalid scene id check must follow required metadata check")
+    require(class_idx > invalid_idx, "scene class check must run after invalid scene id recording")
     print("OK")
 
 
