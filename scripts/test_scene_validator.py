@@ -134,7 +134,7 @@ class SceneValidatorTests(unittest.TestCase):
             self.assertEqual(payload["first_failed_gate"], "timing_budget")
             self.assertIn("timing budget", payload["failure_summary"])
 
-    def test_comment_only_body_fails_before_pipeline_execution(self):
+    def test_comment_only_full_scaffold_fails_python_syntax_before_scene_body_contract(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             project_dir = Path(temp_dir)
             scene_file = _write_scene(project_dir, "            # TODO")
@@ -143,6 +143,7 @@ class SceneValidatorTests(unittest.TestCase):
             self.assertEqual(result.returncode, 1)
             payload = json.loads(result.stdout)
             self.assertEqual(payload["first_failed_gate"], "python_syntax")
+            self.assertIn("expected an indented block", payload["failure_summary"])
 
     def test_missing_scene_file_returns_stable_json_failure(self):
         with tempfile.TemporaryDirectory() as temp_dir:
