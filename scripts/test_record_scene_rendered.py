@@ -173,6 +173,42 @@ class RecordSceneRenderedTests(unittest.TestCase):
             self.assertIn("scene not found", result.stderr)
             self.assertEqual(result.stdout, "")
 
+    def test_malformed_scenes_fails_with_stable_error(self):
+        cases = [
+            ({"scenes": None}, "project_state.json scenes must be a list"),
+            ({"scenes": {}}, "project_state.json scenes must be a list"),
+            ({"scenes": ["scene_01"]}, "scene[0] must be an object"),
+        ]
+        for state_payload, expected_error in cases:
+            with self.subTest(state=state_payload):
+                with tempfile.TemporaryDirectory() as temp_dir:
+                    project_dir = Path(temp_dir)
+                    (project_dir / "project_state.json").write_text(
+                        json.dumps(state_payload) + "\n",
+                        encoding="utf-8",
+                    )
+
+                    result = subprocess.run(
+                        [
+                            "python3",
+                            str(SCRIPT_PATH),
+                            "--project-dir",
+                            str(project_dir),
+                            "--scene-id",
+                            "scene_01",
+                            "--class-name",
+                            "Scene01",
+                        ],
+                        capture_output=True,
+                        text=True,
+                        check=False,
+                    )
+
+                    self.assertEqual(result.returncode, 1)
+                    self.assertIn(f"ERROR: {expected_error}", result.stderr)
+                    self.assertEqual(result.stdout, "")
+                    self.assertNotIn("Traceback", result.stderr)
+
     def test_missing_video_does_not_update_state(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             project_dir = Path(temp_dir)

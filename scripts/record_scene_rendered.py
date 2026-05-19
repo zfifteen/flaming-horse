@@ -48,8 +48,16 @@ def record_scene_rendered(project_dir: Path, scene_id: str, class_name: str) -> 
     state_file = project_dir / "project_state.json"
     video_path = scene_video_path(project_dir, scene_id, class_name)
     state = json.loads(state_file.read_text(encoding="utf-8"))
+    if not isinstance(state, dict):
+        raise ValueError("project_state.json root must be an object")
+    scenes = state.get("scenes")
+    if not isinstance(scenes, list):
+        raise ValueError("project_state.json scenes must be a list")
+
     matching_scene = None
-    for scene in state.get("scenes", []):
+    for index, scene in enumerate(scenes):
+        if not isinstance(scene, dict):
+            raise ValueError(f"scene[{index}] must be an object")
         if scene.get("id") == scene_id:
             matching_scene = scene
             break
