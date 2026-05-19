@@ -170,7 +170,8 @@ class RecordSceneRenderedTests(unittest.TestCase):
             )
 
             self.assertEqual(result.returncode, 1)
-            self.assertIn("scene not found", result.stdout)
+            self.assertIn("scene not found", result.stderr)
+            self.assertEqual(result.stdout, "")
 
     def test_missing_video_does_not_update_state(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -198,7 +199,8 @@ class RecordSceneRenderedTests(unittest.TestCase):
             )
 
             self.assertEqual(result.returncode, 1)
-            self.assertIn("render artifact is not ready", result.stdout)
+            self.assertIn("render artifact is not ready", result.stderr)
+            self.assertEqual(result.stdout, "")
             state = json.loads((project_dir / "project_state.json").read_text(encoding="utf-8"))
             self.assertEqual(state, original_state)
 
@@ -238,7 +240,8 @@ class RecordSceneRenderedTests(unittest.TestCase):
                 os.environ["PATH"] = old_path
 
             self.assertEqual(result.returncode, 1)
-            self.assertIn("no audio stream detected", result.stdout)
+            self.assertIn("no audio stream detected", result.stderr)
+            self.assertEqual(result.stdout, "")
             state = json.loads((project_dir / "project_state.json").read_text(encoding="utf-8"))
             self.assertEqual(state, original_state)
 

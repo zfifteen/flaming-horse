@@ -31,6 +31,11 @@ def main() -> None:
         "record_scene_rendered.py" in final_render,
         "final_render state recording does not call record_scene_rendered.py",
     )
+    require(
+        'voice_output_dir="$(voice_output_dir_abs)"' in final_render
+        and 'local scene_audio="${voice_output_dir}/${scene_id}.mp3"' in final_render,
+        "final_render no longer uses voice_output_dir for scene-audio freshness checks",
+    )
     forbidden_inline = [
         "-select_streams a:0",
         "audio_stream=",

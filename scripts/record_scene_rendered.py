@@ -7,6 +7,7 @@ import argparse
 import json
 import shutil
 import subprocess
+import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -85,7 +86,7 @@ def main() -> int:
     try:
         record_scene_rendered(args.project_dir, args.scene_id, args.class_name)
     except (OSError, ValueError, json.JSONDecodeError) as exc:
-        print(f"ERROR: {exc}")
+        print(f"ERROR: {exc}", file=sys.stderr)
         return 1
     return 0
 
