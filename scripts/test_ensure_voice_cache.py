@@ -151,6 +151,66 @@ class EnsureVoiceCacheTests(unittest.TestCase):
             payload = json.loads(result.stdout)
             self.assertIn("audio file missing", payload["reason"])
 
+    def test_rejects_absolute_audio_file_path(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_dir = Path(temp_dir)
+            _write_script(project_dir)
+            cache_dir = project_dir / "media" / "voiceovers" / "qwen"
+            cache_dir.mkdir(parents=True)
+            outside_audio = project_dir / "outside.mp3"
+            outside_audio.write_bytes(b"fake mp3")
+            (cache_dir / "cache.json").write_text(
+                json.dumps(
+                    [
+                        {
+                            "narration_key": "scene_01",
+                            "text": "Narration",
+                            "audio_file": str(outside_audio),
+                        }
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            result = _run(project_dir)
+
+            self.assertEqual(result.returncode, 1)
+            payload = json.loads(result.stdout)
+            self.assertEqual(
+                payload["reason"],
+                f"cache entry 0 audio file must be relative: {outside_audio}",
+            )
+
+    def test_rejects_audio_file_path_that_escapes_cache_dir(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_dir = Path(temp_dir)
+            _write_script(project_dir)
+            cache_dir = project_dir / "media" / "voiceovers" / "qwen"
+            cache_dir.mkdir(parents=True)
+            outside_audio = cache_dir.parent / "outside.mp3"
+            outside_audio.write_bytes(b"fake mp3")
+            (cache_dir / "cache.json").write_text(
+                json.dumps(
+                    [
+                        {
+                            "narration_key": "scene_01",
+                            "text": "Narration",
+                            "audio_file": "../outside.mp3",
+                        }
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            result = _run(project_dir)
+
+            self.assertEqual(result.returncode, 1)
+            payload = json.loads(result.stdout)
+            self.assertEqual(
+                payload["reason"],
+                "cache entry 0 audio file escapes cache directory: ../outside.mp3",
+            )
+
     def test_rejects_malformed_cache_index(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             project_dir = Path(temp_dir)

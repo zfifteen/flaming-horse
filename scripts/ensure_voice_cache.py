@@ -75,6 +75,20 @@ def _cache_audio_file(entry: dict[str, Any]) -> str:
     return ""
 
 
+def _cache_audio_path(cache_dir: Path, audio_file: str, index: int) -> tuple[Path | None, str]:
+    audio_path = Path(audio_file)
+    if audio_path.is_absolute():
+        return None, f"cache entry {index} audio file must be relative: {audio_file}"
+
+    cache_root = cache_dir.resolve()
+    resolved_audio = (cache_root / audio_path).resolve()
+    try:
+        resolved_audio.relative_to(cache_root)
+    except ValueError:
+        return None, f"cache entry {index} audio file escapes cache directory: {audio_file}"
+    return resolved_audio, ""
+
+
 def _load_script(script_path: Path) -> dict[str, str]:
     if not script_path.exists():
         raise ValueError(f"narration_script.py missing: {script_path}")
@@ -131,7 +145,10 @@ def _validate_cache_entries(
             return f"cache entry {index} has no audio file"
         if not has_narration_key and not has_text:
             return f"cache entry {index} has neither narration_key nor text"
-        if not (cache_dir / audio_file).exists():
+        audio_path, path_error = _cache_audio_path(cache_dir, audio_file, index)
+        if path_error:
+            return path_error
+        if audio_path is None or not audio_path.exists():
             return f"cache entry {index} audio file missing: {audio_file}"
 
         if has_narration_key:
