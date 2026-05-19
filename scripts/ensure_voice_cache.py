@@ -36,6 +36,8 @@ def load_voice_config(project_dir: Path) -> dict[str, Any]:
         return {}
     try:
         data = json.loads(config_path.read_text(encoding="utf-8"))
+    except OSError as exc:
+        raise ValueError(f"voice_clone_config.json could not be read: {exc}") from exc
     except json.JSONDecodeError as exc:
         raise ValueError(f"voice_clone_config.json is not valid JSON: {exc}") from exc
     if not isinstance(data, dict):
@@ -192,6 +194,14 @@ def check_voice_cache(project_dir: Path) -> dict[str, Any]:
 
     try:
         cache_data = json.loads(cache_index.read_text(encoding="utf-8"))
+    except OSError as exc:
+        return _result(
+            ok=False,
+            project_dir=project_dir,
+            cache_dir=cache_dir,
+            cache_index=cache_index,
+            reason=f"cache index could not be read: {exc}",
+        )
     except json.JSONDecodeError as exc:
         return _result(
             ok=False,

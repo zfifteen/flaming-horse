@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
 import json
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
+from unittest import mock
 import unittest
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT_PATH = REPO_ROOT / "scripts" / "ensure_voice_cache.py"
+sys.path.insert(0, str(REPO_ROOT / "scripts"))
+import ensure_voice_cache
 
 
 def _run(project_dir: Path) -> subprocess.CompletedProcess:
@@ -224,6 +228,44 @@ class EnsureVoiceCacheTests(unittest.TestCase):
             payload = json.loads(result.stdout)
             self.assertFalse(payload["ok"])
             self.assertIn("cache index is not valid JSON", payload["reason"])
+
+    def test_voice_config_read_error_reports_structured_failure(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_dir = Path(temp_dir)
+            (project_dir / "voice_clone_config.json").write_text("{}", encoding="utf-8")
+
+            with mock.patch.object(
+                ensure_voice_cache.Path,
+                "read_text",
+                side_effect=OSError("permission denied"),
+            ):
+                payload = ensure_voice_cache.check_voice_cache(project_dir)
+
+            self.assertFalse(payload["ok"])
+            self.assertIn("voice_clone_config.json could not be read", payload["reason"])
+            self.assertIn("permission denied", payload["reason"])
+
+    def test_cache_index_read_error_reports_structured_failure(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_dir = Path(temp_dir)
+            cache_dir = project_dir / "media" / "voiceovers" / "qwen"
+            cache_dir.mkdir(parents=True)
+            cache_index = cache_dir / "cache.json"
+            cache_index.write_text("[]", encoding="utf-8")
+            _write_script(project_dir)
+
+            original_read_text = ensure_voice_cache.Path.read_text
+
+            def read_text(path: Path, *args, **kwargs):
+                if path.name == "cache.json":
+                    raise OSError("transient IO")
+                return original_read_text(path, *args, **kwargs)
+
+            with mock.patch.object(ensure_voice_cache.Path, "read_text", read_text):
+                payload = ensure_voice_cache.check_voice_cache(project_dir)
+
+            self.assertFalse(payload["ok"])
+            self.assertEqual(payload["reason"], "cache index could not be read: transient IO")
 
     def test_rejects_non_list_cache_index(self):
         with tempfile.TemporaryDirectory() as temp_dir:

@@ -5,11 +5,14 @@ import sys
 import subprocess
 import tempfile
 from pathlib import Path
+from unittest import mock
 import unittest
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT_PATH = REPO_ROOT / "scripts" / "verify_scene_video.py"
+sys.path.insert(0, str(REPO_ROOT / "scripts"))
+import verify_scene_video
 
 
 def _run(project_dir: Path, scene_id: str = "scene_01", class_name: str = "Scene01") -> subprocess.CompletedProcess:
@@ -71,6 +74,21 @@ class VerifySceneVideoTests(unittest.TestCase):
             self.assertEqual(result.returncode, 1)
             payload = json.loads(result.stdout)
             self.assertEqual(payload["reason"], "render output empty")
+
+    def test_video_stat_error_reports_structured_failure(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_dir = Path(temp_dir)
+
+            with mock.patch.object(verify_scene_video.Path, "exists", return_value=True), mock.patch.object(
+                verify_scene_video.Path,
+                "stat",
+                side_effect=OSError("permission denied"),
+            ):
+                payload = verify_scene_video.verify_scene_video(project_dir, "scene_01", "Scene01")
+
+            self.assertFalse(payload["ok"])
+            self.assertIn("render output inaccessible", payload["reason"])
+            self.assertIn("permission denied", payload["reason"])
 
     def test_audio_stream_passes_with_ffprobe(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -157,6 +175,25 @@ class VerifySceneVideoTests(unittest.TestCase):
             self.assertEqual(result.returncode, 1)
             payload = json.loads(result.stdout)
             self.assertIn("ffprobe failed: invalid data found", payload["reason"])
+            self.assertTrue(payload["audio_checked"])
+            self.assertIsNone(payload["audio_present"])
+
+    def test_ffprobe_os_error_reports_structured_failure(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_dir = Path(temp_dir)
+            video = project_dir / "media/videos/scene_01/1440p60/Scene01.mp4"
+            video.parent.mkdir(parents=True)
+            video.write_bytes(b"fake mp4")
+
+            with mock.patch.object(verify_scene_video.shutil, "which", return_value="/bad/ffprobe"), mock.patch.object(
+                verify_scene_video.subprocess,
+                "run",
+                side_effect=OSError("exec failed"),
+            ):
+                payload = verify_scene_video.verify_scene_video(project_dir, "scene_01", "Scene01")
+
+            self.assertFalse(payload["ok"])
+            self.assertEqual(payload["reason"], "ffprobe could not run: exec failed")
             self.assertTrue(payload["audio_checked"])
             self.assertIsNone(payload["audio_present"])
 

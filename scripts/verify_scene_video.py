@@ -43,10 +43,13 @@ def _trim_stderr(text: str, limit: int = 240) -> str:
 
 def verify_scene_video(project_dir: Path, scene_id: str, class_name: str) -> dict[str, Any]:
     video_path = scene_video_path(project_dir, scene_id, class_name)
-    if not video_path.exists():
-        return _result(False, video_path, "render output missing", False, None)
-    if video_path.stat().st_size <= 0:
-        return _result(False, video_path, "render output empty", False, None)
+    try:
+        if not video_path.exists():
+            return _result(False, video_path, "render output missing", False, None)
+        if video_path.stat().st_size <= 0:
+            return _result(False, video_path, "render output empty", False, None)
+    except OSError as exc:
+        return _result(False, video_path, f"render output inaccessible: {exc}", False, None)
 
     ffprobe = shutil.which("ffprobe")
     if not ffprobe:
@@ -58,23 +61,26 @@ def verify_scene_video(project_dir: Path, scene_id: str, class_name: str) -> dic
             None,
         )
 
-    probe = subprocess.run(
-        [
-            ffprobe,
-            "-v",
-            "error",
-            "-select_streams",
-            "a:0",
-            "-show_entries",
-            "stream=codec_type",
-            "-of",
-            "csv=p=0",
-            str(video_path),
-        ],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    try:
+        probe = subprocess.run(
+            [
+                ffprobe,
+                "-v",
+                "error",
+                "-select_streams",
+                "a:0",
+                "-show_entries",
+                "stream=codec_type",
+                "-of",
+                "csv=p=0",
+                str(video_path),
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError as exc:
+        return _result(False, video_path, f"ffprobe could not run: {exc}", True, None)
     if probe.returncode != 0:
         return _result(
             False,
