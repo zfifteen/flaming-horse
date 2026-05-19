@@ -100,7 +100,7 @@ def main(argv: list[str] | None = None) -> int:
             )
         )
     else:
-        print("__NO_SCENE__||||")
+        print("__NO_SCENE__|||")
     return 0
 
 

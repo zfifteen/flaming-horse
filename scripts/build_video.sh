@@ -2362,9 +2362,23 @@ PY
 
   cd "$PROJECT_DIR"
 
-  # Ensure voice cache exists (precache step). If missing, generate it now.
-  # Skip this check if --skip-precache flag is set.
-  if [[ -z "${SKIP_PRECACHE}" ]] && ! $PYTHON_BIN "${SCRIPT_DIR}/ensure_voice_cache.py" --project-dir "$PROJECT_DIR" --check >/dev/null 2>&1; then
+  # Ensure voice cache exists. With --skip-precache, validate only and fail fast.
+  if [[ -n "${SKIP_PRECACHE}" ]]; then
+    echo "→ --skip-precache enabled; validating existing voice cache." | tee -a "$LOG_FILE"
+    if ! $PYTHON_BIN "${SCRIPT_DIR}/ensure_voice_cache.py" --project-dir "$PROJECT_DIR" --check \
+      > >(tee -a "$LOG_FILE") \
+      2> >(tee -a "$LOG_FILE" >&2); then
+      echo "❌ --skip-precache requires an existing complete voice cache." | tee -a "$LOG_FILE" >&2
+      $PYTHON_BIN "${SCRIPT_DIR}/update_project_state.py" \
+        --project-dir "$PROJECT_DIR" \
+        --mode record-error \
+        --phase final_render \
+        --message "final_render failed: --skip-precache requires an existing complete voice cache" \
+        --needs-human-review \
+        --history-action skip_precache_voice_cache_missing
+      exit 1
+    fi
+  elif ! $PYTHON_BIN "${SCRIPT_DIR}/ensure_voice_cache.py" --project-dir "$PROJECT_DIR" --check >/dev/null 2>&1; then
     echo "→ Missing voice cache index; running precache step..." | tee -a "$LOG_FILE"
     if ! handle_precache_voiceovers; then
       echo "❌ Precaching voiceovers failed; cannot render." | tee -a "$LOG_FILE" >&2
@@ -2382,8 +2396,6 @@ with open("${STATE_FILE}", "w") as f:
 PY
       exit 1
     fi
-  elif [[ -n "${SKIP_PRECACHE}" ]]; then
-    echo "→ --skip-precache enabled; using existing voice cache if available." | tee -a "$LOG_FILE"
   fi
 
   # Best-effort repair: ensure scene metadata needed for rendering exists.

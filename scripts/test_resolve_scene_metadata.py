@@ -89,6 +89,17 @@ class ResolveSceneMetadataTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(result.stdout.strip(), "scene_03_gap|scene_03_gap.py|Scene03Gap|scene_03_gap")
 
+    def test_no_scene_pipe_output_has_four_fields(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_dir = Path(temp_dir)
+            _write_state(project_dir, {"current_scene_index": 1, "scenes": [{"id": "scene_01"}]})
+
+            result = _run(project_dir)
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            fields = result.stdout.strip().split("|")
+            self.assertEqual(fields, ["__NO_SCENE__", "", "", ""])
+
 
 if __name__ == "__main__":
     unittest.main()

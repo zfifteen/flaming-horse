@@ -61,6 +61,18 @@ def main() -> None:
         "final_render cache precondition does not use ensure_voice_cache.py",
     )
     require(
+        '[[ -n "${SKIP_PRECACHE}" ]]' in final_render,
+        "final_render does not have an explicit --skip-precache validation branch",
+    )
+    require(
+        "skip_precache_voice_cache_missing" in final_render,
+        "final_render skip-precache failure is not recorded through update_project_state.py",
+    )
+    require(
+        final_render.find('[[ -n "${SKIP_PRECACHE}" ]]') < final_render.find("handle_precache_voiceovers"),
+        "final_render skip-precache branch should validate before any precache generation path",
+    )
+    require(
         "cache_index=" not in final_render,
         "final_render still computes cache_index locally",
     )
