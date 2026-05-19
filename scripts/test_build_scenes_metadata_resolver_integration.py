@@ -46,9 +46,13 @@ def main() -> None:
     required_idx = build_scenes.find('[[ -z "$scene_id" || -z "$scene_file" || -z "$narration_key" ]]')
     invalid_idx = build_scenes.find('[[ ! "$scene_id" =~ ^scene_[0-9]+(_[a-z0-9_]+)?$ ]]')
     class_idx = build_scenes.find('[[ -z "$scene_class" ]]')
+    reconcile_idx = build_scenes.find('reconciled_narration_key="$(get_scene_narration_key "$scene_id")"')
+    scaffold_idx = build_scenes.find('--narration-key "$narration_key"')
     require(required_idx > 0, "handle_build_scenes no longer checks required metadata")
     require(invalid_idx > required_idx, "invalid scene id check must follow required metadata check")
     require(class_idx > invalid_idx, "scene class check must run after invalid scene id recording")
+    require(reconcile_idx > class_idx, "handle_build_scenes must reconcile narration_key after metadata validation")
+    require(scaffold_idx > reconcile_idx, "handle_build_scenes must reconcile narration_key before scaffolding")
     print("OK")
 
 

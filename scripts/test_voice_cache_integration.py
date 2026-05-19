@@ -45,7 +45,15 @@ def main() -> None:
         "runtime cache precondition no longer preserves precache-on-missing behavior",
     )
     require(
-        runtime_check.count("ensure_voice_cache.py") == 2,
+        '[[ -n "${SKIP_PRECACHE}" ]]' in runtime_check,
+        "runtime cache precondition does not honor --skip-precache",
+    )
+    require(
+        runtime_check.find('[[ -n "${SKIP_PRECACHE}" ]]') < runtime_check.find("precache_voiceovers_qwen.py"),
+        "runtime cache precondition should fail before precache generation when --skip-precache is set",
+    )
+    require(
+        runtime_check.count("ensure_voice_cache.py") >= 2,
         "runtime cache precondition should check before and after precache",
     )
 

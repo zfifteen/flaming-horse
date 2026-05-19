@@ -1242,6 +1242,14 @@ ensure_qwen_cache_index() {
     return 0
   fi
 
+  if [[ -n "${SKIP_PRECACHE}" ]]; then
+    echo "✗ ERROR: --skip-precache requires an existing complete voice cache for runtime validation." | tee -a "$LOG_FILE"
+    "$PYTHON_BIN" "${SCRIPT_DIR}/ensure_voice_cache.py" --project-dir "$PROJECT_DIR" --check \
+      > >(tee -a "$LOG_FILE") \
+      2> >(tee -a "$LOG_FILE" >&2) || true
+    return 1
+  fi
+
   echo "→ Voice cache index missing; generating cache before runtime validation..." | tee -a "$LOG_FILE"
   if ! "$PYTHON_BIN" "${SCRIPT_DIR}/precache_voiceovers_qwen.py" "$PROJECT_DIR" \
     > >(tee -a "$LOG_FILE") \
@@ -2132,6 +2140,13 @@ handle_build_scenes() {
   if [[ -z "$scene_class" ]]; then
     echo "✗ ERROR: Could not determine current scene metadata from project_state.json" | tee -a "$LOG_FILE" >&2
     return 1
+  fi
+
+  local reconciled_narration_key
+  reconciled_narration_key="$(get_scene_narration_key "$scene_id")"
+  if [[ -n "$reconciled_narration_key" && "$reconciled_narration_key" != "$narration_key" ]]; then
+    echo "→ Reconciled narration key for ${scene_id}: ${narration_key} → ${reconciled_narration_key}" | tee -a "$LOG_FILE"
+    narration_key="$reconciled_narration_key"
   fi
 
   if [[ ! -f "$scene_file" ]]; then
