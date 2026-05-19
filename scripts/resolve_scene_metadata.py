@@ -51,7 +51,8 @@ def _optional_non_empty_string(value: Any, field: str, scene_index: int) -> str:
 
 def resolve_scene_metadata(project_dir: Path, scene_index: int | None = None) -> dict[str, Any]:
     state = _load_state(project_dir)
-    scenes = state.get("scenes") or []
+    raw_scenes = state.get("scenes")
+    scenes = [] if raw_scenes is None else raw_scenes
     if not isinstance(scenes, list):
         raise ValueError("project_state.json scenes must be a list")
 

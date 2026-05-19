@@ -80,6 +80,36 @@ class ResolveSceneMetadataTests(unittest.TestCase):
             self.assertFalse(payload["has_scene"])
             self.assertEqual(payload["scene_index"], 2)
 
+    def test_missing_or_null_scenes_reports_no_scene(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_dir = Path(temp_dir)
+            _write_state(project_dir, {"current_scene_index": 0})
+
+            result = _run(project_dir, "--json")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertFalse(payload["has_scene"])
+            self.assertEqual(payload["scene_index"], 0)
+
+            _write_state(project_dir, {"current_scene_index": 0, "scenes": None})
+
+            result = _run(project_dir, "--json")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertFalse(payload["has_scene"])
+            self.assertEqual(payload["scene_index"], 0)
+
+    def test_rejects_falsey_non_list_scenes(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_dir = Path(temp_dir)
+            _write_state(project_dir, {"current_scene_index": 0, "scenes": {}})
+
+            result = _run(project_dir, "--json")
+
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("project_state.json scenes must be a list", result.stderr)
+            self.assertEqual(result.stdout, "")
+
     def test_pipe_output_matches_build_script_contract(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             project_dir = Path(temp_dir)
