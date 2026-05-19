@@ -36,6 +36,15 @@ def _write_fake_ffprobe(bin_dir: Path, stdout: str) -> None:
     path.chmod(0o755)
 
 
+def _write_failing_ffprobe(bin_dir: Path, stderr: str) -> None:
+    path = bin_dir / "ffprobe"
+    path.write_text(
+        f"#!/usr/bin/env bash\nprintf '%s\\n' {stderr!r} >&2\nexit 42\n",
+        encoding="utf-8",
+    )
+    path.chmod(0o755)
+
+
 class VerifySceneVideoTests(unittest.TestCase):
     def test_missing_video_fails(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -97,6 +106,30 @@ class VerifySceneVideoTests(unittest.TestCase):
             self.assertEqual(result.returncode, 1)
             payload = json.loads(result.stdout)
             self.assertEqual(payload["reason"], "no audio stream detected")
+            self.assertTrue(payload["audio_checked"])
+            self.assertFalse(payload["audio_present"])
+
+    def test_ffprobe_failure_is_distinct_from_missing_audio(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_dir = Path(temp_dir)
+            video = project_dir / "media/videos/scene_01/1440p60/Scene01.mp4"
+            video.parent.mkdir(parents=True)
+            video.write_bytes(b"fake mp4")
+            bin_dir = project_dir / "bin"
+            bin_dir.mkdir()
+            _write_failing_ffprobe(bin_dir, "invalid data found when processing input")
+            old_path = os.environ.get("PATH", "")
+            try:
+                os.environ["PATH"] = f"{bin_dir}:{old_path}"
+                result = _run(project_dir)
+            finally:
+                os.environ["PATH"] = old_path
+
+            self.assertEqual(result.returncode, 1)
+            payload = json.loads(result.stdout)
+            self.assertIn("ffprobe failed: invalid data found", payload["reason"])
+            self.assertTrue(payload["audio_checked"])
+            self.assertIsNone(payload["audio_present"])
 
 
 if __name__ == "__main__":

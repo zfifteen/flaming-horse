@@ -464,36 +464,14 @@ mark_phase_no_progress() {
   local phase="$1"
   local message="$2"
 
-  NO_PROGRESS_PHASE="$phase" \
-  NO_PROGRESS_MESSAGE="$message" \
-  STATE_FILE="$STATE_FILE" \
-  "$PYTHON_BIN" - <<'PY'
-import json
-import os
-from datetime import datetime, UTC
-from pathlib import Path
-
-state_path = Path(os.environ["STATE_FILE"])
-with state_path.open("r", encoding="utf-8") as f:
-    state = json.load(f)
-
-message = os.environ["NO_PROGRESS_MESSAGE"]
-phase = os.environ["NO_PROGRESS_PHASE"]
-state.setdefault("errors", []).append(message)
-state.setdefault("flags", {})["needs_human_review"] = True
-state["updated_at"] = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
-state.setdefault("history", []).append(
-    {
-        "timestamp": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "phase": phase,
-        "action": "phase_no_progress_detected",
-        "reason": message,
-    }
-)
-
-with state_path.open("w", encoding="utf-8") as f:
-    json.dump(state, f, indent=2)
-PY
+  "$PYTHON_BIN" "${SCRIPT_DIR}/update_project_state.py" \
+    --project-dir "$PROJECT_DIR" \
+    --state-file "$STATE_FILE" \
+    --mode record-error \
+    --phase "$phase" \
+    --message "$message" \
+    --needs-human-review \
+    --history-action phase_no_progress_detected
 }
 
 ensure_phase_made_progress() {
@@ -1260,19 +1238,19 @@ validate_scene_runtime() {
 }
 
 ensure_qwen_cache_index() {
-  if $PYTHON_BIN "${SCRIPT_DIR}/ensure_voice_cache.py" --project-dir "$PROJECT_DIR" --check >/dev/null 2>&1; then
+  if "$PYTHON_BIN" "${SCRIPT_DIR}/ensure_voice_cache.py" --project-dir "$PROJECT_DIR" --check >/dev/null 2>&1; then
     return 0
   fi
 
   echo "→ Voice cache index missing; generating cache before runtime validation..." | tee -a "$LOG_FILE"
-  if ! $PYTHON_BIN "${SCRIPT_DIR}/precache_voiceovers_qwen.py" "$PROJECT_DIR" \
+  if ! "$PYTHON_BIN" "${SCRIPT_DIR}/precache_voiceovers_qwen.py" "$PROJECT_DIR" \
     > >(tee -a "$LOG_FILE") \
     2> >(tee -a "$LOG_FILE" >&2); then
     echo "✗ ERROR: Failed to generate voice cache index for runtime validation" | tee -a "$LOG_FILE"
     return 1
   fi
 
-  if ! $PYTHON_BIN "${SCRIPT_DIR}/ensure_voice_cache.py" --project-dir "$PROJECT_DIR" --check \
+  if ! "$PYTHON_BIN" "${SCRIPT_DIR}/ensure_voice_cache.py" --project-dir "$PROJECT_DIR" --check \
     > >(tee -a "$LOG_FILE") \
     2> >(tee -a "$LOG_FILE" >&2); then
     echo "✗ ERROR: Precache finished but voice cache is still not ready" | tee -a "$LOG_FILE"
@@ -2076,13 +2054,13 @@ handle_precache_voiceovers() {
   # Skip entirely if --skip-precache flag is set
   if [[ -n "${SKIP_PRECACHE}" ]]; then
     echo "→ --skip-precache enabled; skipping voice precaching phase." | tee -a "$LOG_FILE"
-    if $PYTHON_BIN "${SCRIPT_DIR}/ensure_voice_cache.py" --project-dir "$PROJECT_DIR" --check >/dev/null 2>&1; then
+    if "$PYTHON_BIN" "${SCRIPT_DIR}/ensure_voice_cache.py" --project-dir "$PROJECT_DIR" --check >/dev/null 2>&1; then
       echo "→ Using existing voice cache." | tee -a "$LOG_FILE"
       apply_state_phase "precache_voiceovers" || true
       return 0
     else
       echo "✗ ERROR: --skip-precache requires an existing complete voice cache." | tee -a "$LOG_FILE"
-      $PYTHON_BIN "${SCRIPT_DIR}/ensure_voice_cache.py" --project-dir "$PROJECT_DIR" --check \
+      "$PYTHON_BIN" "${SCRIPT_DIR}/ensure_voice_cache.py" --project-dir "$PROJECT_DIR" --check \
         > >(tee -a "$LOG_FILE") \
         2> >(tee -a "$LOG_FILE" >&2) || true
       return 1
@@ -2365,11 +2343,11 @@ PY
   # Ensure voice cache exists. With --skip-precache, validate only and fail fast.
   if [[ -n "${SKIP_PRECACHE}" ]]; then
     echo "→ --skip-precache enabled; validating existing voice cache." | tee -a "$LOG_FILE"
-    if ! $PYTHON_BIN "${SCRIPT_DIR}/ensure_voice_cache.py" --project-dir "$PROJECT_DIR" --check \
+    if ! "$PYTHON_BIN" "${SCRIPT_DIR}/ensure_voice_cache.py" --project-dir "$PROJECT_DIR" --check \
       > >(tee -a "$LOG_FILE") \
       2> >(tee -a "$LOG_FILE" >&2); then
       echo "❌ --skip-precache requires an existing complete voice cache." | tee -a "$LOG_FILE" >&2
-      $PYTHON_BIN "${SCRIPT_DIR}/update_project_state.py" \
+      "$PYTHON_BIN" "${SCRIPT_DIR}/update_project_state.py" \
         --project-dir "$PROJECT_DIR" \
         --mode record-error \
         --phase final_render \
@@ -2378,7 +2356,7 @@ PY
         --history-action skip_precache_voice_cache_missing
       exit 1
     fi
-  elif ! $PYTHON_BIN "${SCRIPT_DIR}/ensure_voice_cache.py" --project-dir "$PROJECT_DIR" --check >/dev/null 2>&1; then
+  elif ! "$PYTHON_BIN" "${SCRIPT_DIR}/ensure_voice_cache.py" --project-dir "$PROJECT_DIR" --check >/dev/null 2>&1; then
     echo "→ Missing voice cache index; running precache step..." | tee -a "$LOG_FILE"
     if ! handle_precache_voiceovers; then
       echo "❌ Precaching voiceovers failed; cannot render." | tee -a "$LOG_FILE" >&2

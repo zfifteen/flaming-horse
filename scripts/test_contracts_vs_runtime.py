@@ -311,7 +311,7 @@ def check_first_pass_scene_creation_contract() -> None:
         "capture_phase_progress_state()",
         "ensure_phase_made_progress()",
         "mark_phase_no_progress()",
-        '"action": "phase_no_progress_detected"',
+        "--history-action phase_no_progress_detected",
     ):
         require(required in build_video, f"build_video.sh missing no-progress sentinel surface: {required}")
     require(

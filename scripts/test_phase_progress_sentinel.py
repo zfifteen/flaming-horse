@@ -26,8 +26,12 @@ def main() -> None:
         "no-progress sentinel is not scoped to plan phase",
     )
     require(
-        '"action": "phase_no_progress_detected"' in script,
-        "no-progress marker does not write a history action",
+        "--history-action phase_no_progress_detected" in script,
+        "no-progress marker does not route history action through update_project_state.py",
+    )
+    require(
+        'NO_PROGRESS_MESSAGE="$message"' not in script,
+        "no-progress marker still performs inline state mutation",
     )
 
     capture_idx = script.find('phase_progress_before="$(capture_phase_progress_state)"')

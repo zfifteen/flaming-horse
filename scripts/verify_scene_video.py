@@ -32,6 +32,15 @@ def _result(
     }
 
 
+def _trim_stderr(text: str, limit: int = 240) -> str:
+    trimmed = " ".join((text or "").split())
+    if not trimmed:
+        return "unknown ffprobe error"
+    if len(trimmed) <= limit:
+        return trimmed
+    return trimmed[: limit - 3] + "..."
+
+
 def verify_scene_video(project_dir: Path, scene_id: str, class_name: str) -> dict[str, Any]:
     video_path = scene_video_path(project_dir, scene_id, class_name)
     if not video_path.exists():
@@ -66,6 +75,14 @@ def verify_scene_video(project_dir: Path, scene_id: str, class_name: str) -> dic
         text=True,
         check=False,
     )
+    if probe.returncode != 0:
+        return _result(
+            False,
+            video_path,
+            f"ffprobe failed: {_trim_stderr(probe.stderr)}",
+            True,
+            None,
+        )
     if not probe.stdout.strip():
         return _result(False, video_path, "no audio stream detected", True, False)
     return _result(True, video_path, "render output verified", True, True)
