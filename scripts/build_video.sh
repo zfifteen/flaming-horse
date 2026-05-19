@@ -257,7 +257,7 @@ record_scene_first_pass_diagnostic() {
   "$PYTHON_BIN" - <<'PY'
 import json
 import os
-from datetime import datetime, UTC
+from datetime import datetime, timezone
 from pathlib import Path
 
 path = Path(os.environ["SCENE_FIRST_PASS_DIAG_FILE"])
@@ -271,7 +271,7 @@ except ValueError:
 
 summary = os.environ.get("FAILURE_SUMMARY", "")
 event = {
-    "timestamp_utc": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+    "timestamp_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
     "scene_id": os.environ.get("SCENE_ID", ""),
     "gate": os.environ.get("GATE", ""),
     "failure_summary": summary[:2000],

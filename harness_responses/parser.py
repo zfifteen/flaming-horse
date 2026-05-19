@@ -10,8 +10,10 @@ No dependencies on harness/.
 """
 
 import ast
+import io
 import json
 import re
+import tokenize
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -298,10 +300,12 @@ def _validate_scene_body_contract(
     def fail(msg: str) -> None:
         _fail_with_diag(project_dir, raw_response, extracted_content, f"{phase}.{msg}")
 
-    for line_no, line in enumerate(scene_body.splitlines(), start=1):
-        stripped = line.strip()
-        if stripped.startswith("#"):
-            fail(f"scene_body line {line_no} must not contain comments")
+    try:
+        for token in tokenize.generate_tokens(io.StringIO(scene_body).readline):
+            if token.type == tokenize.COMMENT:
+                fail(f"scene_body line {token.start[0]} must not contain comments")
+    except tokenize.TokenError as exc:
+        fail(f"scene_body must be valid Python statements: {exc}")
 
     try:
         tree = ast.parse(scene_body)
@@ -329,7 +333,49 @@ def _validate_scene_body_contract(
             return node.attr
         return ""
 
+    def attribute_root_name(node: ast.AST) -> str:
+        current = node
+        while isinstance(current, ast.Attribute):
+            current = current.value
+        if isinstance(current, ast.Name):
+            return current.id
+        return ""
+
+    def target_touches_config(target: ast.AST) -> bool:
+        return (
+            isinstance(target, ast.Name)
+            and target.id == "config"
+        ) or (
+            isinstance(target, ast.Attribute)
+            and attribute_root_name(target) == "config"
+        )
+
+    def is_self_voiceover_call(node: ast.AST) -> bool:
+        return (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "voiceover"
+            and isinstance(node.func.value, ast.Name)
+            and node.func.value.id == "self"
+        )
+
     for node in ast.walk(tree):
+        if isinstance(node, ast.Assign) and any(target_touches_config(t) for t in node.targets):
+            fail("scene_body must not modify Manim config")
+        if isinstance(node, ast.AnnAssign) and target_touches_config(node.target):
+            fail("scene_body must not modify Manim config")
+        if isinstance(node, ast.AugAssign) and target_touches_config(node.target):
+            fail("scene_body must not modify Manim config")
+        if isinstance(node, ast.With):
+            for item in node.items:
+                if is_self_voiceover_call(item.context_expr):
+                    fail("scaffold owns the voiceover wrapper")
+        if isinstance(node, ast.Name) and node.id == "random":
+            fail("scene_body must be deterministic and not use random")
+        if isinstance(node, ast.Attribute) and (
+            node.attr == "random" or attribute_root_name(node) == "random"
+        ):
+            fail("scene_body must be deterministic and not use random")
         if not isinstance(node, ast.Call):
             continue
         name = call_name(node.func)
@@ -349,33 +395,6 @@ def _validate_scene_body_contract(
                     fail("set_color(list(...)) is not Manim-compatible")
                 if first_name == "harmonious_color":
                     fail("select a concrete Manim-compatible color before set_color(...)")
-
-    forbidden_patterns: list[tuple[str, str]] = [
-        (r"(?m)^\s*config\s*\.", "scene_body must not modify Manim config"),
-        (r"with\s+self\.voiceover\s*\(", "scaffold owns the voiceover wrapper"),
-        (r"#\s*SLOT_(START|END):scene_body", "scene_body must not include slot markers"),
-        (r"```", "scene_body must not include markdown fences"),
-        (r"</?scene_body\b", "scene_body must not include XML scene_body tags"),
-        (r"\bShowCreation\s*\(", "Use Create(...) instead of ShowCreation(...)"),
-        (
-            r"FadeIn\([^\n)]*lag_ratio\s*=",
-            "Use LaggedStart(..., lag_ratio=...) instead of FadeIn(..., lag_ratio=...)",
-        ),
-        (
-            r"FadeIn\([^\n)]*scale_factor\s*=",
-            "FadeIn(..., scale_factor=...) is unsupported",
-        ),
-        (r"&lt;|&gt;", "scene_body must use Python operators, not escaped HTML operators"),
-        (r"set_color\(\s*list\(", "set_color(list(...)) is not Manim-compatible"),
-        (
-            r"set_color\(\s*harmonious_color\(",
-            "select a concrete Manim-compatible color before set_color(...)",
-        ),
-        (r"\b(?:np\.)?random\b", "scene_body must be deterministic and not use random"),
-    ]
-    for pattern, message in forbidden_patterns:
-        if re.search(pattern, scene_body):
-            fail(message)
 
     if "tracker.duration" not in scene_body:
         fail("scene_body must use tracker.duration for narration-synced timing")

@@ -583,6 +583,10 @@ class TestArtifactWriters:
                 "# SLOT_START:scene_body\nself.wait(tracker.duration * 0.1)",
                 "comments",
             ),
+            (
+                "title = Text('x')  # trailing note\nself.wait(tracker.duration * 0.1)",
+                "comments",
+            ),
         ],
     )
     def test_scene_body_structural_violations_fail(self, tmp_path, body, message):
@@ -611,10 +615,6 @@ class TestArtifactWriters:
                 "scale_factor",
             ),
             (
-                "title = Text('1 &lt; 2')\nself.wait(tracker.duration * 0.1)",
-                "escaped HTML",
-            ),
-            (
                 "title = Text('x')\ntitle.set_color(list(BLUE))\nself.wait(tracker.duration * 0.1)",
                 "set_color",
             ),
@@ -629,6 +629,20 @@ class TestArtifactWriters:
         parsed = BuildScenesResponse(scene_body=body)
         with pytest.raises(SemanticValidationError, match=message):
             hr_parser.write_phase_artifacts("build_scenes", parsed, project)
+
+    @pytest.mark.parametrize(
+        "body",
+        [
+            "title = Text('Avoid ShowCreation(...)')\nself.wait(tracker.duration * 0.1)",
+            "title = Text('randomly chosen examples')\nself.wait(tracker.duration * 0.1)",
+            "expr = MathTex('a &lt; b')\nself.wait(tracker.duration * 0.1)",
+            "title = Text('literal # sign')\nself.wait(tracker.duration * 0.1)",
+        ],
+    )
+    def test_scene_body_validation_ignores_string_literal_text(self, tmp_path, body):
+        project = _make_scene_project(tmp_path)
+        parsed = BuildScenesResponse(scene_body=body)
+        assert hr_parser.write_phase_artifacts("build_scenes", parsed, project) is True
 
     def test_scene_repair_uses_shared_scene_body_validation(self, tmp_path):
         project = _make_scene_project(tmp_path)

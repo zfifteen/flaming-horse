@@ -225,11 +225,16 @@ def check_first_pass_scene_creation_contract() -> None:
 
     for required in (
         "_validate_scene_body_contract",
+        "tokenize.COMMENT",
+        "attribute_root_name",
+        "target_touches_config",
+        "is_self_voiceover_call",
         "tracker.duration",
         "ShowCreation",
-        "FadeIn\\([^\\n)]*lag_ratio",
-        "set_color\\(\\s*list\\(",
-        "set_color\\(\\s*harmonious_color\\(",
+        '"lag_ratio"',
+        '"scale_factor"',
+        '"list"',
+        '"harmonious_color"',
     ):
         require(required in parser, f"parser missing first-pass scene validation: {required}")
 
