@@ -1145,7 +1145,7 @@ validate_scene_first_pass_with_owner() {
   SCENE_VALIDATOR_GATE=""
   SCENE_VALIDATOR_REASON=""
 
-  validator_output="$(mktemp "${TMPDIR:-/tmp}/flaming-horse-scene-validator.XXXXXX.json")"
+  validator_output="$(mktemp "${TMPDIR:-/tmp}/flaming-horse-scene-validator-json.XXXXXX")"
   parsed_output="$(mktemp "${TMPDIR:-/tmp}/flaming-horse-scene-validator-fields.XXXXXX")"
 
   echo "→ Running deterministic scene validator for ${scene_file}..." | tee -a "$LOG_FILE"

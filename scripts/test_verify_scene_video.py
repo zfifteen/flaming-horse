@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import json
 import os
+import sys
 import subprocess
 import tempfile
 from pathlib import Path
@@ -45,6 +46,11 @@ def _write_failing_ffprobe(bin_dir: Path, stderr: str) -> None:
     path.chmod(0o755)
 
 
+def _write_python3_link(bin_dir: Path) -> None:
+    python_path = bin_dir / "python3"
+    python_path.symlink_to(Path(sys.executable))
+
+
 class VerifySceneVideoTests(unittest.TestCase):
     def test_missing_video_fails(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -86,6 +92,29 @@ class VerifySceneVideoTests(unittest.TestCase):
             payload = json.loads(result.stdout)
             self.assertTrue(payload["ok"])
             self.assertTrue(payload["audio_checked"])
+
+    def test_ffprobe_missing_skips_audio_verification(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_dir = Path(temp_dir)
+            video = project_dir / "media/videos/scene_01/1440p60/Scene01.mp4"
+            video.parent.mkdir(parents=True)
+            video.write_bytes(b"fake mp4")
+            bin_dir = project_dir / "bin"
+            bin_dir.mkdir()
+            _write_python3_link(bin_dir)
+            old_path = os.environ.get("PATH", "")
+            try:
+                os.environ["PATH"] = str(bin_dir)
+                result = _run(project_dir)
+            finally:
+                os.environ["PATH"] = old_path
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertTrue(payload["ok"])
+            self.assertFalse(payload["audio_checked"])
+            self.assertIsNone(payload["audio_present"])
+            self.assertEqual(payload["reason"], "ffprobe not found; skipped audio verification")
 
     def test_missing_audio_stream_fails_with_ffprobe(self):
         with tempfile.TemporaryDirectory() as temp_dir:
