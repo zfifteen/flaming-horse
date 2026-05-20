@@ -3,6 +3,8 @@
 
 VIDEO="$1"
 PROJECT_DIR="$2"
+EXPECTED_INTER_SCENE_SILENCE_SECONDS=3
+SILENCE_WARNING_THRESHOLD_SECONDS=3.5
 
 if [[ -z "$VIDEO" ]] || [[ -z "$PROJECT_DIR" ]]; then
     echo "Usage: $0 <video_file> <project_dir>"
@@ -64,9 +66,9 @@ SILENCE_COUNT=0
 while IFS= read -r line; do
     if echo "$line" | grep -q "silence_duration"; then
         duration=$(echo "$line" | grep -oE 'silence_duration: [0-9]+\.[0-9]+' | awk '{print $2}')
-        if (( $(echo "$duration > 3.0" | bc -l 2>/dev/null || echo "0") )); then
+        if (( $(echo "$duration > ${SILENCE_WARNING_THRESHOLD_SECONDS}" | bc -l 2>/dev/null || echo "0") )); then
             echo "⚠️  WARNING: Found ${duration}s of silence in video"
-            echo "   May indicate voiceover sync issues"
+            echo "   Expected inter-scene silence is ${EXPECTED_INTER_SCENE_SILENCE_SECONDS}s; longer gaps may indicate voiceover sync issues"
             SILENCE_COUNT=$((SILENCE_COUNT + 1))
         fi
     fi
