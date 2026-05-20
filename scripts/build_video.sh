@@ -64,6 +64,7 @@ PROJECTS_BASE_DIR="${PROJECTS_BASE_DIR:-projects}"
 PROJECT_DEFAULT_NAME="${PROJECT_DEFAULT_NAME:-default_video}"
 PHASE_RETRY_LIMIT="${PHASE_RETRY_LIMIT:-3}"
 PHASE_RETRY_BACKOFF_SECONDS="${PHASE_RETRY_BACKOFF_SECONDS:-2}"
+INTER_SCENE_NARRATION_GAP_SECONDS=3
 TARGET_PHASE=""
 RERENDER_FINAL=""
 RESUME_BUILD=""
@@ -2839,16 +2840,25 @@ PY
     return 0
   fi
 
-  # Assemble with concat filter + audio timestamp normalization (no -c copy)
+  # Assemble with concat filter + audio timestamp normalization (no -c copy).
+  # Each non-final scene holds its final frame and pads matching silence so
+  # narration has a deterministic pause before the next scene begins.
   local ffmpeg_inputs=()
   local filter_inputs=""
   local n=${#scene_files[@]}
+  local filter_complex=""
   for i in $(seq 0 $((n - 1))); do
     ffmpeg_inputs+=( -i "${PROJECT_DIR}/${scene_files[$i]}" )
-    filter_inputs+="[${i}:v:0][${i}:a:0]"
+    if [[ "$i" -lt $((n - 1)) ]]; then
+      filter_complex+="[${i}:v:0]setpts=PTS-STARTPTS,tpad=stop_mode=clone:stop_duration=${INTER_SCENE_NARRATION_GAP_SECONDS}[v${i}];"
+      filter_complex+="[${i}:a:0]asetpts=PTS-STARTPTS,apad=pad_dur=${INTER_SCENE_NARRATION_GAP_SECONDS}[a${i}];"
+    else
+      filter_complex+="[${i}:v:0]setpts=PTS-STARTPTS[v${i}];"
+      filter_complex+="[${i}:a:0]asetpts=PTS-STARTPTS[a${i}];"
+    fi
+    filter_inputs+="[v${i}][a${i}]"
   done
-  local filter_complex
-  filter_complex="${filter_inputs}concat=n=${n}:v=1:a=1[v][a];[a]aresample=async=1:first_pts=0[aout]"
+  filter_complex+="${filter_inputs}concat=n=${n}:v=1:a=1[v][a];[a]aresample=async=1:first_pts=0[aout]"
 
   echo "$ ffmpeg (concat filter) -> final_video.mp4" | tee -a "$LOG_FILE"
   if ! ffmpeg -y \
