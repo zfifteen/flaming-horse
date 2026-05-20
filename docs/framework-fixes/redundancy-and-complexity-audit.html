@@ -1,0 +1,353 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Flaming Horse Redundancy And Complexity Audit</title>
+  <style>
+    :root {
+      --ink: #17202a;
+      --muted: #5d6875;
+      --line: #d8dde3;
+      --panel: #f7f9fb;
+      --paper: #ffffff;
+      --code: #263142;
+      --accent: #145c9e;
+      --warn: #8a5a00;
+      --danger: #a82929;
+      --ok: #1f6b3a;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: #eef2f6;
+      color: var(--ink);
+      font: 13px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    .page {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 28px 20px 56px;
+    }
+    .hero, .section {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 20px;
+      margin-top: 16px;
+    }
+    .hero { margin-top: 0; }
+    h1, h2, h3 { line-height: 1.2; margin: 0; }
+    h1 { font-size: 2.05rem; letter-spacing: 0; }
+    h2 { font-size: 1.28rem; margin-bottom: 10px; }
+    h3 { font-size: 1rem; margin-bottom: 6px; }
+    p { margin: 8px 0 0; }
+    code {
+      color: var(--code);
+      background: #eef1f5;
+      border: 1px solid #dce2e8;
+      border-radius: 4px;
+      padding: 1px 4px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: .94em;
+    }
+    pre {
+      margin: 10px 0 0;
+      padding: 12px;
+      overflow-x: auto;
+      background: #16202d;
+      color: #edf4fa;
+      border-radius: 7px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+      line-height: 1.45;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+    th, td {
+      border: 1px solid var(--line);
+      padding: 8px 10px;
+      text-align: left;
+      vertical-align: top;
+    }
+    th { background: #eef3f8; }
+    ul, ol { margin: 8px 0 0; padding-left: 20px; }
+    li + li { margin-top: 4px; }
+    .lede {
+      max-width: 920px;
+      color: #27394d;
+      font-size: 1.05rem;
+    }
+    .meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .pill {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 4px 9px;
+      background: var(--panel);
+      font-weight: 650;
+      color: #334155;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      padding: 12px;
+    }
+    .card p { color: var(--muted); }
+    .priority {
+      display: inline-block;
+      min-width: 38px;
+      text-align: center;
+      border-radius: 999px;
+      padding: 2px 7px;
+      margin-right: 7px;
+      font-size: 11px;
+      font-weight: 800;
+      color: var(--danger);
+      border: 1px solid #edcaca;
+      background: #f9eaea;
+    }
+    .priority.p2 { color: var(--warn); border-color: #ead498; background: #fff4d6; }
+    .priority.p3 { color: var(--ok); border-color: #b9dec8; background: #e9f5ee; }
+    .finding-title {
+      display: flex;
+      gap: 6px;
+      align-items: baseline;
+      margin-bottom: 8px;
+    }
+    .note {
+      border-left: 4px solid var(--accent);
+      background: #e8f2fb;
+      border-radius: 6px;
+      padding: 10px 12px;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="hero">
+      <h1>Redundancy And Complexity Audit</h1>
+      <p class="lede">The strongest finding is that Flaming Horse has several overlapping owners for the same responsibilities. The project is deterministic in intent, but the current implementation spends compute and code on repeated validation, repeated state repair, repeated voice-cache preparation, and repeated repair entry points.</p>
+      <div class="meta">
+        <span class="pill">Status: analysis artifact</span>
+        <span class="pill">Updated: 2026-05-19</span>
+        <span class="pill">Scope: no runtime changes</span>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Headline Shape</h2>
+      <div class="grid">
+        <div class="card">
+          <h3>Largest gravity well</h3>
+          <p><code>scripts/build_video.sh</code> is still the largest runtime surface and owns orchestration, validation, repair, render, QC, state mutation, diagnostics, and notification.</p>
+        </div>
+        <div class="card">
+          <h3>Extraction underway</h3>
+          <p>The live path now has a dedicated scene validator, but several validation, state, cache, and render checks still need ownership cleanup.</p>
+        </div>
+        <div class="card">
+          <h3>Best next test seam</h3>
+          <p>Extract one deterministic scene-validator interface before larger refactors. That gives a small executable target without changing phase behavior.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Specific Redundancy Findings</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Priority</th>
+            <th>Redundant Or Complex Construct</th>
+            <th>Live Surfaces</th>
+            <th>Why It Hurts</th>
+            <th>Smallest Safe Bite</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="priority">P1</span></td>
+            <td>Scene validation has multiple owners.</td>
+            <td><code>harness_responses/parser.py</code>, <code>scripts/scene_validator.py</code>, <code>scripts/build_video.sh</code> validation functions, <code>scripts/validate_scene_timing_budget.py</code>, <code>scene_qc</code>, final render guards.</td>
+            <td>The same bad scene pattern can be accepted, rejected, repaired, or logged differently depending on the phase. This makes refactors hard and wastes dry-run/render work.</td>
+            <td>Create <code>scripts/scene_validator.py</code> with named gates and JSON output. First port only existing checks; do not add new rules in the extraction patch.</td>
+          </tr>
+          <tr>
+            <td><span class="priority">P1</span></td>
+            <td>State transition ownership is split between deterministic state code and direct shell-embedded Python mutations.</td>
+            <td><code>scripts/update_project_state.py</code>, <code>apply_state_phase</code>, <code>normalize_state_json</code>, many inline <code>json.load/json.dump</code> snippets in <code>build_video.sh</code>.</td>
+            <td><code>project_state.json</code> is supposed to be script-owned, but many local snippets mutate phase, errors, flags, history, and scene metadata directly. That blurs the single source of truth.</td>
+            <td>Add one <code>update_project_state.py --mode record-error</code> or equivalent narrow operation, then replace one repeated inline error mutation cluster.</td>
+          </tr>
+          <tr>
+            <td><span class="priority">P1</span></td>
+            <td>Phase success is allowed even when deterministic state application is ignored.</td>
+            <td><code>apply_state_phase "plan" || true</code>, <code>apply_state_phase "review" || true</code>, <code>apply_state_phase "narration" || true</code>, <code>apply_state_phase "build_scenes" || true</code>, main loop post-phase <code>apply_state_phase "$current_phase" || true</code>.</td>
+            <td>A phase handler can report success while state fails to advance. The main loop then applies transition again and normalizes again, hiding the first failure site.</td>
+            <td>Add a no-progress sentinel around one phase first, probably <code>plan</code>, and require one of: phase/index advanced, human review set, or nonzero return.</td>
+          </tr>
+          <tr>
+            <td><span class="priority p2">P2</span></td>
+            <td>Repair entry points are scattered.</td>
+            <td><code>build_scenes</code> gate repair, <code>scene_qc</code> runtime repair, <code>final_render</code> syntax repair, <code>final_render</code> <code>ShowCreation</code> repair, render-failure repair, and removed legacy self-heal surfaces.</td>
+            <td>Repair remains available in too many contexts with different reasons, counters, and diagnostics. That makes it hard to measure whether first-pass generation is improving.</td>
+            <td>Introduce one <code>invoke_scene_repair_for_gate(scene, gate, reason)</code> wrapper and route all live repair calls through it. Keep behavior identical.</td>
+          </tr>
+          <tr>
+            <td><span class="priority p2">P2</span></td>
+            <td>Voice cache preparation is repeated in several phases.</td>
+            <td><code>create_video.sh</code> calls <code>prepare_voice_service.py</code>; <code>precache_voiceovers</code> phase calls <code>precache_voiceovers_qwen.py</code>; runtime validation calls <code>ensure_qwen_cache_index</code>; <code>final_render</code> calls <code>handle_precache_voiceovers</code> when cache is missing.</td>
+            <td>Voice setup is expensive and has old Qwen naming despite backend-neutral MLX/Qwen behavior. Rechecking is fine; regenerating or branching in multiple places is not.</td>
+            <td>Define one <code>ensure_voice_cache(project_dir, mode)</code> command with check-only and build modes. Replace only <code>ensure_qwen_cache_index</code> first.</td>
+          </tr>
+          <tr>
+            <td><span class="priority p2">P2</span></td>
+            <td>Scene metadata inference is duplicated.</td>
+            <td><code>scripts/resolve_scene_metadata.py</code>, <code>infer_scene_class_name</code>, <code>get_current_scene_id</code>, <code>get_scene_narration_key</code>, final-render metadata repair.</td>
+            <td>Scene id, file, class name, and narration key can be inferred differently in different code paths. This threatens deterministic behavior when generated state is partial.</td>
+            <td>Create one Python resolver that returns <code>{scene_id,file,class_name,narration_key}</code> for an index. Use it in <code>build_scenes</code> first.</td>
+          </tr>
+          <tr>
+            <td><span class="priority p2">P2</span></td>
+            <td>Artifact recovery from logs competes with parser-owned artifact writing.</td>
+            <td><code>handle_plan</code> recovers <code>plan.json</code> from <code>build.log</code>; <code>handle_narration</code> recovers <code>narration_script.py</code> from <code>build.log</code>; <code>harness_responses/parser.py</code> already owns artifact promotion.</td>
+            <td>Log scraping is brittle and keeps legacy behavior alive after the Grok CLI staged-JSON contract. It adds many lines for a path that should be impossible if harness output is mandatory.</td>
+            <td>Document current recovery as legacy containment, add a test that harness failure returns nonzero when artifact is not written, then remove one recovery block.</td>
+          </tr>
+          <tr>
+            <td><span class="priority p2">P2</span></td>
+            <td>Interpreter ownership is still inconsistent outside the core build runner.</td>
+            <td>Entrypoint and project-creation helpers now share <code>PYTHON_BIN</code>; remaining interpreter drift should be checked in any new helper scripts.</td>
+            <td>The entrypoint can validate one interpreter and run helper code under another. That hurts reproducibility and makes local Mac setup bugs harder to classify.</td>
+            <td>In <code>create_video.sh</code>, use <code>PYTHON_BIN</code> for path resolution, voice prep, and build-arg parsing. Keep this as a one-file patch.</td>
+          </tr>
+          <tr>
+            <td><span class="priority p3">P3</span></td>
+            <td>Stale docs and dead patch files describe non-live paths.</td>
+            <td><code>docs/validation/VALIDATION.md</code>, <code>CURRENT_STATE.md</code>, parts of <code>TECH_SPEC.md</code>, historical <code>harness/</code> docs.</td>
+            <td>Agents and humans can follow a non-live path and make fixes against old surfaces. This creates wasted review rounds.</td>
+            <td>Keep active docs pointed at live runtime surfaces and keep historical docs clearly labeled.</td>
+          </tr>
+          <tr>
+            <td><span class="priority p3">P3</span></td>
+            <td>Final render owns too much post-build logic.</td>
+            <td><code>handle_final_render</code> clears state errors, ensures voice cache, repairs metadata, extracts scene lines, validates/render-verifies each scene, handles transient retries, repairs render failures, writes scene verification, advances phase.</td>
+            <td>Final render is doing orchestration, validation, recovery, render execution, and state persistence. It is hard to test without a full video render.</td>
+            <td>Extract <code>verify_scene_video</code> and <code>update_state_rendered</code> into small scripts first. Those can be tested with fake mp4 metadata fixtures.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="section">
+      <h2>Current Overlap Map</h2>
+      <pre>Scene body validity:
+  parser.py pre-write checks
+  build_video.sh scaffold/import/voiceover/semantic/runtime checks
+  validate_scene_timing_budget.py timing analysis
+  scene_qc dry-run loop
+  final_render pre-render guards
+
+State ownership:
+  update_project_state.py canonical normalizer/applier
+  build_video.sh direct inline JSON mutation
+  final_render metadata repair
+  reset_phase.sh direct phase reset helper
+
+Voice ownership:
+  new_project writes voice config
+  create_video prepares service
+  precache phase builds cache
+  runtime validation creates cache when absent
+  final_render calls precache when cache is absent
+
+Repair ownership:
+  build_scenes first-pass gate repair
+  scene_qc runtime repair
+  final_render syntax/API/render repair
+  legacy shell validator optimized self-heal surface</pre>
+    </section>
+
+    <section class="section">
+      <h2>Refactor Safety Strategy</h2>
+      <ol>
+        <li><strong>Extract before changing behavior.</strong> Move one responsibility into a testable module while preserving exact output and exit behavior.</li>
+        <li><strong>Choose one owner per responsibility.</strong> After extraction, the shell runner should call the owner rather than duplicate the rule.</li>
+        <li><strong>Add characterization tests first.</strong> Use small fixtures for state JSON, scene files, and fake cache indexes.</li>
+        <li><strong>Retire dead surfaces immediately after replacement.</strong> Keeping old helper scripts around as documentation invites drift.</li>
+        <li><strong>Measure compute reduction.</strong> Track dry-runs, repair calls, precache invocations, and render attempts per run.</li>
+      </ol>
+      <div class="note">
+        <strong>Best first bite:</strong> extract scene validation into one Python command that can run against a fixture project and return stable JSON. This removes the most dangerous overlap without changing the user entrypoint or the phase sequence.
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Suggested Test Seams</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Test Seam</th>
+            <th>Fixture Needed</th>
+            <th>What It Proves</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>scene_validator.py --project-dir fixture --scene-file scene_01.py --json</code></td>
+            <td>One scaffolded scene, one invalid API scene, one timing-missing scene.</td>
+            <td>Scene gates classify failures without invoking the full pipeline.</td>
+          </tr>
+          <tr>
+            <td><code>update_project_state.py --mode apply --phase ...</code></td>
+            <td>Minimal state plus phase artifact files.</td>
+            <td>Each phase advances or fails deterministically.</td>
+          </tr>
+          <tr>
+            <td><code>resolve_scene_metadata.py</code></td>
+            <td>State files with complete, partial, and malformed scene entries.</td>
+            <td>Scene id/file/class/narration resolution is identical across phases.</td>
+          </tr>
+          <tr>
+            <td><code>ensure_voice_cache.py --check</code></td>
+            <td>Voice config, narration script, empty cache, partial cache, complete cache.</td>
+            <td>Voice-cache readiness is checkable without rendering or generating audio.</td>
+          </tr>
+          <tr>
+            <td><code>verify_scene_video.py</code></td>
+            <td>Small mp4 with audio, mp4 without audio, missing output.</td>
+            <td>Render verification can be tested apart from Manim scene generation.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="section">
+      <h2>Non-Goals For This Cleanup Track</h2>
+      <ul>
+        <li>Do not add new rendering modes.</li>
+        <li>Do not weaken repair behavior while extracting validation.</li>
+        <li>Do not hand-patch generated projects.</li>
+        <li>Do not change the canonical user entrypoint.</li>
+        <li>Do not combine visual-quality improvements with ownership extraction in the same patch.</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>

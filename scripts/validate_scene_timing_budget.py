@@ -23,6 +23,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable, Optional
 
+from tts_backend_config import selected_output_dir
+
 
 @dataclass
 class TimingTerm:
@@ -82,8 +84,29 @@ def _read_cache_entries(cache_data: Any) -> Iterable[dict[str, Any]]:
                         yield item
 
 
+def _load_voice_config(project_dir: Path) -> dict[str, Any]:
+    config_path = project_dir / "voice_clone_config.json"
+    if not config_path.exists():
+        return {}
+    try:
+        data = json.loads(config_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        print(f"[timing-budget] WARN: ignoring unreadable voice_clone_config.json: {exc}")
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    return data
+
+
+def _cache_dir(project_dir: Path) -> Path:
+    output_dir = Path(selected_output_dir(_load_voice_config(project_dir))).expanduser()
+    if not output_dir.is_absolute():
+        output_dir = project_dir / output_dir
+    return output_dir.resolve()
+
+
 def _duration_from_cache(project_dir: Path, scene_id: str) -> Optional[float]:
-    cache_path = project_dir / "media" / "voiceovers" / "qwen" / "cache.json"
+    cache_path = _cache_dir(project_dir) / "cache.json"
     if not cache_path.exists():
         print(f"[timing-budget] WARN: cache index missing: {cache_path}")
         return None

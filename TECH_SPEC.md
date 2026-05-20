@@ -89,7 +89,7 @@ flaming-horse/
 │   ├── reset_phase.sh               # Manual phase reset utility
 │   ├── update_project_state.py      # Authoritative state normalization and phase advance
 │   ├── scaffold_scene.py            # Scene file template generator
-│   ├── scene_validation.sh          # Syntax/import/structure checks
+│   ├── scene_validator.py           # First-pass scene validation gates
 │   ├── validate_scene_timing_budget.py  # Animation timing constraints
 │   ├── validate_layout.py           # Mobject overlap detection
 │   ├── validate_scene_content.py    # SCRIPT[] reference and content checks
@@ -541,29 +541,15 @@ Alternative field aliases accepted by `QwenCachedService`:
 
 Every scene goes through multiple validation layers in sequence during `build_scenes` and `final_render`.
 
-### Layer 1 — Python Syntax (`compile()`)
+### Layer 1 — First-Pass Scene Validation (`scene_validator.py`)
 
-`scene_python_syntax_ok()` in `build_video.sh` runs `compile(src, filename, "exec")` via an inline Python heredoc. On failure, prints the `SyntaxError` location and message to the log.
+`scripts/scene_validator.py` owns the deterministic first-pass scene validation gates. It checks scaffold structure, Python syntax, import/API patterns, voiceover synchronization, semantic placeholder failures, and invokes `validate_scene_timing_budget.py` for timing-budget analysis before repair is accepted.
 
-### Layer 2 — Import Check
-
-`scene_validation.sh` imports the scene module in an isolated subprocess to verify all imports resolve and no import-time errors occur.
-
-### Layer 3 — Semantic Quality
-
-`validate_scene_semantics()` in `build_video.sh` rejects scenes that:
-- Contain unresolved `{{PLACEHOLDER}}` tokens (scaffold not filled).
-- Still contain the scaffold demo `Rectangle(width=4, height=2.4)` animation.
-
-### Layer 4 — Timing Budget (`validate_scene_timing_budget.py`)
-
-Verifies that the sum of explicit `run_time` arguments plus narration duration falls within the allowed budget. Fails with exit code 1 if the scene will over- or under-run its estimated duration (default min-ratio: 0.90).
-
-### Layer 5 — Layout Overlap (`validate_layout.py` + `layout_validator.py`)
+### Layer 2 — Layout Overlap (`validate_layout.py` + `layout_validator.py`)
 
 Static analysis of the scene body to detect mobjects positioned such that their bounding boxes overlap beyond a threshold. Uses the `LayoutValidator` class (`harness/util/layout_validator.py`), which is also integrated into `parser.py` at parse time.
 
-### Layer 6 — SCRIPT Reference (`validate_scene_content.py`)
+### Layer 3 — SCRIPT Reference (`validate_scene_content.py`)
 
 Checks that:
 - Each `SCRIPT[key]` reference corresponds to an existing key in `narration_script.py`.
@@ -571,7 +557,7 @@ Checks that:
 - Text mobjects respect horizontal bounds.
 - No excessively long `Wait()` calls (>1.0s).
 
-### Layer 7 — Kitchen Sink Boilerplate Detection (`parser.py`)
+### Layer 4 — Kitchen Sink Boilerplate Detection (`parser.py`)
 
 `has_kitchen_sink_boilerplate()` rejects responses that include:
 - Kitchen Sink example class definitions verbatim.

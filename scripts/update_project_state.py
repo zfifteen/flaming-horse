@@ -610,16 +610,41 @@ def apply_phase(project_dir: Path, state: dict, phase: str) -> dict:
     return state
 
 
+def record_error(
+    state: dict,
+    *,
+    phase: str,
+    message: str,
+    needs_human_review: bool,
+    action: str,
+) -> dict:
+    _add_error_unique(state, message)
+    if needs_human_review:
+        state.setdefault("flags", {})["needs_human_review"] = True
+    state.setdefault("history", []).append(
+        {
+            "timestamp": utc_now(),
+            "phase": phase,
+            "action": action,
+            "reason": message,
+        }
+    )
+    return state
+
+
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser()
     p.add_argument("--project-dir")
     p.add_argument("--state-file", default="project_state.json")
     p.add_argument(
         "--mode",
-        choices=["normalize", "apply"],
-        help="normalize: repair/schema-coerce only; apply: advance based on phase artifacts",
+        choices=["normalize", "apply", "record-error"],
+        help="normalize: repair/schema-coerce only; apply: advance based on phase artifacts; record-error: append one deterministic state error",
     )
     p.add_argument("--phase", default=None)
+    p.add_argument("--message", default=None)
+    p.add_argument("--needs-human-review", action="store_true")
+    p.add_argument("--history-action", default="record_error")
     p.add_argument(
         "--print-phases",
         action="store_true",
@@ -680,6 +705,21 @@ def main() -> int:
         phase = _safe_str(state.get("phase")) or "plan"
     if phase not in VALID_PHASES:
         phase = "plan"
+
+    if args.mode == "record-error":
+        if not args.message:
+            print("--message is required for --mode record-error", file=sys.stderr)
+            return 2
+        new_state = record_error(
+            state,
+            phase=phase,
+            message=args.message,
+            needs_human_review=args.needs_human_review,
+            action=args.history_action,
+        )
+        new_state["updated_at"] = utc_now()
+        write_json(state_path, new_state)
+        return 0
 
     new_state = apply_phase(project_dir, state, phase)
     new_state["updated_at"] = utc_now()

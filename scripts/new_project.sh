@@ -12,6 +12,8 @@ if [[ -f "${ENV_FILE}" ]]; then
   set +a
 fi
 
+PYTHON_BIN="${PYTHON:-python3.13}"
+
 usage() {
   cat <<EOF
 Usage:
@@ -93,7 +95,7 @@ fi
 
 TOPIC_JSON="null"
 if [[ -n "${TOPIC}" ]]; then
-  TOPIC_JSON="$(python3 -c 'import json,sys; print(json.dumps(sys.argv[1]))' "${TOPIC}")"
+  TOPIC_JSON="$("$PYTHON_BIN" -c 'import json,sys; print(json.dumps(sys.argv[1]))' "${TOPIC}")"
 fi
 
 if [[ "${PROJECTS_DIR}" = /* ]]; then
@@ -101,14 +103,14 @@ if [[ "${PROJECTS_DIR}" = /* ]]; then
 else
   PROJECTS_DIR_RAW="${INITIAL_PWD}/${PROJECTS_DIR}"
 fi
-PROJECTS_DIR="$(python3 -c 'import os,sys; print(os.path.abspath(sys.argv[1]))' "${PROJECTS_DIR_RAW}")"
+PROJECTS_DIR="$("$PYTHON_BIN" -c 'import os,sys; print(os.path.abspath(sys.argv[1]))' "${PROJECTS_DIR_RAW}")"
 
 PROJECT_DIR="${PROJECTS_DIR}/${PROJECT_NAME}"
 
 mkdir -p "$PROJECT_DIR"
 
 mkdir -p "$PROJECT_DIR/assets/voice_ref"
-python3 "$SCRIPT_DIR/tts_backend_config.py" --write-voice-config "$PROJECT_DIR/voice_clone_config.json"
+"$PYTHON_BIN" "$SCRIPT_DIR/tts_backend_config.py" --write-voice-config "$PROJECT_DIR/voice_clone_config.json"
 
 # Seed per-project voice reference assets if missing.
 # The voice pipeline requires these files to exist on disk.

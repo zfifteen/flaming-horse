@@ -2,9 +2,15 @@
 
 Semantic validation checks for scaffolded Manim + Voiceover scenes in the flaming-horse pipeline.
 
+Status: current validation note. The current first-pass validation owner is
+`scripts/scene_validator.py`; live orchestration calls it from
+`handle_build_scenes` and from the scene repair loop in `scripts/build_video.sh`.
+
 ## Overview
 
-The scene validation layer catches scene issues before expensive render checks, then drives a repair loop when validation fails.
+The scene validation layer catches scene issues before expensive render checks.
+When validation fails, `build_video.sh` invokes scene repair and then runs the
+same owner validator again before accepting the repaired scene.
 
 ## Semantic Validation Checks
 
@@ -60,67 +66,34 @@ Scene files are searched in:
 - `${project_dir}/${scene_file}`
 - `${project_dir}/scenes/${scene_file}`
 
-## Self-Heal Optimization
-
-### Features
-- **Early termination**: Stops when file hash is unchanged between attempts
-- **Exponential backoff**: Retries with increasing delay (capped)
-- **Repair hook**: Calls repair hook when available (`invoke_scene_fix_agent`, fallback `scene_repair`)
-- **Max attempts**: Controlled by env var
-
-### Configuration
-
-```bash
-# Maximum retry attempts (default: 15)
-export SCENE_QC_MAX_ATTEMPTS=15
-
-# Backoff multiplier base (default: 2)
-export SCENE_QC_BACKOFF_BASE=2
-```
-
-### Backoff schedule example (`SCENE_QC_BACKOFF_BASE=2`)
-
-| Attempt | Backoff |
-| --- | --- |
-| 1 | 0s |
-| 2 | 1s |
-| 3 | 2s |
-| 4 | 4s |
-| 5 | 8s |
-| 6+ | 16s (capped) |
-
 ## Integration Points
 
 ### `build_video.sh`
-- Source `scripts/scene_validation.sh`
-- During `scene_qc`:
-  - run `validate_scene_files_consistency`
-  - run `validate_scene_semantics`
-  - on failure, run `self_heal_scene_with_optimization`
+- During `build_scenes`, call `scripts/scene_validator.py --json`.
+- During scene repair, re-run the same validator after scaffold reset and after model repair.
+- During `scene_qc`, run deterministic Manim dry-run validation.
 
 ### Validation flow
 
 ```text
-scene_qc
-  -> validate_scene_files_consistency
-  -> validate_scene_semantics
+build_scenes
+  -> scene_validator.py
       -> pass: continue render validation
-      -> fail: self_heal_scene_with_optimization
-          -> healed: continue render validation
+      -> fail: scene_repair
+          -> repaired: scene_validator.py again
           -> exhausted: fail phase
 ```
 
 ## Troubleshooting
 
 ### Validation keeps failing
-- Inspect `.scene_validation_<scene_id>.log`
+- Inspect `log/build.log`
 - Confirm scene file path resolves from `project_state.json`
 - Check repair hook availability and logs in `build.log`
 
-### Self-heal does not converge
-- Increase `SCENE_QC_MAX_ATTEMPTS`
-- Improve scene repair prompt constraints
-- Check whether repairs are modifying the file (hash should change)
+### Scene repair does not converge
+- Improve scene repair prompt constraints.
+- Check whether repairs are modifying the file and whether the same validator gate is failing repeatedly.
 
 ### Suspected false positives
 - Compare scene code against scaffold conventions in `scripts/scaffold_scene.py`
@@ -162,6 +135,6 @@ class Scene01Intro(VoiceoverScene):
 ## See Also
 
 - `AGENTS.md`
-- `scripts/scene_validation.sh`
-- `harness/prompt_templates/repair_system.md`
-- `harness/prompt_templates/build_scenes_system.md`
+- `scripts/scene_validator.py`
+- `harness_responses/prompts/scene_repair/system.md`
+- `harness_responses/prompts/build_scenes/system.md`

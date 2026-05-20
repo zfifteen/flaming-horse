@@ -10,8 +10,9 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT_PATH = REPO_ROOT / "scripts" / "validate_scene_timing_budget.py"
 
 
-def _write_cache(project_dir: Path, scene_id: str, duration: float) -> None:
-    cache_dir = project_dir / "media" / "voiceovers" / "qwen"
+def _write_cache(project_dir: Path, scene_id: str, duration: float, cache_dir: Path | None = None) -> None:
+    if cache_dir is None:
+        cache_dir = project_dir / "media" / "voiceovers" / "qwen"
     cache_dir.mkdir(parents=True, exist_ok=True)
     cache_path = cache_dir / "cache.json"
     payload = [
@@ -60,6 +61,81 @@ class Dummy:
                 check=False,
             )
             self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
+
+    def test_uses_configured_voice_cache_output_dir(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_dir = Path(temp_dir)
+            scene_id = "scene_01_intro"
+            scene_file = project_dir / f"{scene_id}.py"
+            configured_cache = project_dir / "custom_voice_cache"
+            (project_dir / "voice_clone_config.json").write_text(
+                json.dumps({"output_dir": "custom_voice_cache"}) + "\n",
+                encoding="utf-8",
+            )
+            _write_cache(project_dir, scene_id, 20.0, configured_cache)
+            _write_scene(
+                scene_file,
+                """
+class Dummy:
+    def construct(self):
+        self.play(FadeIn(title), run_time=tracker.duration * 0.5)
+        self.wait(tracker.duration * 0.2)
+""".strip(),
+            )
+
+            result = subprocess.run(
+                [
+                    "python3",
+                    str(SCRIPT_PATH),
+                    "--scene-file",
+                    str(scene_file),
+                    "--project-dir",
+                    str(project_dir),
+                    "--min-ratio",
+                    "0.90",
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+            self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
+
+    def test_malformed_voice_config_falls_back_to_default_cache(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_dir = Path(temp_dir)
+            scene_id = "scene_01_intro"
+            scene_file = project_dir / f"{scene_id}.py"
+            (project_dir / "voice_clone_config.json").write_text("{bad json", encoding="utf-8")
+            _write_cache(project_dir, scene_id, 20.0)
+            _write_scene(
+                scene_file,
+                """
+class Dummy:
+    def construct(self):
+        self.play(FadeIn(title), run_time=tracker.duration * 0.5)
+        self.wait(tracker.duration * 0.2)
+""".strip(),
+            )
+
+            result = subprocess.run(
+                [
+                    "python3",
+                    str(SCRIPT_PATH),
+                    "--scene-file",
+                    str(scene_file),
+                    "--project-dir",
+                    str(project_dir),
+                    "--min-ratio",
+                    "0.90",
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+            self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
+            self.assertIn("WARN: ignoring unreadable voice_clone_config.json", result.stdout)
 
     def test_fail_when_ratio_below_threshold(self):
         with tempfile.TemporaryDirectory() as temp_dir:

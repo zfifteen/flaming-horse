@@ -70,7 +70,7 @@ flaming-horse/
 │   ├── create_video.sh         # Canonical user entrypoint
 │   ├── update_project_state.py # State normalization authority
 │   ├── scaffold_scene.py       # Scene template generation
-│   └── scene_validation.sh    # Syntax and semantics checks
+│   └── scene_validator.py      # First-pass scene validation gates
 │
 ├── harness/                    # LLM agent harness (41 files, ~4,700 LOC)
 │   ├── cli.py                  # Command-line interface
@@ -292,7 +292,7 @@ Executed successfully:
 
 | Script | Purpose |
 |--------|---------|
-| `scene_validation.sh` | Syntax, imports, construct() body |
+| `scene_validator.py` | Scaffold, syntax, import/API, voiceover, timing, semantic gates |
 | `validate_scene_timing_budget.py` | Animation timing constraints |
 | `validate_layout.py` | Overlap detection |
 | `validate_scene_content.py` | SCRIPT[] reference checking |
